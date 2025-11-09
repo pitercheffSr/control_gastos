@@ -1,31 +1,64 @@
 <?php
 session_start();
-include '../includes/conexion.php';
+include 'db.php'; // Debe definir $conexion (mysqli)
+header('Content-Type: application/json; charset=utf-8');
 
-if (!isset($_SESSION['usuario_id'])) {
-    header("Location: ../index.php");
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo json_encode(['status'=>'error','message'=>'Método no permitido']);
     exit;
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $id_usuario = $_SESSION['usuario_id'];
-    $nombre = $_POST['nombre'];
-    $tipo = $_POST['tipo'];
-    $clasificacion = $_POST['clasificacion'];
-
-    $sql = "INSERT INTO categorias (id_usuario, nombre, tipo, clasificacion) VALUES (?, ?, ?, ?)";
-    $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("isss", $id_usuario, $nombre, $tipo, $clasificacion);
-
-    if ($stmt->execute()) {
-        $_SESSION['success'] = "Categoría guardada con éxito.";
-    } else {
-        $_SESSION['error'] = "Error al guardar la categoría.";
-    }
-
-    $stmt->close();
-    $conexion->close();
+$action = $_POST['action'] ?? '';
+if ($action === '') {
+    echo json_encode(['status'=>'error','message'=>'Acción no definida']);
+    exit;
 }
-header("Location: gestion_conceptos.php");
-exit;
-?>
+
+// Agregar categoría
+if ($action === 'add_categoria') {
+    $nombre = trim($_POST['nombre'] ?? '');
+    if ($nombre === '') exit(json_encode(['status'=>'error','message'=>'Nombre vacío']));
+    $stmt = $conexion->prepare("INSERT INTO categorias (nombre) VALUES (?)");
+    $stmt->bind_param('s', $nombre);
+    if ($stmt->execute()) {
+        echo json_encode(['status'=>'success','message'=>'Categoría agregada','id'=>$conexion->insert_id,'nombre'=>$nombre]);
+    } else {
+        echo json_encode(['status'=>'error','message'=>$stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
+
+// Agregar subcategoría
+if ($action === 'add_subcategoria') {
+    $id_categoria = intval($_POST['id_categoria'] ?? 0);
+    $nombre = trim($_POST['nombre'] ?? '');
+    if ($id_categoria <= 0 || $nombre === '') exit(json_encode(['status'=>'error','message'=>'Datos inválidos']));
+    $stmt = $conexion->prepare("INSERT INTO subcategorias (id_categoria, nombre) VALUES (?, ?)");
+    $stmt->bind_param('is', $id_categoria, $nombre);
+    if ($stmt->execute()) {
+        echo json_encode(['status'=>'success','message'=>'Subcategoría agregada','id'=>$conexion->insert_id,'nombre'=>$nombre]);
+    } else {
+        echo json_encode(['status'=>'error','message'=>$stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
+
+// Agregar sub-subcategoría
+if ($action === 'add_subsubcategoria') {
+    $id_subcategoria = intval($_POST['id_subcategoria'] ?? 0);
+    $nombre = trim($_POST['nombre'] ?? '');
+    if ($id_subcategoria <= 0 || $nombre === '') exit(json_encode(['status'=>'error','message'=>'Datos inválidos']));
+    $stmt = $conexion->prepare("INSERT INTO subsubcategorias (id_subcategoria, nombre) VALUES (?, ?)");
+    $stmt->bind_param('is', $id_subcategoria, $nombre);
+    if ($stmt->execute()) {
+        echo json_encode(['status'=>'success','message'=>'Sub-Subcategoría agregada','id'=>$conexion->insert_id,'nombre'=>$nombre]);
+    } else {
+        echo json_encode(['status'=>'error','message'=>$stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
+
+echo json_encode(['status'=>'error','message'=>'Acción desconocida']);

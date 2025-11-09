@@ -26,5 +26,7 @@
     </div>
     <!-- Enlace a Bootstrap JS -->
     <script src="js/bootstrap.bundle.min.js"></script>
+    <!-- Script de categorías y subcategorías -->
+    <script src="js/categoria_subcategoria.js"></script>
 </body>
 </html>

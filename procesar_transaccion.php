@@ -1,136 +1,138 @@
 <?php
-session_start(); // Iniciar sesión para gestionar mensajes y datos del usuario
-include 'includes/conexion.php'; // Incluir el archivo de conexión a la base de datos
+// procesar_transaccion.php
+session_start();
+include 'db.php'; // Debe definir $conn (PDO)
+header('Content-Type: application/json; charset=utf-8');
 
-// Configuración de manejo de errores
-ini_set('display_errors', 1);   // Activa la visualización de errores (útil para desarrollo)
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);           // Reporta todos los errores
-ini_set('log_errors', 1);        // Activa el registro de errores en un archivo
-ini_set('error_log', '/home/pedro/pitercheffSr/control_gastos/errores.log'); // Ruta del archivo de log
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") { // Verifica si el método de solicitud es POST
-    // Recuperar y sanitizar la descripción
-    if (isset($_POST['descripcion']) && !empty($_POST['descripcion'])) {
-        $descripcion = trim(strip_tags($_POST['descripcion'])); // Limpiar la descripción de etiquetas HTML
-        
-        // Validar la longitud de la descripción
-        if (strlen($descripcion) > 255) { // Comprobar si excede 255 caracteres
-            $_SESSION['error'] = "La descripción es demasiado larga (máximo 255 caracteres)."; // Mensaje de error
-            header("Location: dashboard.php"); // Redirigir al panel de control
-            exit;
-        }
-    } else {
-        $_SESSION['error'] = "La descripción es un campo obligatorio."; // Mensaje de error si está vacío
-        header("Location: dashboard.php");
-        exit;
-    }
-
-    // Recuperar y validar otros campos de entrada
-    $monto = isset($_POST['monto']) ? floatval($_POST['monto']) : 0; // Obtener el monto, si no existe asignar 0
-    $fecha = isset($_POST['fecha']) ? $_POST['fecha'] : ''; // Obtener la fecha o dejar vacío
-    // Tipo: por defecto 'gasto' para evitar inconsistencias si no viene del formulario
-    $tipo = isset($_POST['tipo']) && in_array($_POST['tipo'], ['ingreso', 'gasto']) ? $_POST['tipo'] : 'gasto';
-    // id de la categoría (opcional) enviado desde el formulario
-    $id_categoria = isset($_POST['id_categoria']) ? intval($_POST['id_categoria']) : 0;
-    // Origen del ingreso (cuando tipo = 'ingreso') enviado desde el formulario
-    $ingreso_origen = isset($_POST['ingreso_origen']) ? trim($_POST['ingreso_origen']) : '';
-
-    // Si el tipo es 'ingreso' no asociamos categoría: la dejamos en blanco y no se compute como gasto
-    if ($tipo === 'ingreso') {
-        $id_categoria = 0;
-        $categoria_clasificacion = null;
-    }
-
-    // Validar que el monto sea un número positivo
-    if ($monto <= 0) { // Comprueba que el monto sea mayor que cero
-        $_SESSION['error'] = "El monto debe ser un número positivo."; // Mensaje de error
-        header("Location: dashboard.php");
-        exit;
-    }
-    
-    // Validar que la fecha sea válida
-    if (!DateTime::createFromFormat('Y-m-d', $fecha)) { // Verifica el formato de fecha YYYY-MM-DD
-        $_SESSION['error'] = "Formato de fecha incorrecto. Debe ser YYYY-MM-DD."; // Mensaje de error
-        header("Location: dashboard.php");
-        exit;
-    }
-
-    // Obtener el ID del usuario que está registrando la transacción
-    $id_usuario = $_SESSION['usuario_id'];
-    // Si se proporcionó un id de categoría, obtener su clasificación (50/30/20) para almacenarla
-    $categoria_clasificacion = null;
-    if ($id_categoria > 0) {
-        $stmt_cat = $conexion->prepare("SELECT clasificacion, nombre FROM categorias WHERE id = ? LIMIT 1");
-        if ($stmt_cat) {
-            $stmt_cat->bind_param("i", $id_categoria);
-            $stmt_cat->execute();
-            $res_cat = $stmt_cat->get_result();
-            if ($fila_cat = $res_cat->fetch_assoc()) {
-                // Guardamos la clasificación (por ejemplo '50', '30', '20') que usa el dashboard
-                $categoria_clasificacion = $fila_cat['clasificacion'];
-                // Excluir categoría llamada exactamente 'Sueldo' de la regla 50%: si el nombre es 'Sueldo'
-                // y la clasificación fuera '50', no la guardamos como '50' para el cálculo (la dejamos NULL)
-                if (strtolower(trim($fila_cat['nombre'])) === 'sueldo' && $categoria_clasificacion == '50') {
-                    // Forzamos a NULL para que no sume dentro de 50%
-                    $categoria_clasificacion = null;
-                }
-            }
-            $stmt_cat->close();
-        }
-    }
-
-    // Obtener subcategoría y sub-subcategoría
-    $id_subcategoria = isset($_POST['subcategoria']) && $_POST['subcategoria'] !== '' ? intval($_POST['subcategoria']) : null;
-    $id_subsubcategoria = isset($_POST['subsubcategoria']) && $_POST['subsubcategoria'] !== '' ? intval($_POST['subsubcategoria']) : null;
-
-    // Validar la jerarquía si se seleccionó sub-subcategoría
-    if ($id_subsubcategoria) {
-        $stmt = $conexion->prepare("SELECT id FROM subcategorias WHERE id = ? AND parent_id = ? AND id_usuario = ?");
-        $stmt->bind_param("iii", $id_subsubcategoria, $id_subcategoria, $id_usuario);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if ($res->num_rows === 0) {
-            $_SESSION['error'] = "Sub-subcategoría no válida.";
-            header("Location: dashboard.php");
-            exit;
-        }
-        $stmt->close();
-    }
-    // Validar subcategoría si no hay sub-subcategoría
-    if ($id_subcategoria && !$id_subsubcategoria) {
-        $stmt = $conexion->prepare("SELECT id FROM subcategorias WHERE id = ? AND parent_id IS NULL AND id_usuario = ?");
-        $stmt->bind_param("ii", $id_subcategoria, $id_usuario);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if ($res->num_rows === 0) {
-            $_SESSION['error'] = "Subcategoría no válida.";
-            header("Location: dashboard.php");
-            exit;
-        }
-        $stmt->close();
-    }
-
-    // Preparar la consulta SQL para insertar una nueva transacción
-    $stmt = $conexion->prepare("INSERT INTO transacciones (descripcion, monto, fecha, id_usuario, tipo, categoria, id_categoria, id_subcategoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    if ($stmt) {
-        if ($tipo === 'ingreso') {
-            $categoria_param = $ingreso_origen !== '' ? $ingreso_origen : '';
-        } else {
-            $categoria_param = $categoria_clasificacion !== null ? $categoria_clasificacion : '';
-        }
-        // Guardar la categoría principal, subcategoría y sub-subcategoría (si existe)
-        $final_subcat = $id_subsubcategoria ? $id_subsubcategoria : ($id_subcategoria ? $id_subcategoria : null);
-        $stmt->bind_param("sdsissii", $descripcion, $monto, $fecha, $id_usuario, $tipo, $categoria_param, $id_categoria, $final_subcat);
-        if ($stmt->execute()) {
-            $_SESSION['success_transaccion'] = "Transacción registrada exitosamente.";
-        } else {
-            $_SESSION['error'] = "Ocurrió un error al registrar la transacción: " . $stmt->error;
-        }
-        $stmt->close();
-    } else {
-        $_SESSION['error'] = "Error en la preparación de la consulta de transacción.";
-    }
-    header("Location: dashboard.php");
-    exit; // Terminar la ejecución
+if (!isset($_SESSION['usuario_id'])) {
+    echo json_encode(['status' => 'error', 'message' => 'Usuario no autenticado.']);
+    exit;
 }
+
+$id_usuario = $_SESSION['usuario_id'];
+
+// Helper: respuesta JSON
+function respond($status, $message, $data = null) {
+    echo json_encode(['status' => $status, 'message' => $message, 'data' => $data]);
+    exit;
+}
+
+// Comprobar método
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($method !== 'POST') {
+    respond('error', 'Solicitud inválida.');
+}
+
+// Recibir acción
+$action = $_POST['action'] ?? '';
+
+try {
+    if ($action === 'delete') {
+        $id = intval($_POST['id'] ?? 0);
+        if ($id <= 0) respond('error', 'ID de transacción no válido.');
+
+        $stmt = $conn->prepare("DELETE FROM transacciones WHERE id = :id AND id_usuario = :id_usuario");
+        $stmt->execute(['id' => $id, 'id_usuario' => $id_usuario]);
+
+        respond('success', 'Transacción eliminada.', ['id' => $id]);
+
+    } else {
+        // Campos recibidos
+        $descripcion = trim($_POST['descripcion'] ?? '');
+        $monto = filter_var($_POST['monto'] ?? 0, FILTER_VALIDATE_FLOAT);
+        $fecha = $_POST['fecha'] ?? '';
+        $tipo = in_array($_POST['tipo'] ?? '', ['ingreso','gasto']) ? $_POST['tipo'] : 'gasto';
+        $id_categoria = intval($_POST['id_categoria'] ?? 0) ?: null;
+        $id_subcategoria = intval($_POST['subcategoria'] ?? 0) ?: null;
+        $id_subsubcategoria = intval($_POST['subsubcategoria'] ?? 0) ?: null;
+        $ingreso_origen = trim($_POST['ingreso_origen'] ?? '');
+
+        // Validaciones
+        if ($descripcion === '') respond('error', 'La descripción es obligatoria.');
+        if ($monto === false || $monto <= 0) respond('error', 'El monto debe ser positivo.');
+        $d = DateTime::createFromFormat('Y-m-d', $fecha);
+        if (!($d && $d->format('Y-m-d') === $fecha)) respond('error', 'Formato de fecha incorrecto.');
+
+        // Obtener clasificación/nombre categoría
+        $categoria_param = 'Sin categoría';
+        if ($tipo === 'ingreso') {
+            $categoria_param = $ingreso_origen !== '' ? $ingreso_origen : 'Ingreso';
+            $id_categoria = null;
+        } elseif ($id_categoria) {
+            $stmtc = $conn->prepare("SELECT nombre, clasificacion FROM categorias WHERE id = :id LIMIT 1");
+            $stmtc->execute(['id' => $id_categoria]);
+            $row = $stmtc->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $categoria_param = $row['clasificacion'] ?: $row['nombre'];
+            }
+        }
+
+        $edit_id = intval($_POST['id'] ?? 0);
+
+        if ($edit_id > 0) {
+            // UPDATE
+            $stmt = $conn->prepare("
+                UPDATE transacciones SET
+                    descripcion = :descripcion,
+                    monto = :monto,
+                    fecha = :fecha,
+                    tipo = :tipo,
+                    categoria = :categoria,
+                    id_categoria = :id_categoria,
+                    id_subcategoria = :id_subcategoria,
+                    id_subsubcategoria = :id_subsubcategoria
+                WHERE id = :id AND id_usuario = :id_usuario
+            ");
+            $stmt->execute([
+                'descripcion' => $descripcion,
+                'monto' => $monto,
+                'fecha' => $fecha,
+                'tipo' => $tipo,
+                'categoria' => $categoria_param,
+                'id_categoria' => $id_categoria,
+                'id_subcategoria' => $id_subcategoria,
+                'id_subsubcategoria' => $id_subsubcategoria,
+                'id' => $edit_id,
+                'id_usuario' => $id_usuario
+            ]);
+
+            // Devolver la fila actualizada
+            $stmt = $conn->prepare("SELECT * FROM transacciones WHERE id = :id AND id_usuario = :id_usuario");
+            $stmt->execute(['id' => $edit_id, 'id_usuario' => $id_usuario]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            respond('success', 'Transacción actualizada.', $row);
+
+        } else {
+            // INSERT
+            $stmt = $conn->prepare("
+                INSERT INTO transacciones
+                (descripcion, monto, fecha, tipo, categoria, id_usuario, id_categoria, id_subcategoria, id_subsubcategoria)
+                VALUES
+                (:descripcion, :monto, :fecha, :tipo, :categoria, :id_usuario, :id_categoria, :id_subcategoria, :id_subsubcategoria)
+            ");
+            $stmt->execute([
+                'descripcion' => $descripcion,
+                'monto' => $monto,
+                'fecha' => $fecha,
+                'tipo' => $tipo,
+                'categoria' => $categoria_param,
+                'id_usuario' => $id_usuario,
+                'id_categoria' => $id_categoria,
+                'id_subcategoria' => $id_subcategoria,
+                'id_subsubcategoria' => $id_subsubcategoria
+            ]);
+
+            $new_id = $conn->lastInsertId();
+            $stmt = $conn->prepare("SELECT * FROM transacciones WHERE id = :id AND id_usuario = :id_usuario");
+            $stmt->execute(['id' => $new_id, 'id_usuario' => $id_usuario]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            respond('success', 'Transacción registrada.', $row);
+        }
+
+    }
+
+} catch (PDOException $e) {
+    respond('error', 'Error en base de datos: ' . $e->getMessage());
+}
+?>
