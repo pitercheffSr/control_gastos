@@ -1,5 +1,5 @@
 <?php
-// get_categorias.php — Devuelve categorías, subcategorías y subsubcategorías
+// load_categorias.php — Devuelve categorías, subcategorías y subsubcategorías
 require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json');

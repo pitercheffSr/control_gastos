@@ -80,9 +80,13 @@ define('FROM_DASHBOARD', true);
         </div>
       </div>
         <div class="text-end mb-3">
-            <a href="categorias.php" class="btn btn-outline-secondary">
-              <i class="bi bi-tags"></i> Gestionar Categorías
-            </a>
+         <!-- <a href="gestion_categorias.php" class="btn btn-outline-secondary">
+            <i class="bi bi-tags"></i> Gestionar Categorías
+          </a> -->
+          <a href="gestion_categorias.php" class="btn btn-outline-secondary">
+            <i class="bi bi-tags"></i> Gestionar Categorías
+          </a>
+
         </div>
 
 
@@ -120,5 +124,60 @@ define('FROM_DASHBOARD', true);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="js/dashboard.js"></script>
+<script>
+// 🔹 Cargar categorías principales al abrir el dashboard
+document.addEventListener('DOMContentLoaded', () => {
+  cargarCategorias();
+  document.getElementById('categoria').addEventListener('change', cargarSubcategorias);
+  document.getElementById('subcategoria').addEventListener('change', cargarSubsubcategorias);
+});
+
+function cargarCategorias() {
+  fetch('load_categorias.php?nivel=categorias')
+    .then(r => r.json())
+    .then(data => {
+      const sel = document.getElementById('categoria');
+      sel.innerHTML = '<option value="">Selecciona...</option>';
+      data.forEach(cat => {
+        sel.innerHTML += `<option value="${cat.id}">${cat.nombre}</option>`;
+      });
+    });
+}
+
+function cargarSubcategorias() {
+  const idCategoria = document.getElementById('categoria').value;
+  const sel = document.getElementById('subcategoria');
+  const selSubSub = document.getElementById('subsubcategoria');
+  sel.innerHTML = '<option value="">Selecciona...</option>';
+  selSubSub.innerHTML = '<option value="">Selecciona...</option>';
+
+  if (!idCategoria) return;
+
+  fetch(`load_categorias.php?nivel=subcategorias&padre=${idCategoria}`)
+    .then(r => r.json())
+    .then(data => {
+      data.forEach(sc => {
+        sel.innerHTML += `<option value="${sc.id}">${sc.nombre}</option>`;
+      });
+    });
+}
+
+function cargarSubsubcategorias() {
+  const idSub = document.getElementById('subcategoria').value;
+  const sel = document.getElementById('subsubcategoria');
+  sel.innerHTML = '<option value="">Selecciona...</option>';
+
+  if (!idSub) return;
+
+  fetch(`load_categorias.php?nivel=subsubcategorias&padre=${idSub}`)
+    .then(r => r.json())
+    .then(data => {
+      data.forEach(ssc => {
+        sel.innerHTML += `<option value="${ssc.id}">${ssc.nombre}</option>`;
+      });
+    });
+}
+</script>
+
 </body>
 </html>

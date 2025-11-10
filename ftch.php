@@ -1,7 +1,7 @@
 <?php
 // ftch.php — Listar transacciones y permitir eliminar/editar
 
-if (session_status() === PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
     session_start();
 }
 

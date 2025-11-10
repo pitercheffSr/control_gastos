@@ -154,7 +154,7 @@ document.getElementById('categoria_for_subsub').addEventListener('change', funct
     const subSelect = document.getElementById('subcategoria_for_subsub');
     subSelect.innerHTML = '<option value="">Cargando...</option>';
 
-    fetch('obtener_subcategorias.php?id_categoria=' + catId)
+fetch('load_categorias.php?nivel=subcategorias&padre=' + catId)
         .then(resp => resp.json())
         .then(data => {
             subSelect.innerHTML = '<option value="">Selecciona subcategoría</option>';

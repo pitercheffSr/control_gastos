@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function cargarCategorias() {
   try {
-    const resp = await fetch("get_categorias.php");
+    const resp = await fetch("load_categorias.php");
     const data = await resp.json();
 
     const selCat = document.getElementById("categoria");
