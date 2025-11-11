@@ -108,7 +108,7 @@ $subsubcategorias = $conn->query("SELECT * FROM subsubcategorias ORDER BY nombre
       <ul class="list-group">
         <?php foreach ($subcategorias as $sub): ?>
           <li class="list-group-item d-flex justify-content-between align-items-center">
-            <?= htmlspecialchars($sub['nombre']) ?> <span class="text-muted">(Cat ID <?= $sub['id_categoria'] ?>)</span>
+            <?= htmlspecialchars($sub['categoria_nombre']) ?> → <?= htmlspecialchars($sub['nombre']) ?>
             <button name="eliminar_subcategoria" value="<?= $sub['id'] ?>" class="btn btn-sm btn-danger"
                     formmethod="POST" formaction="gestion_categorias.php">
               <i class="bi bi-trash"></i>
@@ -142,7 +142,7 @@ $subsubcategorias = $conn->query("SELECT * FROM subsubcategorias ORDER BY nombre
       <ul class="list-group">
         <?php foreach ($subsubcategorias as $ssc): ?>
           <li class="list-group-item d-flex justify-content-between align-items-center">
-            <?= htmlspecialchars($ssc['nombre']) ?> <span class="text-muted">(SubCat ID <?= $ssc['id_subcategoria'] ?>)</span>
+            <?= htmlspecialchars($ssc['subcategoria_nombre']) ?> → <?= htmlspecialchars($ssc['nombre']) ?>
             <button name="eliminar_subsubcategoria" value="<?= $ssc['id'] ?>" class="btn btn-sm btn-danger"
                     formmethod="POST" formaction="gestion_categorias.php">
               <i class="bi bi-trash"></i>
