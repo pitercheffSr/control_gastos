@@ -1,0 +1,6 @@
+# Ignorar tokens y archivos archivados con credenciales
+token_github/token
+archivado_no_usado/token
+
+# Node / vendor etc (no tocar vendor si ya está en .gitignore global)
+vendor/
