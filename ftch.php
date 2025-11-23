@@ -1,67 +1,84 @@
 <?php
-// ftch.php — Listar transacciones y permitir eliminar/editar
-
-if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-    session_start();
-}
-
-require_once __DIR__ . '/db.php'; // Asegura la conexión PDO
-
-if (!isset($_SESSION['usuario_id'])) {
-    if (!defined('FROM_DASHBOARD')) {
-        echo "<tr><td colspan='6'>Debe iniciar sesión.</td></tr>";
-    }
+require_once 'db.php';
+if (!isset($conn)) {
+    echo "<tr><td colspan='2'>Error DB</td></tr>";
     exit;
 }
 
-$id_usuario = $_SESSION['usuario_id'];
+// Para que desde dashboard.php se limiten columnas
+$soloDashboard = defined('FROM_DASHBOARD');
 
 try {
-    // 🔹 Obtener las transacciones del usuario
     $stmt = $conn->prepare("
-        SELECT t.id, t.fecha, t.descripcion, t.tipo, t.categoria, t.monto,
-               c.nombre AS categoria_nombre,
-               sc.nombre AS subcategoria_nombre,
-               ssc.nombre AS subsubcategoria_nombre
+        SELECT 
+            t.id,
+            t.fecha,
+            t.monto,
+            t.tipo,
+
+            c1.nombre AS nivel1,
+            c2.nombre AS nivel2,
+            c3.nombre AS nivel3,
+            c4.nombre AS nivel4
+
         FROM transacciones t
-        LEFT JOIN categorias c ON t.id_categoria = c.id
-        LEFT JOIN subcategorias sc ON t.id_subcategoria = sc.id
-        LEFT JOIN subsubcategorias ssc ON t.id_subsubcategoria = ssc.id
-        WHERE t.id_usuario = :id_usuario
+        LEFT JOIN categorias c1 ON t.id_categoria = c1.id
+        LEFT JOIN categorias c2 ON t.subcategoria = c2.id
+        LEFT JOIN categorias c3 ON t.subsubcategoria = c3.id
+        LEFT JOIN categorias c4 ON t.concepto = c4.id
+        WHERE t.id_usuario = :id
         ORDER BY t.fecha DESC, t.id DESC
+        LIMIT 200
     ");
-    $stmt->execute(['id_usuario' => $id_usuario]);
-    $transacciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // ✅ Solo imprimir si estamos dentro del <tbody> (dashboard)
-    if (defined('FROM_DASHBOARD')) {
-        if (empty($transacciones)) {
-            echo "<tr><td colspan='6' class='text-center text-muted'>No hay transacciones registradas.</td></tr>";
-        } else {
-            foreach ($transacciones as $t) {
-                echo "<tr>";
-                echo "<td>" . htmlspecialchars($t['fecha']) . "</td>";
-                echo "<td>" . htmlspecialchars($t['categoria_nombre'] ?? $t['categoria']) . "</td>";
-                echo "<td>" . htmlspecialchars($t['subcategoria_nombre'] ?? '') . "</td>";
-                echo "<td>" . htmlspecialchars($t['subsubcategoria_nombre'] ?? '') . "</td>";
-                echo "<td class='text-end'>" . number_format($t['monto'], 2, ',', '.') . "</td>";
-                echo "<td class='text-center'>
-                        <button class='btn btn-sm btn-danger eliminar' data-id='" . $t['id'] . "' title='Eliminar'>
-                            <i class='bi bi-trash'></i>
-                        </button>
-                      </td>";
-                echo "</tr>";
-            }
+    $stmt->execute([
+        ":id" => $_SESSION["usuario_id"]
+    ]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$rows) {
+        echo "<tr><td colspan='2' class='text-center text-muted py-3'>Sin movimientos</td></tr>";
+        exit;
+    }
+
+    foreach ($rows as $r) {
+
+        if ($soloDashboard) {
+
+            // COLUMNA RESUMIDA PARA EL DASHBOARD
+            $texto = $r['nivel1'];
+
+            if ($r['nivel2']) $texto .= " → " . $r['nivel2'];
+            if ($r['nivel3']) $texto .= " → " . $r['nivel3'];
+            if ($r['nivel4']) $texto .= " → " . $r['nivel4'];
+
+            echo "
+            <tr>
+                <td>".htmlspecialchars($r['fecha'])."<br>
+                    <small class='text-muted'>".htmlspecialchars($texto)."</small>
+                </td>
+                <td class='text-end'>
+                    ".number_format($r['monto'], 2, ',', '.')."
+                </td>
+            </tr>";
         }
-    } else {
-        // 🚀 Si se usa por AJAX, devolver JSON
-        echo json_encode($transacciones);
+
+        else {
+
+            // MODO TABLA COMPLETA (si abres ftch.php directamente)
+            echo "
+            <tr>
+                <td>{$r['fecha']}</td>
+                <td>{$r['nivel1']}</td>
+                <td>{$r['nivel2']}</td>
+                <td>{$r['nivel3']}</td>
+                <td>{$r['nivel4']}</td>
+                <td>{$r['monto']}</td>
+            </tr>";
+        }
     }
 
-} catch (PDOException $e) {
-    if (defined('FROM_DASHBOARD')) {
-        echo "<tr><td colspan='6' class='text-danger'>Error al cargar transacciones.</td></tr>";
-    } else {
-        echo json_encode(['error' => $e->getMessage()]);
-    }
+} catch (Exception $e) {
+    echo "<tr><td colspan='2'>Error: ".$e->getMessage()."</td></tr>";
 }

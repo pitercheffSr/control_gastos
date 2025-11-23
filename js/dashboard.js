@@ -1,100 +1,87 @@
+// js/dashboard.js
 document.addEventListener('DOMContentLoaded', () => {
-  cargarCategorias();
-  const selCat = document.getElementById('categoria');
-  const selSub = document.getElementById('subcategoria');
-  const selSsc = document.getElementById('subsubcategoria');
+  const selTipo = document.getElementById('tipo');
+  const selN1   = document.getElementById('categoria');
+  const selN2   = document.getElementById('subcategoria');
+  const selN3   = document.getElementById('subsubcategoria');
 
-  if (!selCat || !selSub || !selSsc) {
-    console.error('Select elements not found: check ids "categoria", "subcategoria", "subsubcategoria"');
+  if (!selTipo || !selN1) {
+    console.error('Elementos tipo/categoria no encontrados.');
     return;
   }
 
-  selCat.addEventListener('change', () => {
-    cargarSubcategorias(selCat.value);
+  // evento: cuando cambie tipo (gasto/ingreso) recargar nivel1
+  selTipo.addEventListener('change', () => {
+    limpiarSelect(selN1);
+    limpiarSelect(selN2);
+    limpiarSelect(selN3);
+    cargarNivel1(selTipo.value);
   });
-  selSub.addEventListener('change', () => {
-    cargarSubsubcategorias(selSub.value);
+
+  // evento: cuando cambie nivel1 -> cargar nivel2
+  selN1.addEventListener('change', () => {
+    limpiarSelect(selN2);
+    limpiarSelect(selN3);
+    if (selN1.value) cargarNivel(2, selN1.value, selN2);
   });
+
+  // evento: cuando cambie nivel2 -> cargar nivel3
+  selN2.addEventListener('change', () => {
+    limpiarSelect(selN3);
+    if (selN2.value) cargarNivel(3, selN2.value, selN3);
+  });
+
+  // inicial: si hay un tipo seleccionado por defecto, cargar
+  if (selTipo.value) cargarNivel1(selTipo.value);
 });
 
-function safeFetchJson(url) {
-  return fetch(url)
-    .then(r => {
-      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + r.statusText);
-      return r.json();
-    })
-    .catch(err => {
-      console.error('Fetch error for', url, err);
-      throw err;
-    });
+// helpers
+function limpiarSelect(sel) {
+  sel.innerHTML = '<option value="">Selecciona...</option>';
 }
 
-function cargarCategorias() {
-  safeFetchJson('load_categorias.php?nivel=categorias')
+function cargarNivel1(tipo) {
+  const sel = document.getElementById('categoria');
+  sel.innerHTML = '<option value="">Cargando...</option>';
+
+  fetch(`load_categorias.php?nivel=nivel1&tipo=${encodeURIComponent(tipo)}`)
+    .then(r => r.json())
     .then(data => {
-      console.log('categorias recibidas:', data);
-      const sel = document.getElementById('categoria');
       sel.innerHTML = '<option value="">Selecciona...</option>';
       if (!Array.isArray(data)) return;
-      // usar fragmento para minimizar repaints
       const frag = document.createDocumentFragment();
-      data.forEach(cat => {
-        const opt = document.createElement('option');
-        opt.value = cat.id;
-        opt.textContent = cat.nombre;
-        frag.appendChild(opt);
+      data.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.id;
+        o.textContent = x.nombre;
+        frag.appendChild(o);
       });
       sel.appendChild(frag);
     })
     .catch(err => {
-      // deja el select con una opción de error
-      const sel = document.getElementById('categoria');
-      if (sel) sel.innerHTML = '<option value="">Error cargando categorías</option>';
+      console.error('Error cargarNivel1', err);
+      sel.innerHTML = '<option value="">Error cargando categorías</option>';
     });
 }
 
-function cargarSubcategorias(idCategoria) {
-  const sel = document.getElementById('subcategoria');
-  const selSubSub = document.getElementById('subsubcategoria');
-  sel.innerHTML = '<option value="">Selecciona...</option>';
-  selSubSub.innerHTML = '<option value="">Selecciona...</option>';
-  if (!idCategoria) return;
-
-  safeFetchJson(`load_categorias.php?nivel=subcategorias&padre=${encodeURIComponent(idCategoria)}`)
+function cargarNivel(nivel, padre, destinoSelect) {
+  destinoSelect.innerHTML = '<option value="">Cargando...</option>';
+  fetch(`load_categorias.php?nivel=nivel${nivel}&padre=${encodeURIComponent(padre)}`)
+    .then(r => r.json())
     .then(data => {
-      console.log('subcategorias recibidas para', idCategoria, data);
+      destinoSelect.innerHTML = '<option value="">Selecciona...</option>';
+      if (!Array.isArray(data)) return;
       const frag = document.createDocumentFragment();
-      data.forEach(sc => {
-        const opt = document.createElement('option');
-        opt.value = sc.id;
-        opt.textContent = sc.nombre;
-        frag.appendChild(opt);
+      data.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.id;
+        o.textContent = x.nombre;
+        frag.appendChild(o);
       });
-      sel.appendChild(frag);
+      destinoSelect.appendChild(frag);
     })
     .catch(err => {
-      if (sel) sel.innerHTML = '<option value="">Error cargando subcategorías</option>';
-    });
-}
-
-function cargarSubsubcategorias(idSub) {
-  const sel = document.getElementById('subsubcategoria');
-  sel.innerHTML = '<option value="">Selecciona...</option>';
-  if (!idSub) return;
-
-  safeFetchJson(`load_categorias.php?nivel=subsubcategorias&padre=${encodeURIComponent(idSub)}`)
-    .then(data => {
-      console.log('subsubcategorias recibidas para', idSub, data);
-      const frag = document.createDocumentFragment();
-      data.forEach(ssc => {
-        const opt = document.createElement('option');
-        opt.value = ssc.id;
-        opt.textContent = ssc.nombre;
-        frag.appendChild(opt);
-      });
-      sel.appendChild(frag);
-    })
-    .catch(err => {
-      if (sel) sel.innerHTML = '<option value="">Error cargando sub-subcategorías</option>';
+      console.error('Error cargarNivel', nivel, err);
+      destinoSelect.innerHTML = '<option value="">Error cargando</option>';
     });
 }

@@ -1,0 +1,11 @@
+/* dashboard_custom.css - estilo ligero y moderno */
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+.card { border-radius: .6rem; }
+.table-sm td, .table-sm th { padding: .45rem .6rem; }
+.card-header { font-weight: 600; font-size: .95rem; }
+.overflow-auto { scrollbar-width: thin; }
+
+/* responsive tweaks */
+@media (min-width: 992px) {
+  main { min-height: 80vh; }
+}

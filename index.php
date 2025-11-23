@@ -29,4 +29,5 @@
     <!-- Script de categorías y subcategorías -->
     <script src="js/categoria_subcategoria.js"></script>
 </body>
+
 </html>
