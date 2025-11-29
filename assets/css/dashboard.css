@@ -1,0 +1,7 @@
+:root{
+  --sidebar-bg: #0f1720;
+  --sidebar-fg: #cbd5e1;
+  --accent: #7c3aed;
+}
+body{background:#f6f8fb;font-family:Inter,system-ui;}
+/* ... full CSS ... */

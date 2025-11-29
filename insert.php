@@ -13,56 +13,36 @@ if (!isset($_SESSION['usuario_id'])) {
 
 $id_usuario = intval($_SESSION['usuario_id']);
 
+// Recibir datos del formulario
 $fecha = $_POST['fecha'] ?? '';
 $monto = $_POST['monto'] ?? '';
-$tipo  = $_POST['tipo'] ?? ''; // 'gasto' o 'ingreso'
-$id_cat = !empty($_POST['id_categoria']) ? intval($_POST['id_categoria']) : null;
-$id_sub = !empty($_POST['subcategoria']) ? intval($_POST['subcategoria']) : null;
-$id_ssc = !empty($_POST['subsubcategoria']) ? intval($_POST['subsubcategoria']) : null;
-$concepto = isset($_POST['concepto']) ? trim($_POST['concepto']) : '';
-$descripcion = $concepto; // puedes ajustarlo: descripción = concepto
+$tipo = $_POST['tipo'] ?? '';
+$descripcion = $_POST['descripcion'] ?? '';
+$id_categoria = !empty($_POST['id_categoria']) ? intval($_POST['id_categoria']) : null;
 
-// Validaciones simples
+// Validaciones básicas
 if (!$fecha || !$monto || !$tipo) {
-    $_SESSION['error'] = "Fecha, monto y tipo son obligatorios.";
-    header('Location: dashboard.php');
+    $_SESSION['error'] = "Faltan datos obligatorios.";
+    header("Location: dashboard.php");
     exit;
 }
 
-// normalizar monto
-$monto_val = filter_var($monto, FILTER_VALIDATE_FLOAT);
-if ($monto_val === false) $monto_val = 0;
-
 try {
-    $sql = "INSERT INTO transacciones
-            (id_usuario, fecha, monto, tipo, categoria, id_categoria, id_subcategoria, id_subsubcategoria, descripcion)
-            VALUES (:id_usuario, :fecha, :monto, :tipo, :categoria_text, :id_cat, :id_sub, :id_ssc, :descripcion)";
 
-    // Para el campo "categoria" guardamos el nombre de la categoría raíz o 'Ingreso' para ingresos
-    $categoria_text = 'Sin categoría';
-    if ($tipo === 'ingreso') {
-        $categoria_text = $concepto !== '' ? $concepto : 'Ingreso';
-    } else {
-        // intentar tomar nombre de la categoría raíz si existe
-        if ($id_cat) {
-            $q = $conn->prepare("SELECT nombre FROM categorias WHERE id = :id LIMIT 1");
-            $q->execute(['id' => $id_cat]);
-            $r = $q->fetch(PDO::FETCH_ASSOC);
-            if ($r) $categoria_text = $r['nombre'];
-        }
-    }
+    $sql = "INSERT INTO transacciones 
+            (id_usuario, fecha, monto, tipo, descripcion, id_categoria)
+            VALUES 
+            (:id_usuario, :fecha, :monto, :tipo, :descripcion, :id_categoria)";
 
     $stmt = $conn->prepare($sql);
+
     $stmt->execute([
-        'id_usuario' => $id_usuario,
-        'fecha' => $fecha,
-        'monto' => $monto_val,
-        'tipo' => $tipo,
-        'categoria_text' => $categoria_text,
-        'id_cat' => $id_cat,
-        'id_sub' => $id_sub,
-        'id_ssc' => $id_ssc,
-        'descripcion' => $descripcion
+        ':id_usuario' => $id_usuario,
+        ':fecha' => $fecha,
+        ':monto' => floatval($monto),
+        ':tipo' => $tipo,
+        ':descripcion' => $descripcion,
+        ':id_categoria' => $id_categoria
     ]);
 
     $_SESSION['success'] = "Transacción guardada.";

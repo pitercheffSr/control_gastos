@@ -5,6 +5,7 @@
 //   id | nombre | parent_id | tipo ('gasto','ingreso' o NULL)
 // ─────────────────────────────────────────────────────────────
 
+
 session_start();
 require_once __DIR__ . '/db.php'; 
 
@@ -14,6 +15,20 @@ if (!isset($conn) || !($conn instanceof PDO)) {
 }
 
 $db = $conn;
+
+/** @var PDO $conn */
+
+// Función para borrar recursivamente una rama de categorías
+function borrarRama($db, $id) {
+  $st = $db->prepare("SELECT id FROM categorias WHERE parent_id = ?");
+  $st->execute([$id]);
+  $hijos = $st->fetchAll(PDO::FETCH_COLUMN);
+
+  foreach ($hijos as $h) borrarRama($db, $h);
+
+  $st2 = $db->prepare("DELETE FROM categorias WHERE id = ?");
+  $st2->execute([$id]);
+}
 
 // ─────────────────────────────────────────────────────────────
 // MANEJO DE ACCIONES POST
@@ -36,7 +51,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_root') {
     exit;
 }
 
-// AÑADIR CATEGORÍA HIJA  (sin tipo)
+// AÑADIR CATEGORÍA HIJA  (hereda tipo)
 if (isset($_POST['action']) && $_POST['action'] === 'add_child') {
 
     $nombre = trim($_POST['nombre_child']);
@@ -46,12 +61,24 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_child') {
         die("Error: datos inválidos");
     }
 
-    $st = $db->prepare("INSERT INTO categorias (nombre, parent_id, tipo) VALUES (:n, :p, NULL)");
-    $st->execute(['n' => $nombre, 'p' => $parent]);
+    // obtener tipo del padre
+    $st = $db->prepare("SELECT tipo FROM categorias WHERE id = :p LIMIT 1");
+    $st->execute(['p' => $parent]);
+    $tipo_padre = $st->fetchColumn();
+
+    if (!$tipo_padre) {
+        die("Error: categoría padre no encontrada");
+    }
+
+    // insertar con el mismo tipo
+    $st = $db->prepare("INSERT INTO categorias (nombre, parent_id, tipo)
+                        VALUES (:n, :p, :t)");
+    $st->execute(['n' => $nombre, 'p' => $parent, 't' => $tipo_padre]);
 
     header("Location: gestion_categorias.php");
     exit;
 }
+
 
 // ELIMINAR CATEGORÍA
 if (isset($_POST['action']) && $_POST['action'] === 'delete') {
@@ -61,19 +88,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'delete') {
     if ($id <= 0) die("Error: ID inválido");
 
     // Se borran primero los hijos (recursivo manual)
-    function borrarRama($db, $id) {
-        // borrar hijos
-        $st = $db->prepare("SELECT id FROM categorias WHERE parent_id = ?");
-        $st->execute([$id]);
-        $hijos = $st->fetchAll(PDO::FETCH_COLUMN);
-
-        foreach ($hijos as $h) borrarRama($db, $h);
-
-        // borrar este nodo
-        $st2 = $db->prepare("DELETE FROM categorias WHERE id = ?");
-        $st2->execute([$id]);
-    }
-
+    // Usar la función global `borrarRama` definida arriba
     borrarRama($db, $id);
 
     header("Location: gestion_categorias.php");

@@ -16,10 +16,11 @@ try {
         PDO::ATTR_EMULATE_PREPARES   => false
     ]);
 } catch (PDOException $e) {
-    // Enviar error si se llama desde AJAX
     if (isset($_GET['debug'])) {
         die(json_encode(['db_error' => $e->getMessage()]));
     }
     die("Error de conexión a la base de datos.");
 }
+
+$pdo = $conn;   //  ← ← ← AÑADIR ESTA LÍNEA
 ?>
