@@ -124,41 +124,44 @@ $tree = buildTree($cats);
 <title>Gestión Categorías</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
 
 <style>
 .cat-root{background:#dceeff;border-left:4px solid #0d6efd;padding:10px;margin-bottom:10px;}
 .cat-child{background:#fff4d8;border-left:4px solid #ffc107;padding:10px;margin:6px 0 6px 25px;}
 .cat-sub{background:#e1fff2;border-left:4px solid #20c997;padding:10px;margin:6px 0 6px 50px;}
-.btn-sm{padding:2px 6px;}
+.container{max-width:1200px;margin:0 auto;padding:0 1rem;}
+.flex-row{display:flex;gap:0.5rem;align-items:center;}
+.flex-between{display:flex;justify-content:space-between;align-items:center;}
 </style>
 </head>
 
-<body class="bg-light">
-<div class="container py-4">
-<h2 class="mb-3">Gestión de Categorías</h2>
+<body>
+<div class="container" style="padding-top:2rem;">
+<h2>Gestión de Categorías</h2>
 
 <!-- ────────────────────────────────────────────── -->
 <!-- NUEVA CATEGORÍA RAÍZ -->
 <!-- ────────────────────────────────────────────── -->
-<div class="card mb-4">
-  <div class="card-header bg-primary text-white">Añadir categoría raíz</div>
+<div class="card" style="margin-bottom:2rem;">
+  <div class="card-header" style="background:#5755d2;color:white;">Añadir categoría raíz</div>
   <div class="card-body">
-    <form method="POST" class="row g-2">
+    <form method="POST" class="flex-row">
       <input type="hidden" name="action" value="add_root">
-      <div class="col-md-5">
-        <input type="text" name="nombre_root" class="form-control" placeholder="Nombre categoría" required>
+      <div style="flex:1;max-width:300px;">
+        <input type="text" name="nombre_root" class="form-input" placeholder="Nombre categoría" required>
       </div>
-      <div class="col-md-3">
-        <select name="tipo_root" class="form-select" required>
+      <div style="flex:1;max-width:200px;">
+        <select name="tipo_root" class="form-input" required>
           <option value="">Tipo...</option>
           <option value="gasto">Gasto</option>
           <option value="ingreso">Ingreso</option>
         </select>
       </div>
-      <div class="col-md-3">
-        <button class="btn btn-success"><i class="bi bi-plus-lg"></i> Crear</button>
+      <div>
+        <button class="btn btn-primary"><i class="icon icon-plus"></i> Crear</button>
       </div>
     </form>
   </div>
@@ -168,11 +171,11 @@ $tree = buildTree($cats);
 <!-- LISTA JERÁRQUICA -->
 <!-- ────────────────────────────────────────────── -->
 <div class="card">
-  <div class="card-header bg-secondary text-white">Estructura de categorías</div>
+  <div class="card-header" style="background:#32b643;color:white;">Estructura de categorías</div>
   <div class="card-body">
 
 <?php if (empty($tree)): ?>
-  <p class="text-muted">No hay categorías.</p>
+  <p style="color:#666;">No hay categorías.</p>
 <?php endif; ?>
 
 <?php
@@ -185,27 +188,27 @@ function renderNode($nodo, $nivel = 1){
     echo "<div><strong>".htmlspecialchars($nodo['nombre'])."</strong>";
 
     if ($nivel === 1)
-        echo " <span class='badge bg-dark ms-2'>".$nodo['tipo']."</span>";
+        echo " <span class='label' style='background:#5755d2;color:white;margin-left:0.5rem;'>".$nodo['tipo']."</span>";
 
     echo "</div>";
 
-    echo "<div>";
-    echo "<button class='btn btn-success btn-sm btn-add' data-id='{$nodo['id']}'><i class='bi bi-plus-circle'></i></button>";
+    echo "<div class='flex-row'>";
+    echo "<button class='btn btn-sm btn-primary btn-add' data-id='{$nodo['id']}'><i class='icon icon-plus'></i></button>";
 
-    echo "<form method='POST' class='d-inline'>";
+    echo "<form method='POST' style='display:inline;'>";
     echo "<input type='hidden' name='action' value='delete'>";
     echo "<input type='hidden' name='id' value='{$nodo['id']}'>";
-    echo "<button type='submit' class='btn btn-danger btn-sm' onclick='return confirm(\"Eliminar categoría y todas sus hijas?\")'><i class='bi bi-trash'></i></button>";
+    echo "<button type='submit' class='btn btn-sm btn-error' onclick='return confirm(\"Eliminar categoría y todas sus hijas?\")'><i class='icon icon-trash'></i></button>";
     echo "</form>";
 
     echo "</div></div>";
 
     // formulario oculto para añadir hijo
-    echo "<form method='POST' class='row g-2 mt-2 add-form' id='add-{$nodo['id']}' style='display:none'>";
+    echo "<form method='POST' class='flex-row' id='add-{$nodo['id']}' style='display:none;margin-top:0.5rem;'>";
     echo "<input type='hidden' name='action' value='add_child'>";
     echo "<input type='hidden' name='id_parent' value='{$nodo['id']}'>";
-    echo "<div class='col-md-6'><input name='nombre_child' type='text' class='form-control form-control-sm' placeholder='Nueva subcategoría' required></div>";
-    echo "<div class='col-md-3'><button class='btn btn-success btn-sm'><i class='bi bi-plus-lg'></i> Añadir</button></div>";
+    echo "<div style='flex:1;max-width:250px;'><input name='nombre_child' type='text' class='form-input' placeholder='Nueva subcategoría' required></div>";
+    echo "<div><button class='btn btn-sm btn-primary'><i class='icon icon-plus'></i> Añadir</button></div>";
     echo "</form>";
 
     if (isset($nodo['hijos'])) {
@@ -222,14 +225,13 @@ foreach ($tree as $cat) renderNode($cat);
   </div>
 </div>
 
-<div class="mt-3">
-  <a href="dashboard.php" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Volver al dashboard
+<div style="margin-top:2rem;">
+  <a href="dashboard.php" class="btn btn-default">
+    <i class="icon icon-arrow-left"></i> Volver al dashboard
   </a>
 </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // Mostrar formulario hijo
 document.querySelectorAll(".btn-add").forEach(btn=>{

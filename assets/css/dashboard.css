@@ -1,7 +1,259 @@
+/* ============================================================
+   VARIABLES
+============================================================ */
 :root{
   --sidebar-bg: #0f1720;
   --sidebar-fg: #cbd5e1;
   --accent: #7c3aed;
+  --card-bg: #ffffff;
 }
-body{background:#f6f8fb;font-family:Inter,system-ui;}
-/* ... full CSS ... */
+
+/* ============================================================
+   BASE
+============================================================ */
+html,body{height:100%;margin:0;padding:0;}
+body{
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background:#f6f8fb;
+}
+
+.app-root{
+  display:flex;
+  min-height:100vh;
+}
+
+/* ============================================================
+   SIDEBAR
+============================================================ */
+.sidebar{
+  width:240px;
+  background:var(--sidebar-bg);
+  color:var(--sidebar-fg);
+  padding:18px 12px;
+  box-shadow:2px 0 8px rgba(2,6,23,0.35);
+  z-index:100;
+  position:relative;
+}
+
+.sidebar-header{
+  padding:8px 12px;
+  margin-bottom:6px;
+}
+
+.brand{
+  color:#ffffff;
+  margin:0;
+  font-size:1.05rem;
+}
+
+.menu{
+  display:flex;
+  flex-direction:column;
+}
+
+.menu-item{
+  color:var(--sidebar-fg);
+  padding:10px 12px;
+  margin:4px 0;
+  border-radius:6px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  text-decoration:none;
+  cursor:pointer;
+  transition:background .2s;
+}
+
+.menu-item:hover{
+  background:rgba(255,255,255,0.08);
+}
+
+.menu-item.is-active{
+  background:rgba(255,255,255,0.14);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.menu-spacer{flex:1}
+
+/* ============================================================
+   MAIN CONTENT
+============================================================ */
+.main-content{
+  flex:1;
+  padding:18px 24px;
+  position:relative;
+  z-index:1;
+}
+
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:16px;
+}
+
+.topbar h2{margin:0}
+
+.btn-action{
+  color:#000;
+  font-size:1.4rem;
+  cursor:pointer;
+}
+
+/* ============================================================
+   CARDS
+============================================================ */
+.card-stats{margin-bottom:12px;border-radius:12px}
+
+.card-stats .card-body{
+  background:linear-gradient(180deg,#ffffff,#fafcff);
+  padding:18px;
+}
+
+.card-value{
+  font-size:1.25rem;
+  font-weight:700;
+}
+
+.card{
+  border-radius:12px;
+  box-shadow:0 4px 14px rgba(16,24,40,0.06);
+}
+
+/* ============================================================
+   TABLE
+============================================================ */
+.table-responsive{
+  max-height:480px;
+  overflow:auto;
+}
+
+.paginator{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+
+#tablaTransacciones td button{
+  cursor:pointer;
+}
+
+/* ============================================================
+   SIDEBAR COLLAPSE
+============================================================ */
+body.sidebar-collapsed .sidebar{
+  width:0 !important;
+  padding:0 !important;
+  overflow:hidden;
+}
+
+body.sidebar-collapsed .main-content{
+  margin-left:0 !important;
+}
+
+@media (max-width:900px){
+  .sidebar{
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+    transform:translateX(0);
+    transition:transform .3s;
+  }
+
+  body.sidebar-collapsed .sidebar{
+    transform:translateX(-100%);
+  }
+}
+
+/* ============================================================
+   PANEL LATERAL (EDITAR)
+============================================================ */
+.slide-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 8px rgba(0,0,0,0.15);
+    transform: translateX(100%);
+    transition: transform .3s ease;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.slide-panel.visible {
+    transform: translateX(0);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.hidden { display: none; }
+
+/* ============================================================
+   ICONOS EDITAR & ELIMINAR (Material Outlined)
+============================================================ */
+.icon-edit,
+.icon-delete {
+    display: inline-block;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.icon-edit path,
+.icon-delete path {
+    transition: 0.2s ease-in-out;
+    fill: #1E88E5; /* azul base */
+}
+
+.edit-btn:hover .icon-edit path,
+.delete-btn:hover .icon-delete path {
+    fill: #42A5F5; /* azul más claro */
+    transform: translateY(-1px);
+}
+
+/* Botones limpios */
+.edit-btn,
+.delete-btn {
+    background: transparent;
+    border: none;
+    padding: 4px;
+}
+/* Panel lateral (base) */
+.slide-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 8px rgba(0,0,0,0.15);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 9999;
+    padding: 20px;
+}
+
+/* Cuando está visible */
+.slide-panel.visible {
+    transform: translateX(0);
+}
+
+/* El "hidden" solo se usa al inicio */
+.slide-panel.hidden {
+    display: block;
+}
+/* --- ANULAR COMPLETAMENTE la clase hidden SOLO dentro del panel --- */
+#panelEditar.hidden {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}

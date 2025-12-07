@@ -194,12 +194,24 @@ document.addEventListener("DOMContentLoaded", () => {
     // --------------------------
     // NAV MENU
     // --------------------------
-    document.querySelectorAll(".menu-item").forEach(item => {
-        item.addEventListener("click", () => {
-            document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("is-active"));
-            item.classList.add("is-active");
-        });
-    });
+document.querySelectorAll(".menu-item").forEach(item=>{
+  item.addEventListener("click", (e)=>{
+    // Si el enlace tiene href válido, dejamos que el navegador navegue.
+    const href = item.getAttribute("href");
+    if (href && href.trim() !== "" && href.trim() !== "#") {
+      // añadimos la clase visual pero NO prevenimos la navegación
+      document.querySelectorAll(".menu-item").forEach(e2=>e2.classList.remove("is-active"));
+      item.classList.add("is-active");
+      // no call to e.preventDefault(); let navigation happen
+      return;
+    }
+    // Si no tiene href (modo SPA), evitamos la navegación y actuamos como SPA:
+    e.preventDefault();
+    document.querySelectorAll(".menu-item").forEach(e2=>e2.classList.remove("is-active"));
+    item.classList.add("is-active");
+    // aquí podrías mostrar la sección SPA correspondiente
+  });
+});
 
     // --------------------------
     // INICIALIZAR

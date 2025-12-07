@@ -1,6 +1,6 @@
 <?php
 session_start();
-include 'db.php'; // Debe definir $conexion (mysqli)
+require_once '../includes/conexion.php'; // Usar conexión mysqli definida en includes/conexion.php
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

@@ -1,7 +1,5 @@
         </div> <!-- Cierre del container -->
-    <!-- Enlace a Bootstrap JS -->
-
-    <script src="../js/bootstrap.bundle.min.js"></script>
+    <!-- No se usa Bootstrap; eliminar script innecesario -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const periodoSelect = document.getElementById('periodo');
@@ -10,43 +8,46 @@
 
             // Función para limpiar los campos de fecha
             function clearDateInputs() {
+                if (!fechaInicioInput || !fechaFinInput) return;
                 fechaInicioInput.value = '';
                 fechaFinInput.value = '';
             }
 
-            // Evento que se dispara al cambiar el periodo predefinido
-            periodoSelect.addEventListener('change', function() {
-                if (this.value !== 'todos') {
-                    clearDateInputs();
-                }
-            });
+            // Añadir manejadores solo si los elementos existen
+            if (periodoSelect && fechaInicioInput && fechaFinInput) {
+                periodoSelect.addEventListener('change', function() {
+                    if (this.value !== 'todos') {
+                        clearDateInputs();
+                    }
+                });
 
-            // Evento que se dispara al cambiar la fecha de inicio
-            fechaInicioInput.addEventListener('change', function() {
-                if (this.value !== '') {
-                    periodoSelect.value = 'todos';
-                }
-            });
+                fechaInicioInput.addEventListener('change', function() {
+                    if (this.value !== '') {
+                        periodoSelect.value = 'todos';
+                    }
+                });
 
-            // Evento que se dispara al cambiar la fecha de fin
-            fechaFinInput.addEventListener('change', function() {
-                if (this.value !== '') {
-                    periodoSelect.value = 'todos';
-                }
-            });
+                fechaFinInput.addEventListener('change', function() {
+                    if (this.value !== '') {
+                        periodoSelect.value = 'todos';
+                    }
+                });
+            }
         });
            // Nuevo código para sincronizar categoría y tipo
         const idCategoriaSelect = document.getElementById('id_categoria');
         const tipoSelect = document.getElementById('tipo');
 
-        idCategoriaSelect.addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            const selectedType = selectedOption.getAttribute('data-type');
+        if (idCategoriaSelect && tipoSelect) {
+            idCategoriaSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const selectedType = selectedOption ? selectedOption.getAttribute('data-type') : null;
 
-            if (selectedType) {
-                tipoSelect.value = selectedType;
-            }
-        });
+                if (selectedType) {
+                    tipoSelect.value = selectedType;
+                }
+            });
+        }
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
