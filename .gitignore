@@ -1,6 +1,42 @@
-# Ignorar tokens y archivos archivados con credenciales
-token_github/token
-archivado_no_usado/token
-
-# Node / vendor etc (no tocar vendor si ya está en .gitignore global)
+# Vendor and dependencies
 vendor/
+
+# Node
+node_modules/
+
+# Composer
+composer.lock
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs and runtime
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# PHPUnit
+.phpunit.result.cache
+
+# Generated assets
+/public/build/
+
+# Misc
+coverage/
+
+# Ignore personal test/diagnostic files created by assistant
+test_endpoints.php
+
+# Keep composer global bins out (no commit)
+/.config/composer/
