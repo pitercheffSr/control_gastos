@@ -1,4 +1,5 @@
 <?php
+
 // Datos de conexión
 $host = 'localhost';
 $usuario = 'root'; // Usuario por defecto de MySQL en LAMP
@@ -15,4 +16,3 @@ if ($conexion->connect_error) {
 
 // Opcional: configurar la codificación para asegurar compatibilidad de caracteres
 $conexion->set_charset("utf8");
-?>

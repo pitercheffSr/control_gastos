@@ -1,33 +1,29 @@
 <?php
+
 require_once "config.php";
 require_once "db.php";
 
-header("Content-Type: application/json");
+header("Content-Type: application/json; charset=utf-8");
 
-if (!isset($_SESSION["usuario_id"])) {
+if (!isset($_SESSION['usuario_id'])) {
     echo json_encode(["ok" => false, "error" => "No autenticado"]);
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
-$id = $input["id"] ?? null;
+$data = json_decode(file_get_contents("php://input"), true);
 
-if (!$id) {
-    echo json_encode(["ok" => false, "error" => "ID faltante"]);
+$id = $data["id"] ?? null;
+
+if (!$id || !is_numeric($id)) {
+    echo json_encode(["ok" => false, "error" => "ID inválido"]);
     exit;
 }
 
-$sql = "DELETE FROM transacciones 
-        WHERE id = :id AND id_usuario = :uid LIMIT 1";
-
+$sql = "DELETE FROM transacciones WHERE id = :id AND id_usuario = :uid";
 $stmt = $conn->prepare($sql);
-$result = $stmt->execute([
-    "id" => $id,
-    "uid" => $_SESSION["usuario_id"]
+$stmt->execute([
+    ":id"  => $id,
+    ":uid" => $_SESSION['usuario_id']
 ]);
 
-if ($result) {
-    echo json_encode(["ok" => true]);
-} else {
-    echo json_encode(["ok" => false, "error" => "No se pudo eliminar"]);
-}
+echo json_encode(["ok" => true]);

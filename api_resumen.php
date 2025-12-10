@@ -1,4 +1,5 @@
 <?php
+
 session_start();
 require_once __DIR__ . '/db.php';
 
@@ -12,12 +13,10 @@ if (!isset($_SESSION["usuario_id"])) {
 $id = intval($_SESSION["usuario_id"]);
 
 try {
-
     // ================================
     //   MODO DASHBOARD (resumen simple)
     // ================================
     if (isset($_GET["dashboard"])) {
-
         $stmt = $conn->prepare("
             SELECT 
                 c.id,
@@ -72,9 +71,7 @@ try {
         "gastos" => $gastos,
         "ingresos" => $ingresos
     ]);
-
 } catch (Exception $e) {
-
     echo json_encode([
         "error" => $e->getMessage(),
         "gastos" => [],

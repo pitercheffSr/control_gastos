@@ -1,4 +1,5 @@
 <?php
+
 session_start();
 require_once '../includes/conexion.php';
 
@@ -53,4 +54,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 header('Location: gestion_conceptos.php');
-?>

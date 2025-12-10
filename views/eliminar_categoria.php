@@ -1,4 +1,5 @@
 <?php
+
 session_start();
 include '../includes/conexion.php';
 
@@ -27,4 +28,3 @@ if (isset($_GET['id'])) {
 }
 header("Location: gestion_conceptos.php");
 exit;
-?>

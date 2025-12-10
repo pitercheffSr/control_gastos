@@ -7,7 +7,7 @@
 
 
 session_start();
-require_once __DIR__ . '/db.php'; 
+require_once __DIR__ . '/db.php';
 
 // Normalizar PDO
 if (!isset($conn) || !($conn instanceof PDO)) {
@@ -19,15 +19,18 @@ $db = $conn;
 /** @var PDO $conn */
 
 // Función para borrar recursivamente una rama de categorías
-function borrarRama($db, $id) {
-  $st = $db->prepare("SELECT id FROM categorias WHERE parent_id = ?");
-  $st->execute([$id]);
-  $hijos = $st->fetchAll(PDO::FETCH_COLUMN);
+function borrarRama($db, $id)
+{
+    $st = $db->prepare("SELECT id FROM categorias WHERE parent_id = ?");
+    $st->execute([$id]);
+    $hijos = $st->fetchAll(PDO::FETCH_COLUMN);
 
-  foreach ($hijos as $h) borrarRama($db, $h);
+    foreach ($hijos as $h) {
+        borrarRama($db, $h);
+    }
 
-  $st2 = $db->prepare("DELETE FROM categorias WHERE id = ?");
-  $st2->execute([$id]);
+    $st2 = $db->prepare("DELETE FROM categorias WHERE id = ?");
+    $st2->execute([$id]);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -36,7 +39,6 @@ function borrarRama($db, $id) {
 
 // AÑADIR CATEGORÍA RAÍZ  (tiene TIPO)
 if (isset($_POST['action']) && $_POST['action'] === 'add_root') {
-
     $nombre = trim($_POST['nombre_root']);
     $tipo   = trim($_POST['tipo_root']);
 
@@ -53,7 +55,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_root') {
 
 // AÑADIR CATEGORÍA HIJA  (hereda tipo)
 if (isset($_POST['action']) && $_POST['action'] === 'add_child') {
-
     $nombre = trim($_POST['nombre_child']);
     $parent = intval($_POST['id_parent']);
 
@@ -82,10 +83,11 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_child') {
 
 // ELIMINAR CATEGORÍA
 if (isset($_POST['action']) && $_POST['action'] === 'delete') {
-
     $id = intval($_POST['id']);
 
-    if ($id <= 0) die("Error: ID inválido");
+    if ($id <= 0) {
+        die("Error: ID inválido");
+    }
 
     // Se borran primero los hijos (recursivo manual)
     // Usar la función global `borrarRama` definida arriba
@@ -103,12 +105,15 @@ $st = $db->query("SELECT id, nombre, parent_id, tipo FROM categorias ORDER BY pa
 $cats = $st->fetchAll(PDO::FETCH_ASSOC);
 
 // Convertir a árbol para dibujarlo
-function buildTree($elements, $parent = NULL) {
+function buildTree($elements, $parent = null)
+{
     $branch = [];
     foreach ($elements as $el) {
         if ($el['parent_id'] == $parent) {
             $hijos = buildTree($elements, $el['id']);
-            if ($hijos) $el['hijos'] = $hijos;
+            if ($hijos) {
+                $el['hijos'] = $hijos;
+            }
             $branch[] = $el;
         }
     }
@@ -174,21 +179,23 @@ $tree = buildTree($cats);
   <div class="card-header" style="background:#32b643;color:white;">Estructura de categorías</div>
   <div class="card-body">
 
-<?php if (empty($tree)): ?>
+<?php if (empty($tree)) : ?>
   <p style="color:#666;">No hay categorías.</p>
 <?php endif; ?>
 
 <?php
 // Función recursiva para dibujar árbol
-function renderNode($nodo, $nivel = 1){
+function renderNode($nodo, $nivel = 1)
+{
     $class = $nivel === 1 ? "cat-root" : ($nivel === 2 ? "cat-child" : "cat-sub");
 
     echo "<div class='{$class}'>";
     echo "<div class='d-flex justify-content-between'>";
-    echo "<div><strong>".htmlspecialchars($nodo['nombre'])."</strong>";
+    echo "<div><strong>" . htmlspecialchars($nodo['nombre']) . "</strong>";
 
-    if ($nivel === 1)
-        echo " <span class='label' style='background:#5755d2;color:white;margin-left:0.5rem;'>".$nodo['tipo']."</span>";
+    if ($nivel === 1) {
+        echo " <span class='label' style='background:#5755d2;color:white;margin-left:0.5rem;'>" . $nodo['tipo'] . "</span>";
+    }
 
     echo "</div>";
 
@@ -212,14 +219,17 @@ function renderNode($nodo, $nivel = 1){
     echo "</form>";
 
     if (isset($nodo['hijos'])) {
-        foreach ($nodo['hijos'] as $hijo)
+        foreach ($nodo['hijos'] as $hijo) {
             renderNode($hijo, $nivel + 1);
+        }
     }
 
     echo "</div>";
 }
 
-foreach ($tree as $cat) renderNode($cat);
+foreach ($tree as $cat) {
+    renderNode($cat);
+}
 ?>
 
   </div>

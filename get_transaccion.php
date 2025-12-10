@@ -1,52 +1,53 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
-session_start();
+require_once "config.php";
+require_once "db.php";
 
-// Incluir conexión PDO
-require_once 'db.php';
+header("Content-Type: application/json; charset=utf-8");
 
-// Verificar que el usuario está autenticado
+// 1. Validar login
 if (!isset($_SESSION['usuario_id'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'No autenticado']);
+    http_response_code(403);
+    echo json_encode(["error" => "No autorizado"]);
     exit;
 }
 
-// Obtener ID de la transacción
-$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-if ($id <= 0) {
+// 2. Validar ID recibido
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     http_response_code(400);
-    echo json_encode(['error' => 'ID inválido']);
+    echo json_encode(["error" => "ID inválido"]);
     exit;
 }
 
-try {
-    // Obtener la transacción (verificar que pertenece al usuario)
-    $stmt = $conn->prepare("
-        SELECT id, fecha, descripcion, monto, tipo, 
-               id_categoria, id_subcategoria, id_subsubcategoria
+$id = intval($_GET['id']);
+
+// 3. Obtener transacción
+$sql = "SELECT
+            id,
+            fecha,
+            descripcion,
+            monto,
+            tipo,
+            id_categoria,
+            id_subcategoria,
+            id_subsubcategoria
         FROM transacciones
-        WHERE id = ? AND id_usuario = ?
-        LIMIT 1
-    ");
-    $stmt->execute([$id, $_SESSION['usuario_id']]);
-    $transaccion = $stmt->fetch(PDO::FETCH_ASSOC);
+        WHERE id = :id AND id_usuario = :uid
+        LIMIT 1";
 
-    if (!$transaccion) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Transacción no encontrada']);
-        exit;
-    }
+$stmt = $conn->prepare($sql);
+$stmt->execute([
+    ':id'  => $id,
+    ':uid' => $_SESSION['usuario_id']
+]);
 
-    // Asegurar que los campos numéricos sean números
-    $transaccion['monto'] = (float)$transaccion['monto'];
-    $transaccion['id_categoria'] = $transaccion['id_categoria'] ? (int)$transaccion['id_categoria'] : null;
-    $transaccion['id_subcategoria'] = $transaccion['id_subcategoria'] ? (int)$transaccion['id_subcategoria'] : null;
-    $transaccion['id_subsubcategoria'] = $transaccion['id_subsubcategoria'] ? (int)$transaccion['id_subsubcategoria'] : null;
+$data = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    echo json_encode($transaccion);
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Error interno: ' . $e->getMessage()]);
+// 4. Si no existe → error
+if (!$data) {
+    http_response_code(404);
+    echo json_encode(["error" => "Transacción no encontrada"]);
+    exit;
 }
-?>
+
+// 5. Devolver datos en JSON
+echo json_encode($data);

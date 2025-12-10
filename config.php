@@ -1,4 +1,5 @@
 <?php
+
 session_set_cookie_params([
     'lifetime' => 0,
     'path' => '/control_gastos',
@@ -7,4 +8,3 @@ session_set_cookie_params([
 ]);
 
 session_start();
-?>

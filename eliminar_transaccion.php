@@ -1,4 +1,5 @@
 <?php
+
 session_start();
 include_once 'includes/conexion.php';
 
@@ -26,4 +27,3 @@ if (isset($_GET['id'])) {
 }
 header("Location: dashboard.php");
 exit;
-?>

@@ -49,7 +49,7 @@ body {
 
     <h3 class="brand">ControlGastos</h3>
 
-    <?php if (isset($_SESSION['error_login'])): ?>
+    <?php if (isset($_SESSION['error_login'])) : ?>
         <div class="toast toast-error"><?=$_SESSION['error_login']?></div>
         <?php unset($_SESSION['error_login']); ?>
     <?php endif; ?>

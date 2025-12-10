@@ -1,4 +1,5 @@
 <?php
+
 include_once "config.php";
 
 // Vaciar variables de sesión
@@ -13,4 +14,3 @@ setcookie("PHPSESSID", "", time() - 3600, "/control_gastos");
 // Redirigir al login oficial
 header("Location: login.php");
 exit;
-?>

@@ -1,0 +1,509 @@
+/* ============================================================
+   VARIABLES
+============================================================ */
+:root {
+    --sidebar-bg: #0f1720;
+    --sidebar-fg: #cbd5e1;
+    --accent: #7c3aed;
+    --card-bg: #ffffff;
+}
+
+/* ============================================================
+   BASE
+============================================================ */
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto,
+        'Helvetica Neue', Arial;
+    background: #f6f8fb;
+}
+
+.app-root {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ============================================================
+   SIDEBAR
+============================================================ */
+.sidebar {
+    width: 240px;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-fg);
+    padding: 18px 12px;
+    box-shadow: 2px 0 8px rgba(2, 6, 23, 0.35);
+    z-index: 100;
+    position: relative;
+}
+
+.sidebar-header {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+}
+
+.brand {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.menu {
+    display: flex;
+    flex-direction: column;
+}
+
+.menu-item {
+    color: var(--sidebar-fg);
+    padding: 10px 12px;
+    margin: 4px 0;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.menu-item.is-active {
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.menu-spacer {
+    flex: 1;
+}
+
+/* ============================================================
+   MAIN CONTENT
+============================================================ */
+.main-content {
+    flex: 1;
+    padding: 18px 24px;
+    position: relative;
+    z-index: 1;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.topbar h2 {
+    margin: 0;
+}
+
+.btn-action {
+    color: #000;
+    font-size: 1.4rem;
+    cursor: pointer;
+}
+
+/* ============================================================
+   CARDS
+============================================================ */
+.card-stats {
+    margin-bottom: 12px;
+    border-radius: 12px;
+}
+
+.card-stats .card-body {
+    background: linear-gradient(180deg, #ffffff, #fafcff);
+    padding: 18px;
+}
+
+.card-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.card {
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(16, 24, 40, 0.06);
+}
+
+/* ============================================================
+   TABLE
+============================================================ */
+.table-responsive {
+    max-height: 480px;
+    overflow: auto;
+}
+
+.paginator {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+#tablaTransacciones td button {
+    cursor: pointer;
+}
+
+/* ============================================================
+   SIDEBAR COLLAPSE
+============================================================ */
+body.sidebar-collapsed .sidebar {
+    width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+body.sidebar-collapsed .main-content {
+    margin-left: 0 !important;
+}
+
+@media (max-width: 900px) {
+    .sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(0);
+        transition: transform 0.3s;
+    }
+
+    body.sidebar-collapsed .sidebar {
+        transform: translateX(-100%);
+    }
+}
+
+/* ============================================================
+   PANEL LATERAL (EDITAR)
+============================================================ */
+.slide-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.slide-panel.visible {
+    transform: translateX(0);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.hidden {
+    display: none;
+}
+
+/* ============================================================
+   ICONOS EDITAR & ELIMINAR (Material Outlined)
+============================================================ */
+.icon-edit,
+.icon-delete {
+    display: inline-block;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.icon-edit path,
+.icon-delete path {
+    transition: 0.2s ease-in-out;
+    fill: #1e88e5; /* azul base */
+}
+
+.edit-btn:hover .icon-edit path,
+.delete-btn:hover .icon-delete path {
+    fill: #42a5f5; /* azul más claro */
+    transform: translateY(-1px);
+}
+
+/* Botones limpios */
+.edit-btn,
+.delete-btn {
+    background: transparent;
+    border: none;
+    padding: 4px;
+}
+/* Panel lateral (base) */
+.slide-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 9999;
+    padding: 20px;
+}
+
+/* Cuando está visible */
+.slide-panel.visible {
+    transform: translateX(0);
+}
+
+/* El "hidden" solo se usa al inicio */
+.slide-panel.hidden {
+    display: block;
+}
+/* --- ANULAR COMPLETAMENTE la clase hidden SOLO dentro del panel --- */
+/*
+#panelEditar.hidden {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+    */
+
+/* ===========================
+   macOS / iOS style panel
+   (glassmorphism, overlay, slide+fade)
+   =========================== */
+
+/* Overlay: oscurecer + blur */
+#overlayPanel {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 10, 14, 0.36);
+    backdrop-filter: blur(6px) saturate(120%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms ease;
+    z-index: 9990;
+}
+
+/* Mostrar overlay */
+#overlayPanel.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Slide panel base (macOS style) */
+.slide-panel {
+    position: fixed;
+    top: 6vh;
+    right: 36px;
+    width: 420px;
+    max-width: calc(100% - 48px);
+    height: 88vh;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.86),
+        rgba(250, 250, 250, 0.72)
+    );
+    border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(10, 20, 30, 0.25);
+    transform: translateY(16px) translateX(30px) scale(0.995);
+    opacity: 0;
+    transition: transform 360ms cubic-bezier(0.16, 0.84, 0.3, 1),
+        opacity 240ms ease;
+    z-index: 9999;
+    padding: 20px;
+    backdrop-filter: blur(8px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* When visible: slide/fade in */
+.slide-panel.visible {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 1;
+}
+
+/* Header */
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+/* Title */
+.panel-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #0f1720;
+}
+
+/* Close button style */
+#cerrarPanel {
+    background: transparent;
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+#cerrarPanel:hover {
+    background: rgba(12, 18, 26, 0.06);
+}
+
+/* Form area: scrollable */
+#formEditar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: auto;
+    padding-right: 8px;
+}
+
+/* Inputs consistent macOS look */
+.form-input,
+.form-select {
+    border-radius: 10px;
+    border: 1px solid rgba(15, 20, 32, 0.08);
+    padding: 10px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Buttons row */
+.panel-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+    align-items: center;
+}
+
+/* Primary button style */
+.btn-primary {
+    border-radius: 10px;
+    padding: 8px 12px;
+}
+
+/* Small responsive tweak */
+@media (max-width: 900px) {
+    .slide-panel {
+        right: 12px;
+        left: 12px;
+        top: 6vh;
+        width: auto;
+        height: 88vh;
+    }
+}
+/* ---------- FORZAR QUE LOS BOTONES DE ACCIÓN SEAN CLICABLES ---------- */
+.delete-btn {
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 4px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 2000 !important; /* llevar por encima por si acaso */
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Evita que el icono intercepte eventos (el botón debe recibir el click) */
+.delete-btn > * {
+    pointer-events: none !important;
+}
+
+/* Ver debug: ver borde temporal alrededor del botón (quitar luego) */
+.delete-btn.debug-outline {
+    outline: 2px dashed rgba(66, 165, 245, 0.9);
+}
+/* ============================================================
+   FIX ABSOLUTO → Botones EDITAR y BORRAR siempre clicables
+   ============================================================ */
+
+/* 1. Asegurar que la tabla está en un nivel muy superior */
+.table-responsive,
+#tablaTransacciones {
+    position: relative !important;
+    z-index: 5000 !important;
+}
+
+/* 2. Forzar que los botones estén por encima de todo */
+.edit-btn,
+.delete-btn {
+    position: relative !important;
+    z-index: 99999 !important;
+    cursor: pointer !important;
+}
+
+/* 3. Evitar que overlays invisibles bloqueen clics */
+#overlayPanel {
+    pointer-events: none !important;
+    z-index: 1 !important;
+}
+
+#overlayPanel.visible {
+    pointer-events: auto !important;
+    z-index: 6000 !important;
+}
+
+/* 4. El panel de edición NO debe interferir cuando está oculto */
+#panelEditar.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* 5. Sidebar colapsado tampoco debe tapar la tabla */
+.sidebar {
+    z-index: 3000 !important;
+}
+
+body.sidebar-collapsed .sidebar {
+    z-index: 2000 !important;
+} /* DEBUG: visualiza elementos que podrían tapar la columna de acciones */
+.debug-outline * {
+    outline: 1px dashed rgba(255, 0, 0, 0.35) !important;
+}
+#overlayPanel {
+    outline: 3px solid rgba(255, 165, 0, 0.6) !important;
+    background: rgba(255, 165, 0, 0.06) !important;
+}
+#panelEditar {
+    outline: 3px solid rgba(0, 150, 136, 0.5) !important;
+}
+.table-responsive {
+    outline: 3px solid rgba(33, 150, 243, 0.25) !important;
+}
+.edit-btn,
+.delete-btn {
+    outline: 2px dotted rgba(0, 0, 0, 0.25) !important;
+}
+/* Force pointer and accessible hit area for action buttons */
+.edit-btn,
+.delete-btn {
+    cursor: pointer !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    background: transparent;
+    border: 0;
+}
+
+/* mejora visual: botón sin foco feo */
+.edit-btn:focus,
+.delete-btn:focus {
+    outline: 2px solid rgba(124, 58, 237, 0.18);
+    outline-offset: 2px;
+}

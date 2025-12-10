@@ -34,14 +34,14 @@ $stmt->close();
         <div class="card p-4 mt-4">
             <h4>Tus Categorías</h4>
             <ul class="list-group scrollable-list">
-                <?php foreach ($categorias as $categoria): ?>
+                <?php foreach ($categorias as $categoria) : ?>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         <div>
                             <strong><?php echo htmlspecialchars($categoria['nombre']); ?></strong>
                             <span class="badge bg-secondary ms-2"><?php echo htmlspecialchars($categoria['tipo']); ?></span>
                             <span class="badge bg-info ms-2">Regla <?php echo htmlspecialchars($categoria['clasificacion']); ?>%</span>
                         </div>
-                        <?php if ($categoria['id_usuario'] != 0): ?>
+                        <?php if ($categoria['id_usuario'] != 0) : ?>
                             <!-- Botón para eliminar solo categorías personalizadas -->
                             <a href="#" class="btn btn-sm btn-danger" onclick="return confirmarEliminacion('<?php echo htmlspecialchars($categoria['nombre'], ENT_QUOTES); ?>', 'eliminar_categoria.php?id=<?php echo $categoria['id']; ?>');">Eliminar</a>
                         <?php endif; ?>
@@ -81,7 +81,7 @@ $stmt->close();
                 $subcategorias = $stmt_sub->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt_sub->close();
 
-                // Agrupar por categoría y por parent_id
+// Agrupar por categoría y por parent_id
                 $cat_map = [1 => 'Necesidades', 2 => 'Deseos', 3 => 'Ahorro'];
                 $tree = [];
                 foreach ($subcategorias as $sub) {
@@ -92,23 +92,25 @@ $stmt->close();
                         ];
                     }
                 }
-                // Añadir sub-subcategorías
+// Añadir sub-subcategorías
                 foreach ($subcategorias as $sub) {
                     if ($sub['parent_id'] !== null) {
                         $tree[$sub['id_categoria']][$sub['parent_id']]['children'][] = $sub;
                     }
                 }
-                foreach ($cat_map as $cat_id => $cat_nombre):
-                    if (!isset($tree[$cat_id])) continue;
-                ?>
+                foreach ($cat_map as $cat_id => $cat_nombre) :
+                    if (!isset($tree[$cat_id])) {
+                        continue;
+                    }
+                    ?>
                 <li class="list-group-item bg-light"><strong><?php echo $cat_nombre; ?></strong></li>
-                <?php foreach ($tree[$cat_id] as $subcat): ?>
+                    <?php foreach ($tree[$cat_id] as $subcat) : ?>
                     <li class="list-group-item">
                         <span class="fw-bold"><?php echo htmlspecialchars($subcat['info']['nombre']); ?></span>
                         <a href="#" class="btn btn-sm btn-danger float-end ms-2" onclick="return confirmarEliminacion('<?php echo htmlspecialchars($subcat['info']['nombre'], ENT_QUOTES); ?>', 'eliminar_subcategoria.php?id=<?php echo $subcat['info']['id']; ?>');">Eliminar</a>
-                        <?php if (!empty($subcat['children'])): ?>
+                        <?php if (!empty($subcat['children'])) : ?>
                             <ul class="list-group mt-2 ms-3">
-                                <?php foreach ($subcat['children'] as $child): ?>
+                                <?php foreach ($subcat['children'] as $child) : ?>
                                     <li class="list-group-item">
                                         <span><?php echo htmlspecialchars($child['nombre']); ?></span>
                                         <a href="#" class="btn btn-sm btn-danger float-end ms-2" onclick="return confirmarEliminacion('<?php echo htmlspecialchars($child['nombre'], ENT_QUOTES); ?>', 'eliminar_subcategoria.php?id=<?php echo $child['id']; ?>');">Eliminar</a>
@@ -117,7 +119,7 @@ $stmt->close();
                             </ul>
                         <?php endif; ?>
                     </li>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
                 <?php endforeach; ?>
             </ul>
         </div>
@@ -144,14 +146,14 @@ $stmt->close();
                     <select class="form-select" id="parent_id" name="parent_id">
                         <option value="">Ninguna (subcategoría de primer nivel)</option>
                         <?php
-                        // Mostrar solo subcategorías de primer nivel para la categoría seleccionada
+            // Mostrar solo subcategorías de primer nivel para la categoría seleccionada
                         $sql_padres = "SELECT id, nombre FROM subcategorias WHERE parent_id IS NULL AND id_usuario = ?";
                         $stmt_padres = $conexion->prepare($sql_padres);
                         $stmt_padres->bind_param("i", $id_usuario);
                         $stmt_padres->execute();
                         $padres = $stmt_padres->get_result()->fetch_all(MYSQLI_ASSOC);
                         $stmt_padres->close();
-                        foreach ($padres as $padre): ?>
+                        foreach ($padres as $padre) : ?>
                             <option value="<?php echo $padre['id']; ?>"><?php echo htmlspecialchars($padre['nombre']); ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -190,8 +192,10 @@ function confirmarEliminacion(nombre, url) {
 }
 // Mensajes de éxito/error con iconos y animación
 window.addEventListener('DOMContentLoaded', function() {
-    var msgSuccess = <?php echo isset($_SESSION['success']) ? json_encode($_SESSION['success']) : 'null'; unset($_SESSION['success']); ?>;
-    var msgError = <?php echo isset($_SESSION['error']) ? json_encode($_SESSION['error']) : 'null'; unset($_SESSION['error']); ?>;
+    var msgSuccess = <?php echo isset($_SESSION['success']) ? json_encode($_SESSION['success']) : 'null';
+    unset($_SESSION['success']); ?>;
+    var msgError = <?php echo isset($_SESSION['error']) ? json_encode($_SESSION['error']) : 'null';
+    unset($_SESSION['error']); ?>;
     if (msgSuccess) {
         Swal.fire({
             icon: 'success',

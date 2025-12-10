@@ -1,154 +1,216 @@
-console.log("transacciones_editar.js cargado");
+/* transacciones_editar.js
+   Controla el PANEL LATERAL de edición de transacciones.
+   - Carga categorías (3 niveles)
+   - Rellena valores al editar
+   - Guarda cambios mediante procesar_transaccion_editar.php
+*/
 
-// -------------------------------
+console.log('transacciones_editar.js cargado');
+
+// -----------------------------------------------------
 // REFERENCIAS DOM
-// -------------------------------
-const panel = document.getElementById("panelEditar");
-const btnCerrar = document.getElementById("cerrarPanel");
-const btnCancelar = document.getElementById("cancelarEdicion");
-const fFecha = document.getElementById("e_fecha");
-const fDesc = document.getElementById("e_desc");
-const fMonto = document.getElementById("e_monto");
-const fTipo = document.getElementById("e_tipo");
-const fCat = document.getElementById("e_cat");
-const fSubcat = document.getElementById("e_subcat");
-const fSubsub = document.getElementById("e_subsub");
+// -----------------------------------------------------
+const panel = document.getElementById('panelEditar');
+const overlay = document.getElementById('overlayPanel');
 
-const btnGuardar = document.getElementById("guardarCambios");
+const btnCerrar = document.getElementById('cerrarPanel');
+const btnCancelar = document.getElementById('cancelarEdicion');
+const btnGuardar = document.getElementById('guardarCambios');
 
+// Campos del formulario
+const fFecha = document.getElementById('e_fecha');
+const fDesc = document.getElementById('e_desc');
+const fMonto = document.getElementById('e_monto');
+const fTipo = document.getElementById('e_tipo');
+const fCat = document.getElementById('e_cat');
+const fSubcat = document.getElementById('e_subcat');
+const fSubsub = document.getElementById('e_subsub');
+
+// Guardamos id editando
 window.transaccionActual = null;
 
-// -------------------------------
-// CERRAR PANEL
-// -------------------------------
-if (btnCerrar) {
-    btnCerrar.addEventListener("click", () => {
-        panel.classList.remove("visible");
-        window.transaccionActual = null;
-    });
+// -----------------------------------------------------
+// FUNCIÓN: Abrir panel
+// -----------------------------------------------------
+function abrirPanel() {
+    panel.classList.add('visible');
+    overlay.classList.add('visible');
 }
-// -------------------------------
-// CANCELAR EDICIÓN
-// -------------------------------
-if (btnCancelar) {
-    btnCancelar.addEventListener("click", () => {
-        panel.classList.remove("visible");
-        window.transaccionActual = null;
-    });
+
+// -----------------------------------------------------
+// FUNCIÓN: Cerrar panel + limpiar campos
+// -----------------------------------------------------
+function cerrarPanel() {
+    panel.classList.remove('visible');
+    overlay.classList.remove('visible');
+
+    window.transaccionActual = null;
+
+    fFecha.value = '';
+    fDesc.value = '';
+    fMonto.value = '';
+    fTipo.value = 'gasto';
+    fCat.value = '';
+    fSubcat.value = '';
+    fSubsub.value = '';
 }
-// -------------------------------
-// CLICK EN BOTÓN EDITAR (delegado)
-// -------------------------------
-document.addEventListener("click", (ev) => {
-    const btn = ev.target.closest(".edit-btn");
-    if (!btn) return;
 
-    const id = btn.dataset.id;
-    console.log("Editar clic en id:", id);
-    
-    if (!id) {
-        console.error("No hay data-id en botón edit");
-        return;
-    }
+// Botones cerrar
+btnCerrar?.addEventListener('click', cerrarPanel);
+btnCancelar?.addEventListener('click', cerrarPanel);
 
-    abrirPanelEdicion(id);
-    ev.stopPropagation();
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') cerrarPanel();
 });
 
-// -------------------------------
-// ABRIR PANEL Y CARGAR DATOS
-// -------------------------------
-async function abrirPanelEdicion(id) {
-    console.log("Abrir edición para id:", id);
-    
-    if (!panel) {
-        console.error("Panel no existe en DOM");
-        return;
-    }
-    
-    panel.classList.add("visible");
-    window.transaccionActual = id;
-
+// -----------------------------------------------------
+// CARGAR CATEGORÍAS (3 niveles)
+// -----------------------------------------------------
+async function loadCategorias() {
     try {
-        const resp = await fetch("get_transaccion.php?id=" + id);
-        
-        if (!resp.ok) {
-            console.error("Respuesta HTTP no OK:", resp.status);
-            alert("Error al obtener transacción (HTTP " + resp.status + ")");
-            return;
-        }
-        
-        const data = await resp.json();
-        console.log("Datos recibidos:", data);
+        const resp = await fetch('/control_gastos/api/categorias.php');
+        if (!resp.ok) throw new Error('Error HTTP ' + resp.status);
 
-        if (!data || data.error) {
-            alert("Error: " + (data.error || "No se pudo obtener la transacción"));
-            return;
-        }
+        const cats = await resp.json();
 
-        // Rellenar campos (con validación)
-        if (fFecha) fFecha.value = data.fecha || '';
-        if (fDesc) fDesc.value = data.descripcion || '';
-        if (fMonto) fMonto.value = data.monto || '';
-        if (fTipo) fTipo.value = data.tipo || 'gasto';
-        if (fCat) fCat.value = data.id_categoria || '';
-        if (fSubcat) fSubcat.value = data.id_subcategoria || '';
-        if (fSubsub) fSubsub.value = data.id_subsubcategoria || '';
+        console.log('Categorías recibidas:', cats);
 
-    } catch (err) {
-        console.error("Error cargando transacción:", err);
-        alert("Error: " + err.message);
-    }
-}
+        // Limpiar selects
+        fCat.innerHTML = '';
+        fSubcat.innerHTML = "<option value=''>—</option>";
+        fSubsub.innerHTML = "<option value=''>—</option>";
 
-// -------------------------------
-// GUARDAR CAMBIOS
-// -------------------------------
-if (btnGuardar) {
-    btnGuardar.addEventListener("click", async () => {
-        if (!window.transaccionActual) {
-            console.error("No hay transacción seleccionada");
-            return;
-        }
+        // Nivel 1 (padre null)
+        const nivel1 = cats.filter((c) => c.parent_id === null);
 
-        const payload = {
-            id: window.transaccionActual,
-            fecha: fFecha ? fFecha.value : '',
-            descripcion: fDesc ? fDesc.value : '',
-            monto: fMonto ? fMonto.value : '0',
-            tipo: fTipo ? fTipo.value : 'gasto',
-            categoria: fCat ? fCat.value : '',
-            subcategoria: fSubcat ? fSubcat.value : '',
-            subsub: fSubsub ? fSubsub.value : ''
+        nivel1.forEach((c) => {
+            fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+        });
+
+        // Al cambiar categoría, cargar nivel 2
+        fCat.onchange = () => {
+            const idCat = parseInt(fCat.value);
+
+            const nivel2 = cats.filter((c) => c.parent_id === idCat);
+
+            fSubcat.innerHTML = "<option value=''>—</option>";
+            fSubsub.innerHTML = "<option value=''>—</option>";
+
+            nivel2.forEach((c) => {
+                fSubcat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+            });
         };
 
-        console.log("Enviando actualización:", payload);
+        // Al cambiar subcategoría, cargar nivel 3
+        fSubcat.onchange = () => {
+            const idSub = parseInt(fSubcat.value);
+            const nivel3 = cats.filter((c) => c.parent_id === idSub);
 
-        try {
-            const resp = await fetch("procesar_transaccion_editar.php", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify(payload)
+            fSubsub.innerHTML = "<option value=''>—</option>";
+
+            nivel3.forEach((c) => {
+                fSubsub.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
             });
-
-            if (!resp.ok) {
-                console.error("Respuesta HTTP no OK:", resp.status);
-                alert("Error HTTP " + resp.status);
-                return;
-            }
-
-            const data = await resp.json();
-            console.log("Respuesta update:", data);
-
-            if (data.success) {
-                alert("Transacción actualizada");
-                location.reload();
-            } else {
-                alert("Error: " + (data.error || "Error desconocido"));
-            }
-        } catch (err) {
-            console.error("Error al guardar:", err);
-            alert("Error: " + err.message);
-        }
-    });
+        };
+    } catch (err) {
+        console.error('Error cargando categorías:', err);
+        alert('No se pudieron cargar las categorías.');
+    }
 }
+
+// -----------------------------------------------------
+// CARGAR TRANSACCIÓN EXISTENTE PARA EDITAR
+// -----------------------------------------------------
+async function loadTransaccion(id) {
+    try {
+        const resp = await fetch('get_transaccion.php?id=' + id);
+
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+        const data = await resp.json();
+        console.log('Datos recibidos para editar:', data);
+
+        // Rellenar campos
+        fFecha.value = data.fecha;
+        fDesc.value = data.descripcion ?? '';
+        fMonto.value = data.monto;
+        fTipo.value = data.tipo;
+
+        // Seleccionar categoría, subcat, subsub
+        setTimeout(() => {
+            fCat.value = data.id_categoria ?? '';
+            fCat.dispatchEvent(new Event('change'));
+
+            setTimeout(() => {
+                fSubcat.value = data.id_subcategoria ?? '';
+                fSubcat.dispatchEvent(new Event('change'));
+
+                setTimeout(() => {
+                    fSubsub.value = data.id_subsubcategoria ?? '';
+                }, 80);
+            }, 80);
+        }, 80);
+    } catch (err) {
+        console.error('Error cargando transacción:', err);
+        alert('Error cargando datos de la transacción.');
+    }
+}
+
+// -----------------------------------------------------
+// GUARDAR CAMBIOS (EDITAR)
+// -----------------------------------------------------
+btnGuardar.addEventListener('click', async () => {
+    if (!window.transaccionActual) {
+        alert('No hay transacción seleccionada.');
+        return;
+    }
+
+    const payload = {
+        id: window.transaccionActual,
+        fecha: fFecha.value,
+        descripcion: fDesc.value,
+        monto: fMonto.value,
+        tipo: fTipo.value,
+        categoria: fCat.value,
+        subcategoria: fSubcat.value,
+        subsub: fSubsub.value,
+    };
+
+    console.log('Enviando actualización:', payload);
+
+    try {
+        const resp = await fetch('procesar_transaccion_editar.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await resp.json();
+        console.log('Respuesta update:', data);
+
+        if (data.ok) {
+            alert('Transacción actualizada.');
+            cerrarPanel();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (err) {
+        alert('Error al guardar: ' + err.message);
+    }
+});
+
+// -----------------------------------------------------
+// ESCUCHAR CLICK EN ICONO EDITAR DESDE transacciones.js
+// -----------------------------------------------------
+window.addEventListener('tx:editar', async (ev) => {
+    const id = ev.detail?.id;
+    if (!id) return;
+
+    window.transaccionActual = id;
+
+    await loadCategorias();
+    await loadTransaccion(id);
+
+    abrirPanel();
+});

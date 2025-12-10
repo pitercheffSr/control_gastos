@@ -1,4 +1,5 @@
 <?php
+
 header('Content-Type: application/json; charset=utf-8');
 session_start();
 
@@ -76,4 +77,3 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'Error interno: ' . $e->getMessage()]);
 }
-?>

@@ -61,7 +61,7 @@ if (isset($_SESSION['usuario_id'])) {
     <div class="auth-title">Crear cuenta</div>
     <div class="auth-subtitle">Regístrate para comenzar</div>
 
-    <?php if (!empty($_GET['error'])): ?>
+    <?php if (!empty($_GET['error'])) : ?>
         <div class="toast toast-error"><?= htmlspecialchars($_GET['error']); ?></div>
     <?php endif; ?>
 

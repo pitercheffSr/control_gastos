@@ -1,4 +1,5 @@
 <?php
+
 // db.php — Conexión PDO correcta para tu sistema
 
 $DB_HOST = 'localhost';
@@ -23,4 +24,3 @@ try {
 }
 
 $pdo = $conn;   //  ← ← ← AÑADIR ESTA LÍNEA
-?>

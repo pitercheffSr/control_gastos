@@ -1,4 +1,5 @@
 <?php
+
 require_once 'db.php';
 header('Content-Type: application/json; charset=utf-8');
 
@@ -14,7 +15,10 @@ try {
     }
 
     if ($nivel === 'nivel2') {
-        if (!$padre) { echo json_encode([]); exit; }
+        if (!$padre) {
+            echo json_encode([]);
+            exit;
+        }
         $stmt = $conn->prepare("SELECT id, nombre FROM categorias WHERE parent_id = :p ORDER BY nombre");
         $stmt->execute(['p' => $padre]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -22,7 +26,10 @@ try {
     }
 
     if ($nivel === 'nivel3') {
-        if (!$padre) { echo json_encode([]); exit; }
+        if (!$padre) {
+            echo json_encode([]);
+            exit;
+        }
         $stmt = $conn->prepare("SELECT id, nombre FROM categorias WHERE parent_id = :p ORDER BY nombre");
         $stmt->execute(['p' => $padre]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));

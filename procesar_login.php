@@ -1,9 +1,9 @@
 <?php
+
 include_once "config.php";
 include_once "includes/conexion.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-
     $email = $_POST['email'];
     $password = $_POST['password'];
 
@@ -14,11 +14,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $resultado = $stmt->get_result();
 
     if ($resultado->num_rows === 1) {
-
         $usuario = $resultado->fetch_assoc();
 
         if (password_verify($password, $usuario['password'])) {
-
             $_SESSION['usuario_id'] = $usuario['id'];
             $_SESSION['usuario_nombre'] = $usuario['nombre'];
 
@@ -32,4 +30,3 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     header("Location: login.php");
     exit;
 }
-?>

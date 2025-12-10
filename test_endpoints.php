@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Script de diagnóstico para probar endpoints
  * NO incluyas en producción. Solo para debugging local.

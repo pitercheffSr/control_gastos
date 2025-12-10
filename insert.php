@@ -1,4 +1,5 @@
 <?php
+
 // insert.php - insertar nueva transacción (POST)
 session_start();
 require_once 'db.php';
@@ -28,7 +29,6 @@ if (!$fecha || !$monto || !$tipo) {
 }
 
 try {
-
     $sql = "INSERT INTO transacciones 
             (id_usuario, fecha, monto, tipo, descripcion, id_categoria)
             VALUES 
@@ -48,7 +48,6 @@ try {
     $_SESSION['success'] = "Transacción guardada.";
     header('Location: dashboard.php');
     exit;
-
 } catch (Exception $e) {
     error_log("insert.php error: " . $e->getMessage());
     $_SESSION['error'] = "Error guardando transacción.";
