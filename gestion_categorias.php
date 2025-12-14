@@ -1,118 +1,34 @@
 <?php
-// ─────────────────────────────────────────────────────────────
-//   GESTION DE CATEGORÍAS (versión corregida y optimizada)
-//   Estructura usada: tabla única `categorias` con:
-//   id | nombre | parent_id | tipo ('gasto','ingreso' o NULL)
-// ─────────────────────────────────────────────────────────────
-
-
 session_start();
 require_once __DIR__ . '/db.php';
 
-// Normalizar PDO
-if (!isset($conn) || !($conn instanceof PDO)) {
-    die("Error: No hay conexión PDO");
+// Seguridad
+if (!isset($_SESSION["usuario_id"])) {
+    header("Location: index.php");
+    exit;
 }
 
 $db = $conn;
 
-/** @var PDO $conn */
+// =============================================================
+// FUNCIONES
+// =============================================================
 
-// Función para borrar recursivamente una rama de categorías
-function borrarRama($db, $id)
-{
-    $st = $db->prepare("SELECT id FROM categorias WHERE parent_id = ?");
-    $st->execute([$id]);
-    $hijos = $st->fetchAll(PDO::FETCH_COLUMN);
+// Cargar toda la tabla
+$st = $db->query("SELECT id, nombre, parent_id, tipo
+                  FROM categorias
+                  ORDER BY parent_id, nombre");
+$categorias = $st->fetchAll(PDO::FETCH_ASSOC);
 
-    foreach ($hijos as $h) {
-        borrarRama($db, $h);
-    }
-
-    $st2 = $db->prepare("DELETE FROM categorias WHERE id = ?");
-    $st2->execute([$id]);
-}
-
-// ─────────────────────────────────────────────────────────────
-// MANEJO DE ACCIONES POST
-// ─────────────────────────────────────────────────────────────
-
-// AÑADIR CATEGORÍA RAÍZ  (tiene TIPO)
-if (isset($_POST['action']) && $_POST['action'] === 'add_root') {
-    $nombre = trim($_POST['nombre_root']);
-    $tipo   = trim($_POST['tipo_root']);
-
-    if ($nombre === '' || ($tipo !== 'gasto' && $tipo !== 'ingreso')) {
-        die("Error: datos inválidos");
-    }
-
-    $st = $db->prepare("INSERT INTO categorias (nombre, parent_id, tipo) VALUES (:n, NULL, :t)");
-    $st->execute(['n' => $nombre, 't' => $tipo]);
-
-    header("Location: gestion_categorias.php");
-    exit;
-}
-
-// AÑADIR CATEGORÍA HIJA  (hereda tipo)
-if (isset($_POST['action']) && $_POST['action'] === 'add_child') {
-    $nombre = trim($_POST['nombre_child']);
-    $parent = intval($_POST['id_parent']);
-
-    if ($nombre === '' || $parent <= 0) {
-        die("Error: datos inválidos");
-    }
-
-    // obtener tipo del padre
-    $st = $db->prepare("SELECT tipo FROM categorias WHERE id = :p LIMIT 1");
-    $st->execute(['p' => $parent]);
-    $tipo_padre = $st->fetchColumn();
-
-    if (!$tipo_padre) {
-        die("Error: categoría padre no encontrada");
-    }
-
-    // insertar con el mismo tipo
-    $st = $db->prepare("INSERT INTO categorias (nombre, parent_id, tipo)
-                        VALUES (:n, :p, :t)");
-    $st->execute(['n' => $nombre, 'p' => $parent, 't' => $tipo_padre]);
-
-    header("Location: gestion_categorias.php");
-    exit;
-}
-
-
-// ELIMINAR CATEGORÍA
-if (isset($_POST['action']) && $_POST['action'] === 'delete') {
-    $id = intval($_POST['id']);
-
-    if ($id <= 0) {
-        die("Error: ID inválido");
-    }
-
-    // Se borran primero los hijos (recursivo manual)
-    // Usar la función global `borrarRama` definida arriba
-    borrarRama($db, $id);
-
-    header("Location: gestion_categorias.php");
-    exit;
-}
-
-// ─────────────────────────────────────────────────────────────
-// CARGA DE TODAS LAS CATEGORÍAS
-// ─────────────────────────────────────────────────────────────
-
-$st = $db->query("SELECT id, nombre, parent_id, tipo FROM categorias ORDER BY parent_id, nombre");
-$cats = $st->fetchAll(PDO::FETCH_ASSOC);
-
-// Convertir a árbol para dibujarlo
+// Construir árbol jerárquico
 function buildTree($elements, $parent = null)
 {
     $branch = [];
     foreach ($elements as $el) {
-        if ($el['parent_id'] == $parent) {
-            $hijos = buildTree($elements, $el['id']);
-            if ($hijos) {
-                $el['hijos'] = $hijos;
+        if ($el["parent_id"] == $parent) {
+            $children = buildTree($elements, $el["id"]);
+            if ($children) {
+                $el["hijos"] = $children;
             }
             $branch[] = $el;
         }
@@ -120,138 +36,184 @@ function buildTree($elements, $parent = null)
     return $branch;
 }
 
-$tree = buildTree($cats);
-?>
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<title>Gestión Categorías</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+$tree = buildTree($categorias);
 
-<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
-<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
-<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+// =============================================================
+// PROCESAR CREACIÓN DE CATEGORÍA RAÍZ
+// =============================================================
 
-<style>
-.cat-root{background:#dceeff;border-left:4px solid #0d6efd;padding:10px;margin-bottom:10px;}
-.cat-child{background:#fff4d8;border-left:4px solid #ffc107;padding:10px;margin:6px 0 6px 25px;}
-.cat-sub{background:#e1fff2;border-left:4px solid #20c997;padding:10px;margin:6px 0 6px 50px;}
-.container{max-width:1200px;margin:0 auto;padding:0 1rem;}
-.flex-row{display:flex;gap:0.5rem;align-items:center;}
-.flex-between{display:flex;justify-content:space-between;align-items:center;}
-</style>
-</head>
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "add_root") {
+    $nombre = trim($_POST["nombre_root"]);
+    $tipo = trim($_POST["tipo_root"]);
 
-<body>
-<div class="container" style="padding-top:2rem;">
-<h2>Gestión de Categorías</h2>
-
-<!-- ────────────────────────────────────────────── -->
-<!-- NUEVA CATEGORÍA RAÍZ -->
-<!-- ────────────────────────────────────────────── -->
-<div class="card" style="margin-bottom:2rem;">
-  <div class="card-header" style="background:#5755d2;color:white;">Añadir categoría raíz</div>
-  <div class="card-body">
-    <form method="POST" class="flex-row">
-      <input type="hidden" name="action" value="add_root">
-      <div style="flex:1;max-width:300px;">
-        <input type="text" name="nombre_root" class="form-input" placeholder="Nombre categoría" required>
-      </div>
-      <div style="flex:1;max-width:200px;">
-        <select name="tipo_root" class="form-input" required>
-          <option value="">Tipo...</option>
-          <option value="gasto">Gasto</option>
-          <option value="ingreso">Ingreso</option>
-        </select>
-      </div>
-      <div>
-        <button class="btn btn-primary"><i class="icon icon-plus"></i> Crear</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ────────────────────────────────────────────── -->
-<!-- LISTA JERÁRQUICA -->
-<!-- ────────────────────────────────────────────── -->
-<div class="card">
-  <div class="card-header" style="background:#32b643;color:white;">Estructura de categorías</div>
-  <div class="card-body">
-
-<?php if (empty($tree)) : ?>
-  <p style="color:#666;">No hay categorías.</p>
-<?php endif; ?>
-
-<?php
-// Función recursiva para dibujar árbol
-function renderNode($nodo, $nivel = 1)
-{
-    $class = $nivel === 1 ? "cat-root" : ($nivel === 2 ? "cat-child" : "cat-sub");
-
-    echo "<div class='{$class}'>";
-    echo "<div class='d-flex justify-content-between'>";
-    echo "<div><strong>" . htmlspecialchars($nodo['nombre']) . "</strong>";
-
-    if ($nivel === 1) {
-        echo " <span class='label' style='background:#5755d2;color:white;margin-left:0.5rem;'>" . $nodo['tipo'] . "</span>";
+    if ($nombre !== "" && ($tipo === "gasto" || $tipo === "ingreso")) {
+        $ins = $db->prepare("INSERT INTO categorias (nombre, parent_id, tipo) VALUES (:n, NULL, :t)");
+        $ins->execute(["n" => $nombre, "t" => $tipo]);
     }
 
-    echo "</div>";
+    header("Location: gestion_categorias.php");
+    exit;
+}
 
+// =============================================================
+// FUNCION PARA DIBUJAR NODOS (SOLO LECTURA)
+// =============================================================
+
+function renderNode($nodo, $nivel = 1)
+{
+    // Elegir estilo visual según nivel
+    $class = $nivel === 1 ? "cat-root" : ($nivel === 2 ? "cat-child" : "cat-sub");
+
+    // Iconos según profundidad
+    $icon = ($nivel === 1)
+        ? "<svg width='20' height='20' stroke='#333' fill='none' stroke-width='1.8' viewBox='0 0 24 24'><path d='M3 7h6l2 2h10v10H3z'/></svg>"
+        : (($nivel === 2)
+            ? "<svg width='18' height='18' stroke='#555' fill='none' stroke-width='1.6' viewBox='0 0 24 24'><path d='M3 7h6l2 2h10v10H3z'/></svg>"
+            : "<svg width='16' height='16' stroke='#777' fill='none' stroke-width='1.4' viewBox='0 0 24 24'><path d='M3 7h6l2 2h10v10H3z'/></svg>");
+
+    echo "<div class='{$class}'>";
+
+    echo "<div class='flex-between'>";
     echo "<div class='flex-row'>";
-    echo "<button class='btn btn-sm btn-primary btn-add' data-id='{$nodo['id']}'><i class='icon icon-plus'></i></button>";
 
-    echo "<form method='POST' style='display:inline;'>";
-    echo "<input type='hidden' name='action' value='delete'>";
-    echo "<input type='hidden' name='id' value='{$nodo['id']}'>";
-    echo "<button type='submit' class='btn btn-sm btn-error' onclick='return confirm(\"Eliminar categoría y todas sus hijas?\")'><i class='icon icon-trash'></i></button>";
-    echo "</form>";
+    // Icono + Nombre
+    echo $icon . " <strong>" . htmlspecialchars($nodo["nombre"]) . "</strong>";
+
+    // Tipo solo en raíz
+    if ($nivel === 1) {
+        echo "<span class='label tipo-label'>" . htmlspecialchars($nodo["tipo"]) . "</span>";
+    }
 
     echo "</div></div>";
 
-    // formulario oculto para añadir hijo
-    echo "<form method='POST' class='flex-row' id='add-{$nodo['id']}' style='display:none;margin-top:0.5rem;'>";
-    echo "<input type='hidden' name='action' value='add_child'>";
-    echo "<input type='hidden' name='id_parent' value='{$nodo['id']}'>";
-    echo "<div style='flex:1;max-width:250px;'><input name='nombre_child' type='text' class='form-input' placeholder='Nueva subcategoría' required></div>";
-    echo "<div><button class='btn btn-sm btn-primary'><i class='icon icon-plus'></i> Añadir</button></div>";
-    echo "</form>";
-
-    if (isset($nodo['hijos'])) {
-        foreach ($nodo['hijos'] as $hijo) {
-            renderNode($hijo, $nivel + 1);
+    // Dibujar hijos
+    if (isset($nodo["hijos"])) {
+        foreach ($nodo["hijos"] as $h) {
+            renderNode($h, $nivel + 1);
         }
     }
 
     echo "</div>";
 }
 
-foreach ($tree as $cat) {
-    renderNode($cat);
-}
 ?>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Gestión de Categorías</title>
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
 
-  </div>
+<style>
+body { background:#f8f9fb; }
+
+/* Contenedor */
+.container { max-width: 900px; margin: 2rem auto; }
+
+/* Estilo del árbol */
+.cat-root, .cat-child, .cat-sub {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.cat-root  { background:#e8f1ff; border-left:4px solid #1a73e8; }
+.cat-child { background:#fff4d8; border-left:4px solid #ffa000; margin-left:25px; }
+.cat-sub   { background:#e7fff2; border-left:4px solid #20c997; margin-left:50px; }
+
+.flex-row { display:flex; align-items:center; gap:8px; }
+.flex-between { display:flex; justify-content:space-between; align-items:center; }
+
+.tipo-label {
+    background:#5755d2;
+    color:white;
+    padding:2px 6px;
+    border-radius:4px;
+    margin-left:8px;
+}
+
+/* Card título */
+.card-header {
+    font-size:1.1rem;
+    font-weight:600;
+}
+</style>
+</head>
+
+<body>
+
+<!-- Contenedor principal -->
+<div class="container">
+
+<h2>Gestión de Categorías</h2>
+
+
+<!-- ==========================
+     SOLO VISUALIZACIÓN ÁRBOL
+============================== -->
+<div class="card">
+	<div class="card-header" style="background:#32b643;color:white;">
+		Estructura de categorías
+	</div>
+
+	<div class="card-body">
+		<div id="estructuraCategorias"></div>
+	</div>
 </div>
 
 <div style="margin-top:2rem;">
   <a href="dashboard.php" class="btn btn-default">
-    <i class="icon icon-arrow-left"></i> Volver al dashboard
+    <i class="icon icon-arrow-left"></i> Volver al Dashboard
   </a>
 </div>
+<!-- =========================================================
+     PANEL DE MANTENIMIENTO DE CATEGORÍAS
+========================================================= -->
+<div class="card" style="margin-bottom:2rem;">
+    <div class="card-header">
+        <strong>Mantenimiento de categorías</strong>
+    </div>
+
+    <div class="card-body">
+        <form id="formCategoria" class="form-horizontal">
+
+            <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" id="cat_nombre" class="form-input" required>
+            </div>
+
+            <div class="form-group">
+                <label>Tipo</label>
+                <select id="cat_tipo" class="form-select">
+                    <option value="gasto">Gasto</option>
+                    <option value="ingreso">Ingreso</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Depende de</label>
+                <select id="cat_parent" class="form-select">
+                    <option value="">— Categoría raíz —</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary">
+                <i class="icon icon-save"></i> Guardar
+            </button>
+
+            <button type="button" class="btn btn-link" id="btnCancelar" style="display:none;">
+                Cancelar edición
+            </button>
+
+        </form>
+    </div>
 </div>
 
-<script>
-// Mostrar formulario hijo
-document.querySelectorAll(".btn-add").forEach(btn=>{
-  btn.onclick = ()=>{
-    const id = btn.dataset.id;
-    const form = document.getElementById("add-"+id);
-    form.style.display = form.style.display === "none" ? "flex" : "none";
-  };
-});
-</script>
+</div>
+	<script src="assets/js/categorias.js"></script>
 
 </body>
 </html>

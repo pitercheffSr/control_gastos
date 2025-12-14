@@ -33,7 +33,7 @@ if (!isset($_SESSION['usuario_id'])) {
         <nav class="menu">
             <a class="menu-item" href="dashboard.php"><i class="icon icon-home"></i> Dashboard</a>
             <a class="menu-item is-active" href="transacciones.php"><i class="icon icon-list"></i> Transacciones</a>
-            <a class="menu-item" href="categorias.php"><i class="icon icon-folder"></i> Categorías</a>
+			<a class="menu-item" href="gestion_categorias.php"><i class="icon icon-folder"></i> Categorías</a>
             <a class="menu-item" href="informes.php"><i class="icon icon-chart"></i> Informes</a>
             <a class="menu-item" href="config.php"><i class="icon icon-cog"></i> Configuración</a>
 

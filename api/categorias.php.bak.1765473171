@@ -90,7 +90,7 @@ try {
         $st->execute([':n' => $nombre, ':p' => $parent_id, ':t' => $tipo]);
         $newId = (int)$conn->lastInsertId();
 
-        echo json_encode(['ok' => true, 'id' => $newId]);
+        echo json_encode(['success' => true, 'id' => $newId]);
         exit;
     }
 
@@ -134,38 +134,34 @@ try {
         exit;
     }
 
-    if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-
-        header('Content-Type: application/json');
-
-        if (!isset($_GET['id'])) {
+    if ($method === 'DELETE') {
+        // Borrar categoría (recursivo)
+        // id via query or body
+        parse_str($_SERVER['QUERY_STRING'] ?? '', $qs);
+        $id = isset($qs['id']) ? intval($qs['id']) : (isset($input['id']) ? intval($input['id']) : 0);
+        if ($id <= 0) {
             http_response_code(400);
-            echo json_encode(['error' => 'ID requerido']);
+            echo json_encode(['error' => 'ID inválido']);
             exit;
         }
 
-        $id = (int) $_GET['id'];
-
-        try {
-            // Borrar hijas
-            $stmt = $conn->prepare(
-                "DELETE FROM categorias WHERE parent_id = :id"
-            );
-            $stmt->execute(['id' => $id]);
-
-            // Borrar la categoría
-            $stmt = $conn->prepare(
-                "DELETE FROM categorias WHERE id = :id"
-            );
-            $stmt->execute(['id' => $id]);
-
-            echo json_encode(['ok' => true]);
-
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+        // comprobar si hay transacciones con esta categoría o sus hijos
+        $check = $conn->prepare("
+            SELECT COUNT(*) FROM transacciones
+            WHERE id_categoria = :id OR id_subcategoria = :id OR id_subsubcategoria = :id
+        ");
+        $check->execute([':id' => $id]);
+        $cnt = (int)$check->fetchColumn();
+        if ($cnt > 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'No se puede eliminar: categoría usada en transacciones']);
+            exit;
         }
 
+        // borrado recursivo
+        borrarRamaPDO($conn, $id);
+
+        echo json_encode(['success' => true]);
         exit;
     }
 

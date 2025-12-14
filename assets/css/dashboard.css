@@ -275,3 +275,91 @@ body {
 .btn-primary {
     border-radius: 10px;
 }
+
+/* Parte izquierda (flecha + texto) */
+.cat-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Flecha */
+.cat-toggle {
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+/* Acciones */
+.cat-actions button {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.cat-nodo:hover .cat-actions button {
+    opacity: 1;
+}
+/* ============================================================
+   ÁRBOL DE CATEGORÍAS — INDENTACIÓN Y COLORES
+============================================================ */
+
+#estructuraCategorias .cat-wrapper {
+    width: 100%;
+}
+
+/* Contenedor de hijos: indentación progresiva */
+#estructuraCategorias .cat-hijos {
+    margin-left: 28px;
+}
+
+/* Nodo base */
+#estructuraCategorias .cat-nodo {
+    width: 100%;
+    box-sizing: border-box;
+
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin: 6px 0;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Colores por nivel */
+#estructuraCategorias .nivel-1 {
+    background-color: #e8f1ff;
+    border-left: 4px solid #1a73e8;
+}
+
+#estructuraCategorias .nivel-2 {
+    background-color: #fff4d8;
+    border-left: 4px solid #ffa000;
+}
+
+#estructuraCategorias .nivel-3 {
+    background-color: #e7fff2;
+    border-left: 4px solid #20c997;
+}
+
+/* Parte izquierda */
+#estructuraCategorias .cat-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Flecha */
+#estructuraCategorias .cat-toggle {
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+/* Acciones */
+#estructuraCategorias .cat-actions button {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+#estructuraCategorias .cat-nodo:hover .cat-actions button {
+    opacity: 1;
+}

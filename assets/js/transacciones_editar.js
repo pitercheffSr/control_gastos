@@ -68,7 +68,8 @@ document.addEventListener('keydown', (e) => {
 // -----------------------------------------------------
 async function loadCategorias() {
     try {
-        const resp = await fetch('/control_gastos/api/categorias.php');
+        const resp = await fetch("/control_gastos/api/categorias/listar.php")
+;
         if (!resp.ok) throw new Error('Error HTTP ' + resp.status);
 
         const cats = await resp.json();
@@ -123,7 +124,8 @@ async function loadCategorias() {
 // -----------------------------------------------------
 async function loadTransaccion(id) {
     try {
-        const resp = await fetch('get_transaccion.php?id=' + id);
+        const resp = await fetch("/control_gastos/api/transacciones/obtener.php?id=" + id)
+;
 
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
@@ -179,11 +181,11 @@ btnGuardar.addEventListener('click', async () => {
     console.log('Enviando actualización:', payload);
 
     try {
-        const resp = await fetch('procesar_transaccion_editar.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+        const resp = await fetch("/control_gastos/api/transacciones/editar.php", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload)
+		});
 
         const data = await resp.json();
         console.log('Respuesta update:', data);
