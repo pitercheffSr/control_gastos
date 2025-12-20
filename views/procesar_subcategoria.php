@@ -1,56 +1,72 @@
 <?php
+/**
+ * ------------------------------------------------------------
+ * procesar_subcategoria.php
+ * ------------------------------------------------------------
+ * Procesa la creación de subcategorías (y subcategorías hijas).
+ *
+ * Migrado de mysqli a PDO.
+ * - Usa db.php como conexión única
+ * - Mantiene exactamente la misma lógica y redirecciones
+ * ------------------------------------------------------------
+ */
 
 session_start();
-require_once '../includes/conexion.php';
 
+// Conexión PDO unificada
+require_once __DIR__ . '/../db.php';
+
+// Verificar sesión activa
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
-    exit();
+    exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre = trim($_POST['nombre']);
-    $id_categoria = (int)$_POST['id_categoria'];
-    $id_usuario = $_SESSION['usuario_id'];
-    $parent_id = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
+// Solo permitir POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $_SESSION['error'] = 'Método no permitido';
+    header('Location: gestion_conceptos.php');
+    exit;
+}
 
-    // Validar que la categoría existe y es fija
-    $stmt = $conexion->prepare("SELECT id FROM categorias WHERE id = ? AND id_usuario = 0");
-    $stmt->bind_param("i", $id_categoria);
-    $stmt->execute();
-    $resultado = $stmt->get_result();
-    if ($resultado->num_rows === 0) {
-        $_SESSION['error'] = "Categoría no válida";
+// Datos de entrada
+$nombre       = trim($_POST['nombre'] ?? '');
+$id_categoria = (int) ($_POST['id_categoria'] ?? 0);
+$id_usuario   = (int) $_SESSION['usuario_id'];
+$parent_id    = isset($_POST['parent_id']) && $_POST['parent_id'] !== ''
+    ? (int) $_POST['parent_id']
+    : null;
+
+try {
+    /**
+     * --------------------------------------------------------
+     * Validar que la categoría exista y sea fija (id_usuario = 0)
+     * --------------------------------------------------------
+     */
+    $stmt = $pdo->prepare(
+        'SELECT id FROM categorias WHERE id = :id AND id_usuario = 0'
+    );
+    $stmt->execute(['id' => $id_categoria]);
+
+    if (!$stmt->fetch()) {
+        $_SESSION['error'] = 'Categoría no válida';
         header('Location: gestion_conceptos.php');
-        exit();
+        exit;
     }
 
-    // Si hay parent_id, validar que exista y pertenezca a la misma categoría
-    if ($parent_id) {
-        $stmt = $conexion->prepare("SELECT id FROM subcategorias WHERE id = ? AND id_categoria = ? AND id_usuario = ?");
-        $stmt->bind_param("iii", $parent_id, $id_categoria, $id_usuario);
-        $stmt->execute();
-        $res_padre = $stmt->get_result();
-        if ($res_padre->num_rows === 0) {
-            $_SESSION['error'] = "Subcategoría padre no válida";
-            header('Location: gestion_conceptos.php');
-            exit();
-        }
-    }
-
-    // Insertar la nueva subcategoría
-    $stmt = $conexion->prepare("INSERT INTO subcategorias (nombre, id_categoria, id_usuario, parent_id) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("siii", $nombre, $id_categoria, $id_usuario, $parent_id);
-
-    if ($stmt->execute()) {
-        $_SESSION['success'] = "Subcategoría creada exitosamente";
-    } else {
-        $_SESSION['error'] = "Error al crear la subcategoría";
-    }
-
-    $stmt->close();
-} else {
-    $_SESSION['error'] = "Método no permitido";
-}
-
-header('Location: gestion_conceptos.php');
+    /**
+     * --------------------------------------------------------
+     * Si hay parent_id, validar que exista y pertenezca
+     * a la misma categoría y usuario
+     * --------------------------------------------------------
+     */
+    if ($parent_id !== null) {
+        $stmt = $pdo->prepare(
+            'SELECT id
+             FROM subcategorias
+             WHERE id = :parent_id
+               AND id_categoria = :id_categoria
+               AND id_usuario = :id_usuario'
+        );
+        $stmt->execute([
+            'parent_id'    => $parent_

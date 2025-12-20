@@ -69,7 +69,7 @@ document.addEventListener('keydown', (e) => {
 async function loadCategorias() {
     try {
         const resp = await fetch("/control_gastos/api/categorias/listar.php")
-;
+            ;
         if (!resp.ok) throw new Error('Error HTTP ' + resp.status);
 
         const cats = await resp.json();
@@ -124,13 +124,17 @@ async function loadCategorias() {
 // -----------------------------------------------------
 async function loadTransaccion(id) {
     try {
-        const resp = await fetch("/control_gastos/api/transacciones/obtener.php?id=" + id)
-;
+        const resp = await fetch(`/control_gastos/controllers/TransaccionRouter.php?action=obtener&id=${id}`);
+
 
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
-        const data = await resp.json();
-        console.log('Datos recibidos para editar:', data);
+        const json = await resp.json();
+        console.log('Datos recibidos para editar:', json);
+
+        if (!json.ok) throw new Error(json.error || 'Error backend');
+
+        const data = json.data;
 
         // Rellenar campos
         fFecha.value = data.fecha;
@@ -181,23 +185,31 @@ btnGuardar.addEventListener('click', async () => {
     console.log('Enviando actualización:', payload);
 
     try {
-        const resp = await fetch("/control_gastos/api/transacciones/editar.php", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload)
-		});
+        const response = await fetch(
+            "/control_gastos/controllers/TransaccionRouter.php?action=editar",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            }
+        );
 
-        const data = await resp.json();
-        console.log('Respuesta update:', data);
+        const json = await response.json();
+        console.log('Respuesta update:', json);
 
-        if (data.ok) {
-            alert('Transacción actualizada.');
-            cerrarPanel();
-            location.reload();
-        } else {
-            alert('Error: ' + data.error);
+        if (!json.ok) {
+            throw new Error(json.error || 'Error backend');
+        }
+
+        alert('Transacción actualizada.');
+        cerrarPanel();
+
+        // ⬇️ refrescar tabla SIN recargar página
+        if (typeof cargarTransacciones === 'function') {
+            cargarTransacciones();
         }
     } catch (err) {
+        console.error(err);
         alert('Error al guardar: ' + err.message);
     }
 });

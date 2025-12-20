@@ -1,46 +1,33 @@
 <?php
 
-include_once "config.php";
-include_once "db.php";
+/**
+ * ------------------------------------------------------------
+ * procesar_transaccion.php (Router MVC)
+ * ------------------------------------------------------------
+ * Router para creación de transacciones.
+ * ------------------------------------------------------------
+ */
 
-header("Content-Type: application/json");
+session_start();
 
-if (!isset($_SESSION["usuario_id"])) {
-    echo json_encode(["ok" => false, "error" => "No autenticado"]);
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/controllers/TransaccionController.php';
+
+header('Content-Type: application/json; charset=utf-8');
+
+// Leer JSON del body
+$input = json_decode(file_get_contents('php://input'), true);
+
+// Validar JSON
+if (!is_array($input)) {
+    echo json_encode(['ok' => false, 'error' => 'JSON inválido']);
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+// Delegar en controller
+$controller = new TransaccionController($pdo);
+$result = $controller->crear($input);
 
-$fecha = $input["fecha"] ?? null;
-$descripcion = $input["descripcion"] ?? "";
-$monto = $input["monto"] ?? 0;
-$tipo = $input["tipo"] ?? null;
-$categoria = $input["categoria"] ?? null;
-$subcategoria = $input["subcategoria"] ?? null;
-$subsub = $input["subsub"] ?? null;
-
-if (!$fecha || !$monto || !$tipo) {
-    echo json_encode(["ok" => false, "error" => "Datos incompletos"]);
-    exit;
-}
-
-$sql = "
-INSERT INTO transacciones
-(id_usuario, fecha, descripcion, monto, tipo, id_categoria, id_subcategoria, id_subsubcategoria)
-VALUES (:uid, :fecha, :descripcion, :monto, :tipo, :cat, :subcat, :subsub)
-";
-
-$stmt = $conn->prepare($sql);
-$stmt->execute([
-    ":uid" => $_SESSION["usuario_id"],
-    ":fecha" => $fecha,
-    ":descripcion" => $descripcion,
-    ":monto" => $monto,
-    ":tipo" => $tipo,
-    ":cat" => $categoria,
-    ":subcat" => $subcategoria,
-    ":subsub" => $subsub
-]);
-
-echo json_encode(["ok" => true]);
+// Responder
+echo json_encode($result);
+exit;

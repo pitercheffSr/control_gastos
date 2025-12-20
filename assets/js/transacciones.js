@@ -9,9 +9,8 @@ console.log('transacciones.js cargado'); // ← único log
 ------------------------------------------------------------ */
 async function cargarTransacciones() {
     try {
-        const resp = await fetch(
-            '/control_gastos/api/transacciones/listar.php'
-        );
+        const resp = await fetch('/control_gastos/controllers/TransaccionRouter.php?action=listar');
+        ;
         const data = await resp.json();
 
         console.log('Transacciones recibidas:', data);
@@ -84,7 +83,7 @@ document.addEventListener('click', (ev) => {
 
         if (!confirm('¿Seguro que quieres eliminar esta transacción?')) return;
 
-        fetch('/control_gastos/api/transacciones/eliminar.php', {
+        fetch('/control_gastos/controllers/TransaccionRouter.php?action=eliminar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id }),

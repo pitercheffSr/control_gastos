@@ -40,3 +40,5 @@ test_endpoints.php
 
 # Keep composer global bins out (no commit)
 /.config/composer/
+
+.vscode/settings.json

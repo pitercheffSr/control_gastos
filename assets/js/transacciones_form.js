@@ -1,6 +1,4 @@
 console.log('transacciones_form.js cargado correctamente');
-window.categoriaTieneSubcategorias = false;
-window.subcategoriaTieneSubsub = false;
 
 // === 1. Cargar categorías raíz ===
 fetch('load_categorias.php?nivel=nivel1')
@@ -17,10 +15,11 @@ fetch('load_categorias.php?nivel=nivel1')
 document.getElementById('f_categoria').addEventListener('change', () => {
     let cid = document.getElementById('f_categoria').value;
 
+    // Resetear estado al cambiar categoría
+
     fetch('load_categorias.php?nivel=nivel2&padre=' + cid)
         .then((r) => r.json())
         .then((subs) => {
-            window.categoriaTieneSubcategorias = subs.length > 0;
 
             let sel = document.getElementById('f_subcategoria');
             sel.innerHTML = "<option value=''>---</option>";
@@ -38,10 +37,15 @@ document.getElementById('f_categoria').addEventListener('change', () => {
 document.getElementById('f_subcategoria').addEventListener('change', () => {
     let sid = document.getElementById('f_subcategoria').value;
 
+    // Si no hay subcategoría seleccionada, no exigir sub-subcategoría
+    if (!sid) {
+        document.getElementById('f_subsub').innerHTML = "<option value=''>---</option>";
+        return;
+    }
+
     fetch('load_categorias.php?nivel=nivel3&padre=' + sid)
         .then((r) => r.json())
         .then((subs) => {
-            window.subcategoriaTieneSubsub = subs.length > 0;
 
             let sel = document.getElementById('f_subsub');
             sel.innerHTML = "<option value=''>---</option>";
@@ -52,71 +56,73 @@ document.getElementById('f_subcategoria').addEventListener('change', () => {
         });
 });
 
-// === 4. EVENTO GUARDAR ===
-document
-    .getElementById('btnGuardarFull')
-    .addEventListener('click', async () => {
-        const fecha = document.getElementById('f_fecha').value;
-        if (!fecha) {
-            alert('Debe seleccionar una fecha');
-            return;
-        }
-        if (!document.getElementById('f_monto').value) {
-            alert('Debes especificar un importe.');
-            return;
-        }
+// === 4. EVENTO GUARDAR (validación limpia) ===
+document.getElementById('btnGuardarFull').addEventListener('click', async () => {
+    const fecha = document.getElementById('f_fecha').value;
+    const monto = document.getElementById('f_monto').value;
+    const tipo = document.getElementById('f_tipo').value;
 
-        if (!document.getElementById('f_tipo').value) {
-            alert('Debes seleccionar tipo: ingreso o gasto.');
-            return;
-        }
+    const categoria = document.getElementById('f_categoria').value;
+    const subcategoria = document.getElementById('f_subcategoria').value;
+    const subsub = document.getElementById('f_subsub').value;
 
-        if (!document.getElementById('f_categoria').value) {
-            alert('Debes seleccionar una categoría.');
-            return;
-        }
-        // Validar subcategoría si la categoría tiene hijas
-        if (window.categoriaTieneSubcategorias === true) {
-            let sub = document.getElementById('f_subcategoria').value;
-            if (!sub) {
-                alert('Debes seleccionar una subcategoría.');
-                return;
-            }
-        }
-        // Si la subcategoría tiene sub-subcategorías → obligar a elegir una
-        if (window.subcategoriaTieneSubsub === true) {
-            let sub2 = document.getElementById('f_subsub').value;
-            if (!sub2) {
-                alert('Debes seleccionar una sub-subcategoría.');
-                return;
-            }
-        }
+    if (!fecha) {
+        alert('Debe seleccionar una fecha');
+        return;
+    }
 
-        const datos = {
-            fecha: fecha,
-            descripcion: document.getElementById('f_descripcion').value,
-            monto: document.getElementById('f_monto').value,
-            tipo: document.getElementById('f_tipo').value,
-            categoria: document.getElementById('f_categoria').value,
-            subcategoria: document.getElementById('f_subcategoria').value,
-            subsub: document.getElementById('f_subsub').value,
-        };
+    if (monto === '') {
+        alert('Debes especificar un importe.');
+        return;
+    }
 
-        console.log('Enviando datos:', datos);
+    if (!tipo) {
+        alert('Debes seleccionar tipo: ingreso o gasto.');
+        return;
+    }
 
-        let resp = await fetch('/control_gastos/api/transacciones/crear.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(datos),
-        });
+    // VALIDACIÓN CORRECTA Y REAL
+    const subcatOptions = document.getElementById('f_subcategoria').options.length > 1;
+    const subsubOptions = document.getElementById('f_subsub').options.length > 1;
 
-        let json = await resp.json();
-        console.log('Respuesta del servidor:', json);
+    // Si hay categoría y existen subcategorías → exigir subcategoría
+    if (categoria && subcatOptions && !subcategoria) {
+        alert('Debes seleccionar una subcategoría.');
+        return;
+    }
 
-        if (json.ok) {
-            alert('Guardado correctamente');
-            window.location.href = 'transacciones.php';
-        } else {
-            alert('Error: ' + json.error);
-        }
+    // Si hay subcategoría y existen sub-subcategorías → exigir sub-subcategoría
+    if (subcategoria && subsubOptions && !subsub) {
+        alert('Debes seleccionar una sub-subcategoría.');
+        return;
+    }
+
+    const datos = {
+        fecha: fecha,
+        descripcion: document.getElementById('f_descripcion').value,
+        monto: monto,
+        tipo: tipo,
+        categoria: categoria || null,
+        subcategoria: subcategoria || null,
+        subsub: subsub || null,
+    };
+
+    console.log('Enviando datos:', datos);
+
+    let resp = await fetch('/control_gastos/procesar_transaccion.php', {
+
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos),
     });
+
+    let json = await resp.json();
+    console.log('Respuesta del servidor:', json);
+
+    if (json.ok) {
+        alert('Guardado correctamente');
+        window.location.href = 'transacciones.php';
+    } else {
+        alert('Error: ' + json.error);
+    }
+});

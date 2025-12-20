@@ -4,8 +4,9 @@
 
 $DB_HOST = 'localhost';
 $DB_NAME = 'bd_503020';
-$DB_USER = 'root';
-$DB_PASS = '1234';
+$DB_USER = 'cg_user';
+$DB_PASS = 'cg_pass';
+
 $DB_CHARSET = 'utf8mb4';
 
 $dsn = "mysql:host={$DB_HOST};dbname={$DB_NAME};charset={$DB_CHARSET}";
