@@ -50,7 +50,7 @@ class DashboardController
 	/**
 	 * Distribución 50 / 30 / 20
 	 */
-	public function distribucion503020(): array
+	public function distribucion(): array
 	{
 		if (!isset($_SESSION['usuario_id'])) {
 			return [
@@ -59,13 +59,35 @@ class DashboardController
 			];
 		}
 
-		$usuarioId = (int) $_SESSION['usuario_id'];
-
-		$data = $this->model->distribucion503020($usuarioId);
+		$data = $this->model->distribucion503020(
+			(int) $_SESSION['usuario_id']
+		);
 
 		return [
 			'ok'   => true,
 			'data' => $data
 		];
 	}
+		/**
+		 * Porcentaje de gasto sobre ingresos
+		 */
+		public function porcentaje(): array
+		{
+			if (!isset($_SESSION['usuario_id'])) {
+				return [
+					'ok'    => false,
+					'error' => 'No autenticado'
+				];
+			}
+
+			$data = $this->model->porcentajeGasto(
+				(int) $_SESSION['usuario_id']
+			);
+
+			return [
+				'ok'   => true,
+				'data' => $data
+			];
+		}
+
 }

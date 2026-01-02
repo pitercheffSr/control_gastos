@@ -13,59 +13,116 @@
  * Fuente de datos:
  * - /controllers/DashboardRouter.php
  * ------------------------------------------------------------
- */
+*/
+
+/* ------------------------------------------------------------
+   Helper fetch JSON seguro
+------------------------------------------------------------ */
+async function fetchJSON(url) {
+	const resp = await fetch(url, { credentials: 'same-origin' });
+
+	if (!resp.ok) {
+		throw new Error(`HTTP ${resp.status}`);
+	}
+
+	return await resp.json();
+}
+
+/* ------------------------------------------------------------
+Cargar porcentaje de gasto
+------------------------------------------------------------ */
+async function cargarPorcentaje() {
+	try {
+		const json = await fetchJSON(
+			'/control_gastos/controllers/DashboardRouter.php?action=porcentaje'
+		);
+
+		console.log('Porcentaje gasto:', json);
+
+		if (!json.ok) {
+			throw new Error(json.error || 'Error backend');
+		}
+
+		document.getElementById('kpi-porcentaje').textContent =
+			json.data.porcentaje_gasto.toFixed(2) + ' %';
+
+	} catch (err) {
+		console.error('Error cargando porcentaje:', err);
+	}
+}
+/* ------------------------------------------------------------
+   Cargar distribución 50 / 30 / 20
+   (datos preparados para gráficos)
+------------------------------------------------------------ */
+async function cargarDistribucion() {
+	try {
+		const json = await fetchJSON(
+			'/control_gastos/controllers/DashboardRouter.php?action=distribucion'
+		);
+
+		if (!json.ok) {
+			throw new Error(json.error || 'Error backend');
+		}
+
+		const labels = [];
+		const valores = [];
+		const porcentajes = [];
+
+		json.data.forEach((item) => {
+			labels.push(item.categoria);
+			valores.push(item.total);
+			porcentajes.push(item.porcentaje);
+		});
+
+		// 🔍 Preparado para gráficos (Paso 8)
+		console.log('Distribución labels:', labels);
+		console.log('Distribución valores:', valores);
+		console.log('Distribución porcentajes:', porcentajes);
+
+	} catch (err) {
+		console.error('Error cargando distribución:', err);
+	}
+}
+/* ------------------------------------------------------------
+   Carga inicial del dashboard
+------------------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
-		// Solicitar resumen del mes actual al backend
 		const resp = await fetch('/control_gastos/controllers/DashboardRouter.php');
-
-		// Parsear respuesta JSON
 		const json = await resp.json();
 
-		// Validación básica del contrato backend
 		if (!json.ok) {
 			throw new Error(json.error || 'Error cargando datos del dashboard');
 		}
 
-		// Alias corto a los datos devueltos
 		const d = json.data;
 
-		// --------------------------------------------------------
-		// KPI: INGRESOS DEL MES
-		// --------------------------------------------------------
+		if (
+			typeof d.ingresos !== 'number' ||
+			typeof d.gastos !== 'number' ||
+			typeof d.balance !== 'number'
+		) {
+			throw new Error('Datos del dashboard incompletos');
+		}
+
 		document.getElementById('kpi-ingresos').textContent =
 			d.ingresos.toFixed(2) + ' €';
 
-		// --------------------------------------------------------
-		// KPI: GASTOS DEL MES
-		// --------------------------------------------------------
 		document.getElementById('kpi-gastos').textContent =
 			d.gastos.toFixed(2) + ' €';
 
-		// --------------------------------------------------------
-		// KPI: BALANCE (ingresos - gastos)
-		// Se colorea dinámicamente:
-		// - Verde si positivo o cero
-		// - Rojo si negativo
-		// --------------------------------------------------------
 		const balanceEl = document.getElementById('kpi-balance');
 		balanceEl.textContent = d.balance.toFixed(2) + ' €';
-
 		balanceEl.classList.toggle('text-success', d.balance >= 0);
 		balanceEl.classList.toggle('text-error', d.balance < 0);
 
-		// --------------------------------------------------------
-		// KPI: PORCENTAJE DE GASTO SOBRE INGRESOS
-		// El backend ya gestiona el caso ingresos = 0
-		// --------------------------------------------------------
-		document.getElementById('kpi-porcentaje').textContent =
-			d.porcentaje_gasto.toFixed(2) + ' %';
+		// ⬇️ AQUÍ
+		await cargarPorcentaje();
+		await cargarDistribucion();
 
 	} catch (err) {
-		// Error silencioso controlado:
-		// - Se muestra en consola
-		// - No bloquea la carga del dashboard
 		console.error('Dashboard error:', err);
 	}
 });
+

@@ -42,8 +42,15 @@ switch ($action) {
 	// Distribución 50 / 30 / 20
 	// -----------------------------------------
 	case 'distribucion':
-		$result = $controller->distribucion503020();
+		$result = $controller->distribucion();
 		break;
+	// -----------------------------------------
+	// Porcentaje de gasto sobre ingresos
+	// -----------------------------------------
+	case 'porcentaje':
+		$result = $controller->porcentaje();
+		break;
+
 
 	// -----------------------------------------
 	// Acción no válida
