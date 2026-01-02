@@ -32,6 +32,19 @@ $controller = new DashboardController($pdo);
 switch ($action) {
 
 	// -----------------------------------------
+	// Movimientos recientes
+	// -----------------------------------------
+
+	case 'movimientos':
+		$page  = max(1, (int)($_GET['page'] ?? 1));
+		$limit = 10;
+		$offset = ($page - 1) * $limit;
+
+		$result = $controller->movimientos($page, $limit, $offset);
+		break;
+
+
+	// -----------------------------------------
 	// Resumen general (ingresos / gastos / balance)
 	// -----------------------------------------
 	case 'resumen':

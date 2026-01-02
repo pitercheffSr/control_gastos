@@ -1,3 +1,4 @@
+
 /**
  * ------------------------------------------------------------
  * dashboard.js
@@ -14,6 +15,10 @@
  * - /controllers/DashboardRouter.php
  * ------------------------------------------------------------
 */
+
+import { renderKpis } from './widgets/widgetKpis.js';
+import { renderDistribucion503020 } from './widgets/widgetDistribucion503020.js';
+
 
 /* ------------------------------------------------------------
    Helper fetch JSON seguro
@@ -66,63 +71,113 @@ async function cargarDistribucion() {
 
 		const labels = [];
 		const valores = [];
-		const porcentajes = [];
 
 		json.data.forEach((item) => {
 			labels.push(item.categoria);
 			valores.push(item.total);
-			porcentajes.push(item.porcentaje);
 		});
 
-		// 🔍 Preparado para gráficos (Paso 8)
-		console.log('Distribución labels:', labels);
-		console.log('Distribución valores:', valores);
-		console.log('Distribución porcentajes:', porcentajes);
+		// 🎯 PINTAR DONUT
+		const canvas = document.getElementById('chart503020');
+		renderDistribucion503020(canvas, labels, valores);
 
 	} catch (err) {
 		console.error('Error cargando distribución:', err);
 	}
 }
+let paginaActual = 1;
+
 /* ------------------------------------------------------------
-   Carga inicial del dashboard
+   Cargar movimientos (historial)
+------------------------------------------------------------ */
+async function cargarMovimientos(page = 1) {
+	try {
+		const json = await fetchJSON(
+			`/control_gastos/controllers/DashboardRouter.php?action=movimientos&page=${page}`
+		);
+
+		if (!json.ok) {
+			throw new Error(json.error || 'Error backend');
+		}
+
+		const tbody = document.querySelector('#transactionsTable tbody');
+		tbody.innerHTML = '';
+
+		if (json.data.length === 0) {
+			tbody.innerHTML =
+				"<tr><td colspan='6'>No hay movimientos</td></tr>";
+			return;
+		}
+
+		json.data.forEach((t) => {
+			tbody.insertAdjacentHTML(
+				'beforeend',
+				`
+				<tr>
+					<td>${t.fecha}</td>
+					<td>${t.descripcion ?? ''}</td>
+					<td>${t.categoria ?? '-'}</td>
+					<td>${t.subcategoria ?? '-'}</td>
+					<td>${t.monto} €</td>
+					<td>${t.tipo}</td>
+				</tr>
+				`
+			);
+		});
+
+		paginaActual = json.page;
+		document.getElementById('pageInfo').textContent =
+			'Página ' + paginaActual;
+
+	} catch (err) {
+		console.error('Error cargando movimientos:', err);
+	}
+}
+/* ------------------------------------------------------------
+	Carga inicial del dashboard
 ------------------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
-		const resp = await fetch('/control_gastos/controllers/DashboardRouter.php');
-		const json = await resp.json();
+		const json = await fetchJSON('/control_gastos/controllers/DashboardRouter.php');
 
-		if (!json.ok) {
-			throw new Error(json.error || 'Error cargando datos del dashboard');
-		}
+		if (!json.ok) throw new Error(json.error);
 
-		const d = json.data;
-
-		if (
-			typeof d.ingresos !== 'number' ||
-			typeof d.gastos !== 'number' ||
-			typeof d.balance !== 'number'
-		) {
-			throw new Error('Datos del dashboard incompletos');
-		}
-
-		document.getElementById('kpi-ingresos').textContent =
-			d.ingresos.toFixed(2) + ' €';
-
-		document.getElementById('kpi-gastos').textContent =
-			d.gastos.toFixed(2) + ' €';
-
-		const balanceEl = document.getElementById('kpi-balance');
-		balanceEl.textContent = d.balance.toFixed(2) + ' €';
-		balanceEl.classList.toggle('text-success', d.balance >= 0);
-		balanceEl.classList.toggle('text-error', d.balance < 0);
-
-		// ⬇️ AQUÍ
+		renderKpis(json.data);
 		await cargarPorcentaje();
 		await cargarDistribucion();
+		await cargarMovimientos();
 
 	} catch (err) {
 		console.error('Dashboard error:', err);
 	}
 });
+/* ------------------------------------------------------------
+   Lógica de interacción del dashboard
+------------------------------------------------------------ */
+
+document.addEventListener('DOMContentLoaded', () => {
+	const btn = document.getElementById('btnToggleSidebar');
+	const sidebar = document.querySelector('.sidebar');
+	const main = document.querySelector('.main-content');
+
+	if (!btn || !sidebar || !main) return;
+
+	btn.addEventListener('click', () => {
+		sidebar.classList.toggle('hidden');
+		main.classList.toggle('expanded');
+	});
+});
+
+
+document.getElementById('prevPage')?.addEventListener('click', () => {
+	if (paginaActual > 1) {
+		cargarMovimientos(paginaActual - 1);
+	}
+});
+
+document.getElementById('nextPage')?.addEventListener('click', () => {
+	cargarMovimientos(paginaActual + 1);
+});
+
 

@@ -135,4 +135,83 @@ class DashboardModel
 			'porcentaje_gasto'  => $porcentaje
 		];
 	}
+	/**
+	 * Transacciones paginadas para dashboard
+	 */
+	public function transaccionesPaginadas(
+
+		int $usuarioId,
+		int $page = 1,
+		int $limit = 10
+	): array {
+		$offset = ($page - 1) * $limit;
+
+		// Datos
+		$stmt = $this->pdo->prepare("
+			SELECT
+				t.fecha,
+				t.descripcion,
+				t.monto,
+				t.tipo,
+				c.nombre AS categoria,
+				sc.nombre AS subcategoria
+			FROM transacciones t
+			LEFT JOIN categorias c ON c.id = t.id_categoria
+			LEFT JOIN categorias sc ON sc.id = t.id_subcategoria
+			WHERE t.id_usuario = :uid
+			ORDER BY t.fecha DESC, t.id DESC
+			LIMIT :lim OFFSET :off
+		");
+
+		$stmt->bindValue(':uid', $usuarioId, PDO::PARAM_INT);
+		$stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+		$stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+		$stmt->execute();
+
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		// Total
+		$totalStmt = $this->pdo->prepare("
+			SELECT COUNT(*) FROM transacciones WHERE id_usuario = :uid
+		");
+		$totalStmt->execute(['uid' => $usuarioId]);
+		$total = (int) $totalStmt->fetchColumn();
+
+		return [
+			'items' => $rows,
+			'total' => $total,
+			'page'  => $page,
+			'pages' => (int) ceil($total / $limit)
+		];
+	}
+
+	/**
+	 * Últimos movimientos para el dashboard
+	 */
+
+	public function ultimosMovimientos(int $usuarioId, int $limit, int $offset): array
+	{
+		$stmt = $this->pdo->prepare("
+        SELECT
+            t.fecha,
+            t.descripcion,
+            c.nombre  AS categoria,
+            sc.nombre AS subcategoria,
+            t.monto,
+            t.tipo
+        FROM transacciones t
+        LEFT JOIN categorias c     ON c.id  = t.id_categoria
+        LEFT JOIN subcategorias sc ON sc.id = t.id_subcategoria
+        WHERE t.id_usuario = :uid
+        ORDER BY t.fecha DESC, t.id DESC
+        LIMIT :limit OFFSET :offset
+    ");
+
+		$stmt->bindValue(':uid', $usuarioId, PDO::PARAM_INT);
+		$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+		$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+		$stmt->execute();
+		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 }

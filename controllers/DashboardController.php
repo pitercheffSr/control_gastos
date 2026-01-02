@@ -68,26 +68,44 @@ class DashboardController
 			'data' => $data
 		];
 	}
-		/**
-		 * Porcentaje de gasto sobre ingresos
-		 */
-		public function porcentaje(): array
-		{
-			if (!isset($_SESSION['usuario_id'])) {
-				return [
-					'ok'    => false,
-					'error' => 'No autenticado'
-				];
-			}
-
-			$data = $this->model->porcentajeGasto(
-				(int) $_SESSION['usuario_id']
-			);
-
+	/**
+	 * Porcentaje de gasto sobre ingresos
+	 */
+	public function porcentaje(): array
+	{
+		if (!isset($_SESSION['usuario_id'])) {
 			return [
-				'ok'   => true,
-				'data' => $data
+				'ok'    => false,
+				'error' => 'No autenticado'
 			];
 		}
+
+		$data = $this->model->porcentajeGasto(
+			(int) $_SESSION['usuario_id']
+		);
+
+		return [
+			'ok'   => true,
+			'data' => $data
+		];
+	}
+	public function movimientos(int $page, int $limit, int $offset): array
+	{
+		if (!isset($_SESSION['usuario_id'])) {
+			return ['ok' => false, 'error' => 'No autenticado'];
+		}
+
+		$data = $this->model->ultimosMovimientos(
+			(int)$_SESSION['usuario_id'],
+			$limit,
+			$offset
+		);
+
+		return [
+			'ok'   => true,
+			'data' => $data,
+			'page' => $page
+		];
+	}
 
 }
