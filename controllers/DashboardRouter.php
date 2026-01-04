@@ -31,18 +31,26 @@ $controller = new DashboardController($pdo);
 
 switch ($action) {
 
+
 	// -----------------------------------------
 	// Movimientos recientes
 	// -----------------------------------------
 
 	case 'movimientos':
+		if (!isset($_SESSION['usuario_id'])) {
+			$result = ['ok' => false, 'error' => 'No autenticado'];
+			break;
+		}
+
 		$page  = max(1, (int)($_GET['page'] ?? 1));
-		$limit = 10;
-		$offset = ($page - 1) * $limit;
+		$limit = max(1, (int)($_GET['limit'] ?? 10));
 
-		$result = $controller->movimientos($page, $limit, $offset);
+		$result = $controller->movimientos(
+			(int) $_SESSION['usuario_id'],
+			$page,
+			$limit
+		);
 		break;
-
 
 	// -----------------------------------------
 	// Resumen general (ingresos / gastos / balance)

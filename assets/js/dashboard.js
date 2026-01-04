@@ -18,6 +18,7 @@
 
 import { renderKpis } from './widgets/widgetKpis.js';
 import { renderDistribucion503020 } from './widgets/widgetDistribucion503020.js';
+import { cargarMovimientos, initMovimientos } from './widgets/widgetMovimientos.js';
 
 
 /* ------------------------------------------------------------
@@ -85,54 +86,10 @@ async function cargarDistribucion() {
 		console.error('Error cargando distribución:', err);
 	}
 }
-let paginaActual = 1;
+let currentPage = 1;
+let totalPages = 1;
 
-/* ------------------------------------------------------------
-   Cargar movimientos (historial)
------------------------------------------------------------- */
-async function cargarMovimientos(page = 1) {
-	try {
-		const json = await fetchJSON(
-			`/control_gastos/controllers/DashboardRouter.php?action=movimientos&page=${page}`
-		);
 
-		if (!json.ok) {
-			throw new Error(json.error || 'Error backend');
-		}
-
-		const tbody = document.querySelector('#transactionsTable tbody');
-		tbody.innerHTML = '';
-
-		if (json.data.length === 0) {
-			tbody.innerHTML =
-				"<tr><td colspan='6'>No hay movimientos</td></tr>";
-			return;
-		}
-
-		json.data.forEach((t) => {
-			tbody.insertAdjacentHTML(
-				'beforeend',
-				`
-				<tr>
-					<td>${t.fecha}</td>
-					<td>${t.descripcion ?? ''}</td>
-					<td>${t.categoria ?? '-'}</td>
-					<td>${t.subcategoria ?? '-'}</td>
-					<td>${t.monto} €</td>
-					<td>${t.tipo}</td>
-				</tr>
-				`
-			);
-		});
-
-		paginaActual = json.page;
-		document.getElementById('pageInfo').textContent =
-			'Página ' + paginaActual;
-
-	} catch (err) {
-		console.error('Error cargando movimientos:', err);
-	}
-}
 /* ------------------------------------------------------------
 	Carga inicial del dashboard
 ------------------------------------------------------------ */
@@ -146,7 +103,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 		renderKpis(json.data);
 		await cargarPorcentaje();
 		await cargarDistribucion();
-		await cargarMovimientos();
+		await cargarMovimientos(1);
+		initMovimientos();
 
 	} catch (err) {
 		console.error('Dashboard error:', err);
@@ -169,15 +127,31 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 });
 
-
-document.getElementById('prevPage')?.addEventListener('click', () => {
-	if (paginaActual > 1) {
-		cargarMovimientos(paginaActual - 1);
+document.getElementById('prevPage').addEventListener('click', () => {
+	if (currentPage > 1) {
+		cargarMovimientos(currentPage - 1);
 	}
 });
 
-document.getElementById('nextPage')?.addEventListener('click', () => {
-	cargarMovimientos(paginaActual + 1);
+document.getElementById('nextPage').addEventListener('click', () => {
+	if (currentPage < totalPages) {
+		cargarMovimientos(currentPage + 1);
+	}
 });
 
+
+/* ------------------------------------------------------------
+   Toggle sidebar (menú lateral)
+------------------------------------------------------------ */
+document.addEventListener('DOMContentLoaded', () => {
+	const btn = document.getElementById('btnToggleSidebar');
+	const sidebar = document.querySelector('.sidebar');
+	const appRoot = document.querySelector('.app-root');
+
+	if (!btn || !sidebar || !appRoot) return;
+
+	btn.addEventListener('click', () => {
+		appRoot.classList.toggle('sidebar-collapsed');
+	});
+});
 

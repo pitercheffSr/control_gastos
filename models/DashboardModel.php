@@ -189,19 +189,22 @@ class DashboardModel
 	 * Últimos movimientos para el dashboard
 	 */
 
-	public function ultimosMovimientos(int $usuarioId, int $limit, int $offset): array
-	{
+	public function ultimosMovimientos(
+		int $usuarioId,
+		int $limit,
+		int $offset
+	): array {
 		$stmt = $this->pdo->prepare("
         SELECT
             t.fecha,
             t.descripcion,
-            c.nombre  AS categoria,
+            c.nombre AS categoria,
             sc.nombre AS subcategoria,
             t.monto,
             t.tipo
         FROM transacciones t
-        LEFT JOIN categorias c     ON c.id  = t.id_categoria
-        LEFT JOIN subcategorias sc ON sc.id = t.id_subcategoria
+        LEFT JOIN categorias c ON c.id = t.id_categoria
+        LEFT JOIN categorias sc ON sc.id = t.id_subcategoria
         WHERE t.id_usuario = :uid
         ORDER BY t.fecha DESC, t.id DESC
         LIMIT :limit OFFSET :offset
@@ -210,8 +213,23 @@ class DashboardModel
 		$stmt->bindValue(':uid', $usuarioId, PDO::PARAM_INT);
 		$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
 		$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-
 		$stmt->execute();
+
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	/**
+	 * Contar movimientos totales
+	 */
+	public function contarMovimientos(int $usuarioId): int
+	{
+		$stmt = $this->pdo->prepare("
+			SELECT COUNT(*)
+			FROM transacciones
+			WHERE id_usuario = :uid
+		");
+
+		$stmt->execute(['uid' => $usuarioId]);
+		return (int) $stmt->fetchColumn();
 	}
 }

@@ -215,8 +215,13 @@ if (!isset($_SESSION['usuario_id'])) {
 												<th>Tipo</th>
 											</tr>
 										</thead>
-										<tbody></tbody>
+										<tbody id="transactionsTableBody"></tbody>
 									</table>
+								</div>
+								<div class="paginator mt-2">
+									<button id="prevPage" class="btn btn-sm">Anterior</button>
+									<span id="pageInfo">Página 1</span>
+									<button id="nextPage" class="btn btn-sm">Siguiente</button>
 								</div>
 							</div>
 

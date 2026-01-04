@@ -89,23 +89,32 @@ class DashboardController
 			'data' => $data
 		];
 	}
-	public function movimientos(int $page, int $limit, int $offset): array
-	{
-		if (!isset($_SESSION['usuario_id'])) {
-			return ['ok' => false, 'error' => 'No autenticado'];
-		}
+	/**
+	 * Movimientos recientes con paginación
+	 */
+	public function movimientos(int $usuarioId, int $page, int $limit): array
+{
+    $offset = ($page - 1) * $limit;
 
-		$data = $this->model->ultimosMovimientos(
-			(int)$_SESSION['usuario_id'],
-			$limit,
-			$offset
-		);
+    // Total de transacciones (para paginación)
+    $total = $this->model->contarMovimientos($usuarioId);
+    $totalPages = max(1, (int) ceil($total / $limit));
 
-		return [
-			'ok'   => true,
-			'data' => $data,
-			'page' => $page
-		];
-	}
+    // Datos paginados
+    $rows = $this->model->ultimosMovimientos(
+        $usuarioId,
+        $limit,
+        $offset
+    );
+
+    return [
+        'ok'         => true,
+        'data'       => $rows,
+        'page'       => $page,
+        'totalPages' => $totalPages,
+        'total'      => $total
+    ];
+}
+
 
 }

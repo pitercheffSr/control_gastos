@@ -395,3 +395,16 @@ body {
 	color: #dc2626;
 	/* Rojo para valores negativos */
 }
+
+/* ------------------------------------------------------------
+   Sidebar colapsable
+------------------------------------------------------------ */
+
+.app-root.sidebar-collapsed .sidebar {
+	width: 0;
+	overflow: hidden;
+}
+
+.app-root.sidebar-collapsed .main-content {
+	margin-left: 0;
+}
