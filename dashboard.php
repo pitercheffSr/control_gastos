@@ -6,24 +6,23 @@
  * ============================================================
  * Vista principal del Dashboard de ControlGastos
  *
- * RESPONSABILIDADES DE ESTE ARCHIVO:
- * - Verificar que el usuario está autenticado
- * - Definir la estructura HTML del dashboard
- * - Proveer los contenedores (IDs) que el JS rellenará
+ * RESPONSABILIDADES:
+ * - Verificar sesión
+ * - Definir estructura HTML
+ * - Proveer IDs que el JS rellenará
  *
- * NO DEBE HACER:
- * - Consultas SQL
- * - Lógica de negocio
- * - Cálculos
- * - Acceso directo a datos
+ * NO DEBE:
+ * - Consultar BD
+ * - Calcular datos
+ * - Procesar lógica
  *
- * Toda la lógica vive en:
+ * La lógica vive en:
  * - controllers/DashboardRouter.php
  * - assets/js/dashboard.js
  * ============================================================
  */
 
-include_once "config.php";
+require_once "config.php";
 
 /* ------------------------------------------------------------
    Seguridad: usuario autenticado
@@ -38,9 +37,9 @@ if (!isset($_SESSION['usuario_id'])) {
 
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 
-	<title>Control Gastos — Dashboard</title>
+	<title>ControlGastos — Dashboard</title>
 
 	<!-- =========================================================
 	     Framework CSS (Spectre.css)
@@ -52,6 +51,7 @@ if (!isset($_SESSION['usuario_id'])) {
 	<!-- =========================================================
 	     CSS propio del proyecto
 	     ========================================================= -->
+	<link rel="stylesheet" href="assets/css/base.css">
 	<link rel="stylesheet" href="assets/css/dashboard.css">
 </head>
 
@@ -104,18 +104,16 @@ if (!isset($_SESSION['usuario_id'])) {
 			<!-- ===================== TOPBAR ===================== -->
 			<header class="topbar">
 				<div class="topbar-left">
-					<button id="btnToggleSidebar"
+					<button
+						id="btnToggleSidebar"
 						class="btn btn-link btn-action"
-						title="Mostrar / ocultar menú">
-						☰
-					</button>
+						title="Mostrar / ocultar menú">☰</button>
 					<h2>Dashboard</h2>
 				</div>
 			</header>
 
 			<!-- =====================================================
 		     KPIs SUPERIORES
-		     Estos valores se rellenan desde dashboard.js
 		     ===================================================== -->
 			<section class="container grid-lg">
 				<div class="columns">
@@ -169,18 +167,15 @@ if (!isset($_SESSION['usuario_id'])) {
 
 			<!-- =====================================================
 		     GRÁFICO DONUT 50 / 30 / 20
-		     El canvas es obligatorio para Chart.js
 		     ===================================================== -->
 			<section class="container grid-lg">
 				<div class="columns">
 					<div class="column col-12">
 						<div class="card">
 							<div class="card-header">
-								<div class="card-title h5">
-									Distribución 50 / 30 / 20
-								</div>
+								<div class="card-title h5">Distribución 50 / 30 / 20</div>
 							</div>
-							<div class="card-body" style="max-width:420px; margin:auto;">
+							<div class="card-body donut-wrapper">
 								<canvas id="chart503020"></canvas>
 							</div>
 						</div>
@@ -189,7 +184,7 @@ if (!isset($_SESSION['usuario_id'])) {
 			</section>
 
 			<!-- =====================================================
-		     TABLA DE MOVIMIENTOS
+		     HISTORIAL DE MOVIMIENTOS
 		     ===================================================== -->
 			<section class="container grid-lg">
 				<div class="columns">
@@ -215,9 +210,12 @@ if (!isset($_SESSION['usuario_id'])) {
 												<th>Tipo</th>
 											</tr>
 										</thead>
-										<tbody id="transactionsTableBody"></tbody>
+										<tbody id="transactionsTableBody">
+											<!-- JS inyecta filas aquí -->
+										</tbody>
 									</table>
 								</div>
+
 								<div class="paginator mt-2">
 									<button id="prevPage" class="btn btn-sm">Anterior</button>
 									<span id="pageInfo">Página 1</span>
@@ -237,11 +235,11 @@ if (!isset($_SESSION['usuario_id'])) {
      SCRIPTS
      ========================================================= -->
 
-	<!-- Script principal del dashboard (KPIs + donut) -->
-	<script type="module" src="assets/js/dashboard.js"></script>
-
-	<!-- Librería Chart.js (necesaria para el donut) -->
+	<!-- Chart.js (necesario para el donut) -->
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+	<!-- Script principal del dashboard -->
+	<script type="module" src="assets/js/dashboard.js"></script>
 
 </body>
 

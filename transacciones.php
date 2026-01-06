@@ -21,7 +21,8 @@ if (!isset($_SESSION['usuario_id'])) {
 	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
 
 	<!-- Nuestro CSS -->
-	<link rel="stylesheet" href="assets/css/dashboard.css">
+	<link rel="stylesheet" href="assets/css/base.css">
+	<link rel="stylesheet" href="assets/css/transacciones.css">
 	<script>
 		window.csrf_token = "<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES) ?>";
 	</script>

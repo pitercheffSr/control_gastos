@@ -1,0 +1,105 @@
+/* ============================================================
+   base.css
+   Layout general + sidebar + topbar
+============================================================ */
+
+/* ---------- Variables globales ---------- */
+:root {
+	--sidebar-bg: #0f1720;
+	--sidebar-fg: #cbd5e1;
+	--accent: #7c3aed;
+	--card-bg: #ffffff;
+}
+
+/* ---------- Reset / base ---------- */
+html,
+body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+}
+
+body {
+	font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+	background: #f6f8fb;
+	overflow-x: hidden;
+}
+
+/* ---------- App layout ---------- */
+.app-root {
+	display: flex;
+	min-height: 100vh;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+	width: 240px;
+	background: var(--sidebar-bg);
+	transition: width 0.3s ease, transform 0.3s ease;
+}
+
+.sidebar-header {
+	padding: 8px 12px;
+}
+
+.brand {
+	color: white;
+	margin: 0;
+	font-size: 1.1rem;
+}
+
+.menu {
+	display: flex;
+	flex-direction: column;
+}
+
+.menu-item {
+	color: var(--sidebar-fg);
+	padding: 10px 12px;
+	border-radius: 6px;
+	margin-bottom: 6px;
+	text-decoration: none;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	transition: background 0.2s;
+}
+
+.menu-item:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.menu-item.is-active {
+	background: rgba(255, 255, 255, 0.15);
+	box-shadow: inset 2px 0 var(--accent);
+}
+
+/* ---------- Sidebar colapsado ---------- */
+.app-root.sidebar-collapsed .sidebar {
+	width: 0;
+	overflow: hidden;
+}
+
+.app-root.sidebar-collapsed .main-content {
+	margin-left: 0;
+}
+
+/* ---------- Main content ---------- */
+.main-content {
+	flex: 1;
+	padding: 22px 26px;
+	margin-left: 240px;
+	transition: margin-left 0.3s ease;
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.topbar h2 {
+	margin: 0;
+}

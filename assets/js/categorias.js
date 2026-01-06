@@ -72,30 +72,36 @@ function renderCategorias(tree) {
 function renderNodo(cat, nivel) {
 	const wrapper = el('div', { class: 'cat-wrapper' });
 
-	const fila = el('div', { class: 'cat-nodo nivel-' + nivel });
+	// FILA PRINCIPAL (TODO VA AQUÍ DENTRO)
+	const fila = el('div', { class: `cat-nodo nivel-${nivel}` });
 
+	/* =========================
+	   IZQUIERDA (flecha + nombre)
+	========================= */
 	const izquierda = el('div', { class: 'cat-left' });
-	const derecha = el('div', { class: 'cat-actions' });
 
-	// Flecha desplegar
-	let toggle = el('span', { class: 'cat-toggle' }, '');
+	const toggle = el('span', { class: 'cat-toggle' }, '');
 	if (cat.hijos && cat.hijos.length) {
 		toggle.textContent = '▸';
-		toggle.style.cursor = 'pointer';
 	}
 
 	const nombre = el('span', { class: 'cat-nombre' }, cat.nombre);
 	izquierda.append(toggle, nombre);
 
-	// Botones
+	/* =========================
+	   DERECHA (acciones)
+	========================= */
+	const derecha = el('div', { class: 'cat-actions' });
+
 	const btnEdit = el(
 		'button',
-		{ class: 'btn btn-link', title: 'Editar' },
+		{ title: 'Editar' },
 		'✏️'
 	);
+
 	const btnDel = el(
 		'button',
-		{ class: 'btn btn-link', title: 'Eliminar' },
+		{ title: 'Eliminar' },
 		'🗑️'
 	);
 
@@ -109,11 +115,9 @@ function renderNodo(cat, nivel) {
 		if (!confirm('¿Eliminar categoría y todas sus hijas?')) return;
 
 		const r = await fetch(
-			'/control_gastos/controllers/CategoriaRouter.php?action=eliminar&id=' + cat.id,
+			`/control_gastos/controllers/CategoriaRouter.php?action=eliminar&id=${cat.id}`,
 			{
-				headers: {
-					'X-CSRF-Token': window.CSRF_TOKEN
-				}
+				headers: { 'X-CSRF-Token': window.CSRF_TOKEN }
 			}
 		);
 
@@ -123,12 +127,18 @@ function renderNodo(cat, nivel) {
 	};
 
 	derecha.append(btnEdit, btnDel);
+
+	/* =========================
+	   ENSAMBLAR FILA
+	========================= */
 	fila.append(izquierda, derecha);
 
-	// Contenedor de hijos (plegable)
+	/* =========================
+	   HIJOS (plegables)
+	========================= */
 	const hijosCont = el('div', {
 		class: 'cat-hijos',
-		style: 'display:none',
+		style: 'display:none'
 	});
 
 	if (cat.hijos && cat.hijos.length) {

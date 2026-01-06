@@ -106,10 +106,17 @@ function renderNode($nodo, $nivel = 1)
 <head>
 	<meta charset="utf-8">
 	<title>Gestión de Categorías</title>
-	<link rel="stylesheet" href="assets/css/dashboard.css">
+
+	<!-- 1️⃣ Framework base -->
 	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
 	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
 	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+
+	<!-- 2️⃣ CSS base de la app (layout, sidebar, topbar) -->
+	<link rel="stylesheet" href="assets/css/base.css">
+
+	<!-- 3️⃣ CSS específico de categorías (SIEMPRE EL ÚLTIMO) -->
+	<link rel="stylesheet" href="assets/css/categorias.css">
 
 	<style>
 		body {
