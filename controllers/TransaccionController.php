@@ -1,199 +1,72 @@
 <?php
 
-/**
- * ------------------------------------------------------------
- * TransaccionController.php
- * ------------------------------------------------------------
- * Controlador para gestión de transacciones.
- *
- * Corrige problemas del legacy:
- * - session_start consistente
- * - validación correcta de monto = 0
- * - normalización de IDs opcionales
- * - separación de responsabilidades
- * ------------------------------------------------------------
- */
-
-require_once __DIR__ . '/../models/TransaccionModel.php';
-
 class TransaccionController
 {
-	private PDO $pdo;
-	private TransaccionModel $model;
+	private $pdo;
 
 	public function __construct(PDO $pdo)
 	{
-		$this->pdo   = $pdo;
-		$this->model = new TransaccionModel($pdo);
+		$this->pdo = $pdo;
 	}
 
 	/**
-	 * Crear transacción
+	 * Crea una nueva transacción en la base de datos
 	 */
-	public function crear(array $input): array
-	{
-		// Sesión obligatoria aquí (no en el router)
-		if (!isset($_SESSION['usuario_id'])) {
-			return [
-				'ok'    => false,
-				'error' => 'No autenticado'
-			];
-		}
-
-		// Normalizar y validar datos
-		$fecha       = $input['fecha'] ?? null;
-		$descripcion = trim($input['descripcion'] ?? '');
-		$tipo        = $input['tipo'] ?? null;
-
-		// IMPORTANTE: monto puede ser 0, no usar !$monto
-		if (!array_key_exists('monto', $input)) {
-			return [
-				'ok'    => false,
-				'error' => 'Monto no informado'
-			];
-		}
-
-		$monto = (float) $input['monto'];
-
-		if (!$fecha || !$tipo) {
-			return [
-				'ok'    => false,
-				'error' => 'Datos incompletos'
-			];
-		}
-
-		// IDs opcionales → NULL real
-		$idCategoria     = $this->normalizarId($input['categoria'] ?? null);
-		$idSubcategoria  = $this->normalizarId($input['subcategoria'] ?? null);
-		$idSubsub        = $this->normalizarId($input['subsub'] ?? null);
-
-		// Delegar persistencia al modelo
-		$this->model->crear([
-			'id_usuario'        => (int) $_SESSION['usuario_id'],
-			'fecha'             => $fecha,
-			'descripcion'       => $descripcion,
-			'monto'             => $monto,
-			'tipo'              => $tipo,
-			'id_categoria'      => $idCategoria,
-			'id_subcategoria'   => $idSubcategoria,
-			'id_subsubcategoria' => $idSubsub
-		]);
-
-		return ['ok' => true];
-	}
-	/**
-	 * Listar transacciones del usuario
-	 */
-	public function listar(): array
+	public function crear($datos)
 	{
 		if (!isset($_SESSION['usuario_id'])) {
-			return [];
+			return ['ok' => false, 'error' => 'Sesión no válida'];
 		}
 
-		return $this->model->listarPorUsuario((int) $_SESSION['usuario_id']);
+		try {
+			$sql = "INSERT INTO transacciones (
+                        id_usuario,
+                        fecha,
+                        monto,
+                        tipo,
+                        descripcion,
+                        id_categoria,
+                        id_subcategoria,
+                        id_subsubcategoria
+                    ) VALUES (
+                        :uid, :fecha, :monto, :tipo, :desc, :cat, :sub, :subsub
+                    )";
+
+			$stmt = $this->pdo->prepare($sql);
+
+			$stmt->execute([
+				':uid'    => $_SESSION['usuario_id'],
+				':fecha'  => $datos['fecha'],
+				':monto'  => $datos['monto'],
+				':tipo'   => $datos['tipo'],
+				':desc'   => $datos['descripcion'] ?? null,
+				':cat'    => !empty($datos['id_categoria']) ? $datos['id_categoria'] : null,
+				':sub'    => !empty($datos['id_subcategoria']) ? $datos['id_subcategoria'] : null,
+				':subsub' => !empty($datos['id_subsubcategoria']) ? $datos['id_subsubcategoria'] : null
+			]);
+
+			return ['ok' => true, 'id' => $this->pdo->lastInsertId()];
+		} catch (PDOException $e) {
+			return ['ok' => false, 'error' => 'Error BD: ' . $e->getMessage()];
+		}
 	}
-
-	/**
-	 * Eliminar transacción
-	 */
-	public function eliminar(array $input): array
+	public function listar()
 	{
-		if (!isset($_SESSION['usuario_id'])) {
-			return ['ok' => false, 'error' => 'No autenticado'];
+		if (!isset($_SESSION['usuario_id'])) return ['ok' => false];
+		try {
+			$stmt = $this->pdo->prepare("
+            SELECT t.*, c.nombre as cat_nombre, sc.nombre as sub_nombre, ssc.nombre as subsub_nombre
+            FROM transacciones t
+            LEFT JOIN categorias c ON t.id_categoria = c.id
+            LEFT JOIN subcategorias sc ON t.id_subcategoria = sc.id
+            LEFT JOIN subsubcategorias ssc ON t.id_subsubcategoria = ssc.id
+            WHERE t.id_usuario = ?
+            ORDER BY t.fecha DESC
+        ");
+			$stmt->execute([$_SESSION['usuario_id']]);
+			return ['ok' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+		} catch (PDOException $e) {
+			return ['ok' => false, 'error' => $e->getMessage()];
 		}
-
-		if (empty($input['id'])) {
-			return ['ok' => false, 'error' => 'ID no proporcionado'];
-		}
-
-		$ok = $this->model->eliminar(
-			(int) $input['id'],
-			(int) $_SESSION['usuario_id']
-		);
-
-		return ['ok' => $ok];
-	}
-
-	/**
-	 * Normaliza IDs opcionales:
-	 * - '', 0, null → null
-	 * - valores válidos → int
-	 */
-	private function normalizarId($value): ?int
-	{
-		if ($value === null || $value === '' || (int)$value === 0) {
-			return null;
-		}
-
-		return (int) $value;
-	}
-	/**
-	 * Obtener una transacción para edición
-	 */
-	public function obtener(array $data): array
-	{
-		// Seguridad: sesión obligatoria
-		if (!isset($_SESSION['usuario_id'])) {
-			return [
-				'ok'    => false,
-				'error' => 'No autenticado'
-			];
-		}
-
-		// Validar ID
-		$id = isset($data['id']) ? (int)$data['id'] : 0;
-		if ($id <= 0) {
-			return [
-				'ok'    => false,
-				'error' => 'ID inválido'
-			];
-		}
-
-		// Obtener transacción
-		$tx = $this->model->obtenerPorId(
-			$id,
-			(int)$_SESSION['usuario_id']
-		);
-
-		if (!$tx) {
-			return [
-				'ok'    => false,
-				'error' => 'Transacción no encontrada'
-			];
-		}
-
-		return [
-			'ok'   => true,
-			'data' => $tx
-		];
-	}
-
-
-	/*** Editar transacción */
-	public function editar(array $input): array
-	{
-		if (!isset($_SESSION['usuario_id'])) {
-			return ['ok' => false, 'error' => 'No autenticado'];
-		}
-
-		if (empty($input['id'])) {
-			return ['ok' => false, 'error' => 'ID no proporcionado'];
-		}
-
-		$ok = $this->model->editar(
-			(int) $input['id'],
-			(int) $_SESSION['usuario_id'],
-			[
-				'fecha'             => $input['fecha'],
-				'descripcion'       => $input['descripcion'] ?? '',
-				'monto'             => $input['monto'],
-				'tipo'              => $input['tipo'],
-				'id_categoria'      => $this->normalizarId($input['categoria'] ?? null),
-				'id_subcategoria'   => $this->normalizarId($input['subcategoria'] ?? null),
-				'id_subsubcategoria' => $this->normalizarId($input['subsub'] ?? null),
-			]
-		);
-
-		return ['ok' => $ok];
 	}
 }

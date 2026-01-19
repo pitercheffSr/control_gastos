@@ -1,60 +1,26 @@
 /**
- * ============================================================
- * widgetKpis.js
- * ============================================================
- * Widget responsable de pintar:
- * - Ingresos
- * - Gastos
- * - Balance
- *
- * RESPONSABILIDADES:
- * - Recibe datos ya calculados
- * - Valida estructura mínima
- * - Pinta valores en el DOM
- *
- * NO hace:
- * - Fetch
- * - Cálculos
- * - Lógica de negocio
- * ============================================================
+ * widgetKpis.js - Actualiza las tarjetas de resumen (Ingresos, Gastos, Balance)
  */
-
 export function renderKpis(data) {
-	// Defensa básica: estructura esperada
-	if (
-		!data ||
-		typeof data.ingresos !== 'number' ||
-		typeof data.gastos !== 'number' ||
-		typeof data.balance !== 'number'
-	) {
-		throw new Error('Datos inválidos para renderKpis');
+	// Verificamos que los datos existan (usando los nombres de tu controlador PHP)
+	if (!data || typeof data.ingresos_mes === 'undefined') {
+		console.error("Error: El objeto de datos no contiene 'ingresos_mes'", data);
+		throw new Error("Datos inválidos para renderKpis");
 	}
 
-	// -----------------------------
-	// KPI INGRESOS
-	// -----------------------------
-	const ingresosEl = document.getElementById('kpi-ingresos');
-	if (ingresosEl) {
-		ingresosEl.textContent = data.ingresos.toFixed(2) + ' €';
-	}
+	// Actualizamos el texto de los elementos en el HTML
+	// Asegúrate de que en dashboard.php los IDs coincidan: kpi-ingresos, kpi-gastos, kpi-balance
+	const elIngresos = document.getElementById('kpi-ingresos');
+	const elGastos = document.getElementById('kpi-gastos');
+	const elBalance = document.getElementById('kpi-balance');
 
-	// -----------------------------
-	// KPI GASTOS
-	// -----------------------------
-	const gastosEl = document.getElementById('kpi-gastos');
-	if (gastosEl) {
-		gastosEl.textContent = data.gastos.toFixed(2) + ' €';
-	}
+	if (elIngresos) elIngresos.textContent = data.ingresos_mes.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+	if (elGastos) elGastos.textContent = data.gastos_mes.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+	if (elBalance) elBalance.textContent = data.balance_mes.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
 
-	// -----------------------------
-	// KPI BALANCE
-	// -----------------------------
-	const balanceEl = document.getElementById('kpi-balance');
-	if (balanceEl) {
-		balanceEl.textContent = data.balance.toFixed(2) + ' €';
-
-		// Estilo visual según signo
-		balanceEl.classList.toggle('text-success', data.balance >= 0);
-		balanceEl.classList.toggle('text-error', data.balance < 0);
+	// Cambiamos el color del balance si es negativo
+	if (elBalance) {
+		elBalance.classList.remove('text-success', 'text-error');
+		elBalance.classList.add(data.balance_mes >= 0 ? 'text-success' : 'text-error');
 	}
 }

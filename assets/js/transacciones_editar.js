@@ -2,8 +2,11 @@
    Controla el PANEL LATERAL de edición de transacciones.
    - Carga categorías (3 niveles)
    - Rellena valores al editar
-   - Guarda cambios mediante procesar_transaccion_editar.php
+   - Guarda cambios mediante TransaccionRouter.php
 */
+/* transacciones_editar.js - Lógica Unificada para Nueva y Editar */
+
+/* transacciones_editar.js - Lógica Unificada para Nueva y Editar */
 
 console.log('transacciones_editar.js cargado');
 
@@ -12,6 +15,8 @@ console.log('transacciones_editar.js cargado');
 // -----------------------------------------------------
 const panel = document.getElementById('panelEditar');
 const overlay = document.getElementById('overlayPanel');
+const sidebar = document.getElementById('mainSidebar');
+const panelTitulo = document.getElementById('panelTitulo');
 
 const btnCerrar = document.getElementById('cerrarPanel');
 const btnCancelar = document.getElementById('cancelarEdicion');
@@ -26,41 +31,69 @@ const fCat = document.getElementById('e_cat');
 const fSubcat = document.getElementById('e_subcat');
 const fSubsub = document.getElementById('e_subsub');
 
-// Guardamos id editando
+// null = Nueva, id = Editar
 window.transaccionActual = null;
 
 // -----------------------------------------------------
-// FUNCIÓN: Abrir panel
+// CONTROL DE PANELES (ABRIR / CERRAR)
 // -----------------------------------------------------
+
 function abrirPanel() {
 	panel.classList.add('visible');
 	overlay.classList.add('visible');
 }
 
-// -----------------------------------------------------
-// FUNCIÓN: Cerrar panel + limpiar campos
-// -----------------------------------------------------
 function cerrarPanel() {
 	panel.classList.remove('visible');
 	overlay.classList.remove('visible');
-
 	window.transaccionActual = null;
+	document.getElementById('formEditar').reset();
 
-	fFecha.value = '';
-	fDesc.value = '';
-	fMonto.value = '';
-	fTipo.value = 'gasto';
-	fCat.value = '';
-	fSubcat.value = '';
-	fSubsub.value = '';
+	// Limpiamos selects de categorías
+	fSubcat.innerHTML = "<option value=''>—</option>";
+	fSubsub.innerHTML = "<option value=''>—</option>";
 }
 
-// Botones cerrar
-btnCerrar?.addEventListener('click', cerrarPanel);
-btnCancelar?.addEventListener('click', cerrarPanel);
+// -----------------------------------------------------
+// LÓGICA DE LA TECLA ESCAPE Y MENÚ
+// -----------------------------------------------------
 
 document.addEventListener('keydown', (e) => {
-	if (e.key === 'Escape') cerrarPanel();
+	if (e.key === 'Escape') {
+		// 1. Prioridad: cerrar panel de formulario
+		if (panel.classList.contains('visible')) {
+			cerrarPanel();
+		}
+		// 2. Cerrar sidebar si está abierto
+		if (sidebar && sidebar.classList.contains('visible')) {
+			sidebar.classList.remove('visible');
+		}
+	}
+});
+
+// Toggle del Menú Hamburguesa
+document.getElementById('toggleMenu')?.addEventListener('click', (e) => {
+	e.stopPropagation();
+	sidebar.classList.toggle('visible');
+});
+
+// Botones de cierre manual
+btnCerrar?.addEventListener('click', cerrarPanel);
+btnCancelar?.addEventListener('click', cerrarPanel);
+overlay?.addEventListener('click', cerrarPanel);
+
+// -----------------------------------------------------
+// ACCIÓN: NUEVA TRANSACCIÓN
+// -----------------------------------------------------
+document.getElementById('btnNuevaTransaccion')?.addEventListener('click', () => {
+	window.transaccionActual = null;
+	panelTitulo.innerText = "Nueva Transacción";
+
+	// Establecer fecha de hoy por defecto
+	fFecha.value = new Date().toISOString().split("T")[0];
+
+	loadCategorias(); // Carga niveles iniciales
+	abrirPanel();
 });
 
 // -----------------------------------------------------
@@ -68,108 +101,67 @@ document.addEventListener('keydown', (e) => {
 // -----------------------------------------------------
 async function loadCategorias() {
 	try {
-		const resp = await fetch("/control_gastos/api/categorias/listar.php")
-			;
-		if (!resp.ok) throw new Error('Error HTTP ' + resp.status);
-
+		const resp = await fetch("load_categorias.php?nivel=nivel1");
 		const cats = await resp.json();
 
-		console.log('Categorías recibidas:', cats);
+		fCat.innerHTML = "<option value=''>— Seleccione —</option>";
+		cats.forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
 
-		// Limpiar selects
-		fCat.innerHTML = '';
-		fSubcat.innerHTML = "<option value=''>—</option>";
-		fSubsub.innerHTML = "<option value=''>—</option>";
-
-		// Nivel 1 (padre null)
-		const nivel1 = cats.filter((c) => c.parent_id === null);
-
-		nivel1.forEach((c) => {
-			fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-		});
-
-		// Al cambiar categoría, cargar nivel 2
-		fCat.onchange = () => {
-			const idCat = parseInt(fCat.value);
-
-			const nivel2 = cats.filter((c) => c.parent_id === idCat);
-
+		fCat.onchange = async () => {
+			const idCat = fCat.value;
 			fSubcat.innerHTML = "<option value=''>—</option>";
 			fSubsub.innerHTML = "<option value=''>—</option>";
+			if (!idCat) return;
 
-			nivel2.forEach((c) => {
-				fSubcat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-			});
+			const r2 = await fetch(`load_categorias.php?nivel=nivel2&padre=${idCat}`);
+			const subs = await r2.json();
+			fSubcat.innerHTML = "<option value=''>— Seleccione —</option>";
+			subs.forEach(c => fSubcat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
 		};
 
-		// Al cambiar subcategoría, cargar nivel 3
-		fSubcat.onchange = () => {
-			const idSub = parseInt(fSubcat.value);
-			const nivel3 = cats.filter((c) => c.parent_id === idSub);
-
+		fSubcat.onchange = async () => {
+			const idSub = fSubcat.value;
 			fSubsub.innerHTML = "<option value=''>—</option>";
+			if (!idSub) return;
 
-			nivel3.forEach((c) => {
-				fSubsub.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-			});
+			const r3 = await fetch(`load_categorias.php?nivel=nivel3&padre=${idSub}`);
+			const subsubs = await r3.json();
+			fSubsub.innerHTML = "<option value=''>— Seleccione —</option>";
+			subsubs.forEach(c => fSubsub.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
 		};
-	} catch (err) {
-		console.error('Error cargando categorías:', err);
-		alert('No se pudieron cargar las categorías.');
-	}
+	} catch (err) { console.error('Error categorías:', err); }
 }
 
 // -----------------------------------------------------
-// CARGAR TRANSACCIÓN EXISTENTE PARA EDITAR
+// CARGAR DATOS PARA EDITAR
 // -----------------------------------------------------
 async function loadTransaccion(id) {
 	try {
-		const resp = await fetch(`/control_gastos/controllers/TransaccionRouter.php?action=obtener&id=${id}`);
-
-
-		if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
+		const resp = await fetch(`controllers/TransaccionRouter.php?action=obtener&id=${id}`);
 		const json = await resp.json();
-		console.log('Datos recibidos para editar:', json);
-
-		if (!json.ok) throw new Error(json.error || 'Error backend');
+		if (!json.ok) return;
 
 		const data = json.data;
-
-		// Rellenar campos
 		fFecha.value = data.fecha;
 		fDesc.value = data.descripcion ?? '';
 		fMonto.value = data.monto;
 		fTipo.value = data.tipo;
 
-		// Seleccionar categoría, subcat, subsub
-		setTimeout(() => {
-			fCat.value = data.id_categoria ?? '';
-			fCat.dispatchEvent(new Event('change'));
+		fCat.value = data.id_categoria ?? '';
+		await fCat.onchange();
 
-			setTimeout(() => {
-				fSubcat.value = data.id_subcategoria ?? '';
-				fSubcat.dispatchEvent(new Event('change'));
+		fSubcat.value = data.id_subcategoria ?? '';
+		await fSubcat.onchange();
 
-				setTimeout(() => {
-					fSubsub.value = data.id_subsubcategoria ?? '';
-				}, 80);
-			}, 80);
-		}, 80);
-	} catch (err) {
-		console.error('Error cargando transacción:', err);
-		alert('Error cargando datos de la transacción.');
-	}
+		fSubsub.value = data.id_subsubcategoria ?? '';
+	} catch (err) { console.error(err); }
 }
 
 // -----------------------------------------------------
-// GUARDAR CAMBIOS (EDITAR)
+// GUARDAR CAMBIOS (CREAR O EDITAR)
 // -----------------------------------------------------
 btnGuardar.addEventListener('click', async () => {
-	if (!window.transaccionActual) {
-		alert('No hay transacción seleccionada.');
-		return;
-	}
+	const action = window.transaccionActual ? 'editar' : 'crear';
 
 	const payload = {
 		id: window.transaccionActual,
@@ -177,59 +169,44 @@ btnGuardar.addEventListener('click', async () => {
 		descripcion: fDesc.value,
 		monto: fMonto.value,
 		tipo: fTipo.value,
-		categoria: fCat.value,
-		subcategoria: fSubcat.value,
-		subsub: fSubsub.value,
+		id_categoria: fCat.value,
+		id_subcategoria: fSubcat.value,
+		id_subsubcategoria: fSubsub.value,
 	};
 
-	console.log('Enviando actualización:', payload);
+	if (!payload.fecha || !payload.monto) {
+		alert("Fecha e importe son obligatorios");
+		return;
+	}
 
 	try {
-		const resp = await fetch(
-			'/control_gastos/controllers/TransaccionRouter.php?action=editar',
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'X-CSRF-TOKEN': window.csrf_token
-				},
-				body: JSON.stringify(payload)
-			}
-		);
-
+		const resp = await fetch(`controllers/TransaccionRouter.php?action=${action}`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-CSRF-TOKEN': window.csrf_token
+			},
+			body: JSON.stringify(payload)
+		});
 
 		const json = await resp.json();
-
-		console.log('Respuesta update:', json);
-
-		if (!json.ok) {
-			throw new Error(json.error || 'Error backend');
+		if (json.ok) {
+			cerrarPanel();
+			if (typeof cargarTransacciones === 'function') cargarTransacciones();
+		} else {
+			alert('Error: ' + json.error);
 		}
-
-		alert('Transacción actualizada.');
-		cerrarPanel();
-
-		// ⬇️ refrescar tabla SIN recargar página
-		if (typeof cargarTransacciones === 'function') {
-			cargarTransacciones();
-		}
-	} catch (err) {
-		console.error(err);
-		alert('Error al guardar: ' + err.message);
-	}
+	} catch (err) { console.error(err); }
 });
 
-// -----------------------------------------------------
-// ESCUCHAR CLICK EN ICONO EDITAR DESDE transacciones.js
-// -----------------------------------------------------
+// Escuchar evento desde la tabla
 window.addEventListener('tx:editar', async (ev) => {
 	const id = ev.detail?.id;
 	if (!id) return;
 
 	window.transaccionActual = id;
-
+	panelTitulo.innerText = "Editar Transacción";
 	await loadCategorias();
 	await loadTransaccion(id);
-
 	abrirPanel();
 });

@@ -56,6 +56,7 @@ if (!isset($_SESSION['usuario_id'])) {
 </head>
 
 <body>
+	<div id="menuOverlay"></div>
 
 	<div class="app-root">
 
@@ -166,17 +167,28 @@ if (!isset($_SESSION['usuario_id'])) {
 			</section>
 
 			<!-- =====================================================
-		     GRÁFICO DONUT 50 / 30 / 20
-		     ===================================================== -->
+		GRÁFICO DONUT 50 / 30 / 20
+		===================================================== -->
 			<section class="container grid-lg">
 				<div class="columns">
 					<div class="column col-12">
-						<div class="card">
+						<div class="card card-donut">
 							<div class="card-header">
-								<div class="card-title h5">Distribución 50 / 30 / 20</div>
+								<div class="card-title h5">
+									Distribución 50 / 30 / 20
+								</div>
 							</div>
-							<div class="card-body donut-wrapper">
-								<canvas id="chart503020"></canvas>
+
+							<div class="donut-layout">
+								<!-- DONUT -->
+								<div class="donut-canvas">
+									<canvas id="chart503020"></canvas>
+								</div>
+
+								<!-- LEYENDA (Chart.js la renderiza aquí debajo) -->
+								<div class="donut-legend">
+									<!-- Chart.js inserta la leyenda aquí -->
+								</div>
 							</div>
 						</div>
 					</div>
@@ -184,8 +196,8 @@ if (!isset($_SESSION['usuario_id'])) {
 			</section>
 
 			<!-- =====================================================
-		     HISTORIAL DE MOVIMIENTOS
-		     ===================================================== -->
+			HISTORIAL DE MOVIMIENTOS
+			===================================================== -->
 			<section class="container grid-lg">
 				<div class="columns">
 					<div class="column col-12">
@@ -206,6 +218,7 @@ if (!isset($_SESSION['usuario_id'])) {
 												<th>Descripción</th>
 												<th>Categoría</th>
 												<th>Subcat.</th>
+												<th>Sub-subcat.</th>
 												<th>Importe</th>
 												<th>Tipo</th>
 											</tr>

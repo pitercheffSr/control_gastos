@@ -1,46 +1,52 @@
 /**
- * ------------------------------------------------------------
- * widgetDistribucion503020.js
- * ------------------------------------------------------------
- * Renderiza el gráfico donut 50 / 30 / 20
- * usando Chart.js.
- *
- * Responsabilidad:
- * - SOLO pintar el gráfico
- * - NO pedir datos
- * - NO lógica de negocio
- * ------------------------------------------------------------
+ * widgetDistribucion503020.js - Renderiza el gráfico de dona
  */
-
-let chart503020 = null;
-
-export function renderDistribucion503020(ctx, labels, valores) {
-	// Si el gráfico ya existe, destruirlo (evita duplicados)
-	if (chart503020) {
-		chart503020.destroy();
+export function renderDistribucion503020(canvas, labels, valores) {
+	if (!canvas) {
+		console.error("No se encontró el elemento canvas para el gráfico");
+		return;
 	}
 
-	chart503020 = new Chart(ctx, {
+	// Si ya existe un gráfico en este canvas, lo destruimos para poder crear uno nuevo
+	if (window.myChart503020 instanceof Chart) {
+		window.myChart503020.destroy();
+	}
+
+	// Mapeo de etiquetas técnicas a nombres legibles
+	const labelMap = {
+		'50': 'Necesidades (50%)',
+		'30': 'Deseos (30%)',
+		'20': 'Ahorros/Deudas (20%)',
+		'10': 'Otros (10%)'
+	};
+
+	const readableLabels = labels.map(l => labelMap[l] || `Grupo ${l}`);
+
+	// Crear el gráfico
+	window.myChart503020 = new Chart(canvas, {
 		type: 'doughnut',
 		data: {
-			labels: labels,
-			datasets: [
-				{
-					data: valores,
-					backgroundColor: [
-						'#4CAF50', // 50%
-						'#FFC107', // 30%
-						'#2196F3'  // 20%
-					],
-					borderWidth: 1
-				}
-			]
+			labels: readableLabels,
+			datasets: [{
+				label: 'Distribución de Gastos',
+				data: valores,
+				backgroundColor: [
+					'#5755d9', // Púrpura (Spectre.css primary)
+					'#32b643', // Verde (Success)
+					'#ffb700', // Amarillo (Warning)
+					'#e85600'  // Naranja (Error)
+				],
+				borderWidth: 2,
+				hoverOffset: 4
+			}]
 		},
 		options: {
 			responsive: true,
+			maintainAspectRatio: false, // Permite que se adapte al contenedor
 			plugins: {
 				legend: {
-					position: 'bottom'
+					position: 'bottom',
+					labels: { boxWidth: 12, padding: 20 }
 				}
 			}
 		}

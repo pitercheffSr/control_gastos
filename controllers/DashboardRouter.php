@@ -13,7 +13,6 @@
  * ------------------------------------------------------------
  */
 
-session_start();
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
@@ -48,7 +47,7 @@ switch ($action) {
 		$result = $controller->movimientos(
 			(int) $_SESSION['usuario_id'],
 			$page,
-			$limit
+			$limit = 5
 		);
 		break;
 
@@ -56,9 +55,10 @@ switch ($action) {
 	// Resumen general (ingresos / gastos / balance)
 	// -----------------------------------------
 	case 'resumen':
-		$result = $controller->resumen();
+		$res = $controller->resumen();
+		// Forzamos que si el controlador devuelve ok:true, el resultado final sea consistente
+		$result = $res;
 		break;
-
 	// -----------------------------------------
 	// Distribución 50 / 30 / 20
 	// -----------------------------------------

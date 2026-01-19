@@ -9,23 +9,28 @@ console.log('transacciones.js cargado'); // ← único log
 ------------------------------------------------------------ */
 async function cargarTransacciones() {
 	try {
-		const resp = await fetch('/control_gastos/controllers/TransaccionRouter.php?action=listar');
-		;
-		const data = await resp.json();
+		const resp = await fetch('controllers/TransaccionRouter.php?action=listar');
+		const json = await resp.json(); // Cambiamos 'data' por 'json' para claridad
 
-		console.log('Transacciones recibidas:', data);
+		console.log('Transacciones recibidas:', json);
 
 		const tbody = document.querySelector('#tablaTransacciones tbody');
+		if (!tbody) return;
 		tbody.innerHTML = '';
 
-		if (!Array.isArray(data) || data.length === 0) {
-			tbody.innerHTML =
-				"<tr><td colspan='7'>No hay transacciones</td></tr>";
+		// CORRECCIÓN: Accedemos a json.data que es donde están los 17 movimientos
+		if (!json.ok || !Array.isArray(json.data) || json.data.length === 0) {
+			tbody.innerHTML = "<tr><td colspan='8'>No hay transacciones</td></tr>";
 			return;
 		}
 
-		data.forEach((t) => {
+		json.data.forEach((t) => {
 			const id = t.id;
+			// Usamos los alias definidos en el Paso 3 del controlador: cat_nombre, sub_nombre, subsub_nombre
+			const cat = t.cat_nombre || '-';
+			const sub = t.sub_nombre || '-';
+			const subsub = t.subsub_nombre || '-';
+			const importeClase = t.tipo === 'ingreso' ? 'text-success' : 'text-error';
 
 			tbody.insertAdjacentHTML(
 				'beforeend',
@@ -33,15 +38,16 @@ async function cargarTransacciones() {
                 <tr data-id="${id}">
                     <td>${t.fecha ?? ''}</td>
                     <td>${t.descripcion ?? ''}</td>
-                    <td>${t.categoria ?? '-'}</td>
-                    <td>${t.subcategoria ?? '-'}</td>
-                    <td>${t.monto} €</td>
-                    <td>${t.tipo}</td>
+                    <td>${cat}</td>
+                    <td>${sub}</td>
+                    <td>${subsub}</td>
+                    <td class="${importeClase}"><strong>${parseFloat(t.monto).toFixed(2)} €</strong></td>
+                    <td><span class="chip">${t.tipo}</span></td>
                     <td style="text-align:right;">
-                        <button class="edit-btn" data-id="${id}" title="Editar">
+                        <button class="edit-btn btn btn-link" data-id="${id}" title="Editar">
                             <i class="icon icon-edit"></i>
                         </button>
-                        <button class="delete-btn" data-id="${id}" title="Eliminar">
+                        <button class="delete-btn btn btn-link" data-id="${id}" title="Eliminar">
                             <i class="icon icon-delete"></i>
                         </button>
                     </td>
@@ -52,10 +58,9 @@ async function cargarTransacciones() {
 	} catch (err) {
 		console.error('Error cargando transacciones:', err);
 		document.querySelector('#tablaTransacciones tbody').innerHTML =
-			"<tr><td colspan='7'>Error cargando datos</td></tr>";
+			"<tr><td colspan='8'>Error cargando datos</td></tr>";
 	}
 }
-
 /* ------------------------------------------------------------
    EVENTOS DE BOTONES — EDITAR y ELIMINAR (delegación)
 ------------------------------------------------------------ */
@@ -83,7 +88,7 @@ document.addEventListener('click', (ev) => {
 
 		if (!confirm('¿Seguro que quieres eliminar esta transacción?')) return;
 
-		fetch('/control_gastos/controllers/TransaccionRouter.php?action=eliminar', {
+		fetch('controllers/TransaccionRouter.php?action=eliminar', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',

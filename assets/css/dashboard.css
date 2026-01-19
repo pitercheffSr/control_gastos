@@ -1,60 +1,336 @@
 /* ============================================================
-   dashboard.css
-   KPIs + Donut + Tabla de movimientos
+   ESTRUCTURA GLOBAL
 ============================================================ */
+html,
+body {
+	height: 100%;
+	margin: 0;
+	background-color: #f4f6f9;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
 
-/* ---------- Cards ---------- */
+.app-root {
+	display: flex;
+	min-height: 100vh;
+}
+
+/* Sidebar Fijo */
+.sidebar {
+	width: 240px;
+	background: #1e293b;
+	color: #fff;
+	flex-shrink: 0;
+}
+
+/* Contenido Principal con Scroll Natural */
+.main-content {
+	flex: 1;
+	overflow-y: auto;
+	/* Permite scroll vertical si el contenido excede la pantalla */
+	padding: 24px;
+	display: flex;
+	flex-direction: column;
+}
+
+/* ============================================================
+   TARJETAS (CARDS) Y KPIS
+============================================================ */
 .card {
+	border: none;
 	border-radius: 12px;
-	box-shadow: 0 4px 14px rgba(16, 24, 40, 0.06);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 	background: #fff;
+	margin-bottom: 20px;
 }
 
-/* ---------- KPIs compactos ---------- */
-.card.kpi {
-	padding: 0.5rem;
+.card-header {
+	padding: 16px 20px;
+	border-bottom: 1px solid #f0f0f0;
 }
 
-.card.kpi .card-header {
-	padding-bottom: 0.2rem;
-}
-
-.card.kpi .card-title {
-	font-size: 0.75rem;
-	letter-spacing: 0.02em;
-	color: #6b7280;
+.card-body {
+	padding: 20px;
 }
 
 .kpi-value {
-	font-size: 1.4rem;
+	font-size: 1.5rem;
+	font-weight: 700;
+	margin: 8px 0;
+}
+
+.text-success {
+	color: #32b643 !important;
+}
+
+.text-error {
+	color: #e85600 !important;
+}
+
+.text-gray {
+	color: #bcc3ce !important;
+}
+
+/* ============================================================
+   GRÁFICO DONUT (Ajustado para no recortar)
+============================================================ */
+.chart-container {
+	position: relative;
+	margin: auto;
+	height: 250px;
+	width: 100%;
+}
+
+/* ============================================================
+   TABLAS Y LISTADOS (El corazón del scroll)
+============================================================ */
+.table-container {
+	background: #fff;
+	border-radius: 8px;
+	overflow-x: auto;
+	/* Scroll horizontal en móviles si la tabla es ancha */
+}
+
+.table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.table th {
+	background: #f8fafc;
 	font-weight: 600;
-	line-height: 1.2;
+	text-transform: uppercase;
+	font-size: 0.7rem;
+	letter-spacing: 0.05em;
+	padding: 12px;
+	border-bottom: 2px solid #edf2f7;
 }
 
-.kpi-value.positive {
-	color: #16a34a;
+.table td {
+	padding: 12px;
+	vertical-align: middle;
+	border-bottom: 1px solid #edf2f7;
+	font-size: 0.85rem;
 }
 
-.kpi-value.negative {
-	color: #dc2626;
+/* Chips para el tipo de transacción */
+.chip {
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 0.7rem;
+	background: #eef2ff;
+	color: #4f46e5;
 }
 
-/* ---------- Donut 50 / 30 / 20 ---------- */
-.donut-wrapper {
-	max-height: 220px;
+/* ============================================================
+   BOTONES DE ACCIÓN (Lista de Transacciones)
+============================================================ */
+.edit-btn,
+.delete-btn {
+	border: none;
+	background: none;
+	cursor: pointer;
+	padding: 4px 8px;
+	transition: transform 0.2s;
+}
+
+.edit-btn:hover {
+	color: #5755d9;
+	transform: scale(1.1);
+}
+
+.delete-btn:hover {
+	color: #e85600;
+	transform: scale(1.1);
+}
+
+/* ============================================================
+   PAGINACIÓN
+============================================================ */
+.paginator {
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	gap: 15px;
+	margin-top: 20px;
+	padding: 10px;
 }
 
-#chart503020 {
-	max-width: 220px;
-	max-height: 220px;
+/* === PANEL LATERAL DE EDICIÓN === */
+.side-panel {
+	position: fixed;
+	top: 0;
+	right: -400px;
+	/* Oculto a la derecha */
+	width: 400px;
+	height: 100vh;
+	background: #fff;
+	box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+	z-index: 1100;
+	transition: right 0.3s ease;
+	/* Animación de deslizamiento */
+	display: flex;
+	flex-direction: column;
 }
 
-/* ---------- Tabla movimientos ---------- */
-.table-responsive {
-	max-height: 280px;
-	/* evita scroll de página */
+.side-panel.active {
+	right: 0;
+	/* Se desliza hacia adentro */
+}
+
+/* Capa oscura de fondo */
+.overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.5);
+	display: none;
+	z-index: 1050;
+}
+
+.overlay.active {
+	display: block;
+}
+
+/* === MENÚ SUPERIOR Y BOTÓN HAMBURGUESA === */
+.topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 20px;
+	background: #fff;
+	border-bottom: 1px solid #e7e9ed;
+}
+
+/* Ocultar el menú superior original en móviles si es necesario */
+@media (max-width: 960px) {
+
+	/* Modifica esto en tu dashboard.css */
+	.sidebar {
+		width: 240px;
+		margin-left: -240px;
+		/* Cambiado de 0 a -240px para que empiece oculto */
+		transition: all 0.3s ease;
+		flex-shrink: 0;
+		z-index: 1200;
+	}
+
+	.sidebar.visible {
+		/* Antes era .collapsed, ahora usamos .visible para mostrarlo */
+		margin-left: 0;
+	}
+}
+
+/* --- Panel Lateral Deslizante --- */
+#panelEditar {
+	position: fixed;
+	top: 0;
+	right: -450px;
+	/* Escondido */
+	width: 400px;
+	height: 100vh;
+	background: #fff;
+	box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+	z-index: 1000;
+	transition: right 0.3s ease-in-out;
+	padding: 20px;
 	overflow-y: auto;
+}
+
+#panelEditar.visible {
+	right: 0;
+	/* Al añadir la clase 'visible' se desliza hacia adentro */
+}
+
+/* Capa oscura que bloquea el fondo */
+#overlayPanel {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.5);
+	display: none;
+	z-index: 999;
+}
+
+#overlayPanel.visible {
+	display: block;
+}
+
+/* Estilo para el botón de 3 líneas (hamburguesa) */
+.btn-menu-toggle {
+	display: inline-block;
+	padding: 10px;
+	cursor: pointer;
+	font-size: 1.2rem;
+}
+
+/* === CONTROL DEL SIDEBAR (Menú lateral) === */
+.app-root {
+	display: flex;
+	overflow: hidden;
+	width: 100%;
+	height: 100vh;
+}
+
+.sidebar {
+	width: 240px;
+	transition: all 0.3s ease;
+	/* Animación de deslizamiento */
+	flex-shrink: 0;
+}
+
+/* Estado cuando el menú está escondido */
+.sidebar.collapsed {
+	margin-left: -240px;
+	/* Se esconde hacia la izquierda */
+}
+
+.main-content {
+	flex-grow: 1;
+	overflow-y: auto;
+	transition: all 0.3s ease;
+}
+
+/* === PANEL DE EDICIÓN (Off-canvas) === */
+#panelEditar {
+	position: fixed;
+	top: 0;
+	right: -450px;
+	/* Escondido fuera de pantalla */
+	width: 400px;
+	height: 100vh;
+	background: #fff;
+	box-shadow: -10px 0 20px rgba(0, 0, 0, 0.1);
+	z-index: 2000;
+	transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+	padding: 0;
+	/* Lo manejamos con sub-divs */
+	display: flex;
+	flex-direction: column;
+}
+
+#panelEditar.visible {
+	right: 0;
+	/* Entra desde la derecha */
+}
+
+/* Capa de desenfoque/oscuridad trasera */
+#overlayPanel {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(2px);
+	/* Efecto moderno */
+	display: none;
+	z-index: 1500;
+}
+
+#overlayPanel.visible {
+	display: block;
 }

@@ -1,157 +1,97 @@
-
 /**
- * ------------------------------------------------------------
- * dashboard.js
- * ------------------------------------------------------------
- * Lógica de carga del dashboard principal.
- *
- * Responsabilidades:
- * - Solicitar al backend el resumen del mes actual
- * - Pintar KPIs en el DOM
- * - NO contiene lógica de negocio (eso está en backend)
- * - NO maneja sesiones ni seguridad
- *
- * Fuente de datos:
- * - /controllers/DashboardRouter.php
- * ------------------------------------------------------------
-*/
+ * dashboard.js - Versión con diagnóstico de errores
+ */
 
 import { renderKpis } from './widgets/widgetKpis.js';
 import { renderDistribucion503020 } from './widgets/widgetDistribucion503020.js';
 import { cargarMovimientos, initMovimientos } from './widgets/widgetMovimientos.js';
 
-
-/* ------------------------------------------------------------
-   Helper fetch JSON seguro
------------------------------------------------------------- */
 async function fetchJSON(url) {
 	const resp = await fetch(url, { credentials: 'same-origin' });
-
-	if (!resp.ok) {
-		throw new Error(`HTTP ${resp.status}`);
-	}
-
+	if (!resp.ok) throw new Error(`HTTP Error: ${resp.status}`);
 	return await resp.json();
 }
 
-/* ------------------------------------------------------------
-Cargar porcentaje de gasto
------------------------------------------------------------- */
 async function cargarPorcentaje() {
-	try {
-		const json = await fetchJSON(
-			'/control_gastos/controllers/DashboardRouter.php?action=porcentaje'
-		);
-
-		console.log('Porcentaje gasto:', json);
-
-		if (!json.ok) {
-			throw new Error(json.error || 'Error backend');
-		}
-
-		document.getElementById('kpi-porcentaje').textContent =
-			json.data.porcentaje_gasto.toFixed(2) + ' %';
-
-	} catch (err) {
-		console.error('Error cargando porcentaje:', err);
-	}
+    try {
+        const json = await fetchJSON('controllers/DashboardRouter.php?action=porcentaje');
+        if (json.ok && json.data) {
+            // Convertimos a número y fijamos 2 decimales
+            const valor = parseFloat(json.data.porcentaje_gasto);
+            document.getElementById('kpi-porcentaje').textContent = valor.toFixed(2) + ' %';
+        }
+    } catch (err) {
+        console.error('Error cargando porcentaje:', err);
+    }
 }
-/* ------------------------------------------------------------
-   Cargar distribución 50 / 30 / 20
-   (datos preparados para gráficos)
------------------------------------------------------------- */
+
 async function cargarDistribucion() {
-	try {
-		const json = await fetchJSON(
-			'/control_gastos/controllers/DashboardRouter.php?action=distribucion'
-		);
+    try {
+        // Llamada al router para obtener la distribución 50/30/20
+        const json = await fetchJSON('controllers/DashboardRouter.php?action=distribucion');
+        const canvas = document.getElementById('chart503020');
 
-		if (!json.ok) {
-			throw new Error(json.error || 'Error backend');
-		}
+        // Si hay datos y el array no está vacío
+        if (json.ok && json.data && json.data.length > 0) {
+            console.log("Datos recibidos para el gráfico:", json.data);
 
-		const labels = [];
-		const valores = [];
+            // Extraemos las etiquetas (50, 30, 20) y los totales convertidos a números
+            const labels = json.data.map(item => item.categoria);
+            const valores = json.data.map(item => parseFloat(item.total));
 
-		json.data.forEach((item) => {
-			labels.push(item.categoria);
-			valores.push(item.total);
-		});
-
-		// 🎯 PINTAR DONUT
-		const canvas = document.getElementById('chart503020');
-		renderDistribucion503020(canvas, labels, valores);
-
-	} catch (err) {
-		console.error('Error cargando distribución:', err);
-	}
+            // Llamamos al widget para renderizar en el canvas
+            renderDistribucion503020(canvas, labels, valores);
+        } else {
+            console.warn("No hay datos categorizados como 50/30/20 para graficar.");
+            // Pasamos arrays vacíos para que el widget muestre el mensaje de "Sin datos"
+            renderDistribucion503020(canvas, [], []);
+        }
+    } catch (err) {
+        console.error('Error al cargar la distribución gráfica:', err);
+    }
 }
-let currentPage = 1;
-let totalPages = 1;
-
-
-/* ------------------------------------------------------------
-	Carga inicial del dashboard
------------------------------------------------------------- */
 
 document.addEventListener('DOMContentLoaded', async () => {
+	console.log("Iniciando carga del Dashboard...");
 	try {
-		const json = await fetchJSON('/control_gastos/controllers/DashboardRouter.php');
+		const json = await fetchJSON('controllers/DashboardRouter.php?action=resumen');
 
-		if (!json.ok) throw new Error(json.error);
+		// --- DIAGNÓSTICO ---
+		console.log("Respuesta del servidor:", json);
 
-		renderKpis(json.data);
+		if (!json.ok) throw new Error(json.error || "Error desconocido en el servidor");
+
+		if (json.data) {
+			console.log("Enviando datos a renderKpis:", json.data);
+			renderKpis(json.data);
+		} else {
+			console.error("El servidor respondió ok pero sin 'data'");
+		}
+
+		// Cargar el resto
 		await cargarPorcentaje();
 		await cargarDistribucion();
 		await cargarMovimientos(1);
 		initMovimientos();
 
 	} catch (err) {
-		console.error('Dashboard error:', err);
+		console.error('DASHBOARD ERROR CRÍTICO:', err.message);
+		document.querySelectorAll('.kpi-value').forEach(el => el.textContent = 'Err');
 	}
 });
-/* ------------------------------------------------------------
-   Lógica de interacción del dashboard
------------------------------------------------------------- */
 
+// Menú lateral
 document.addEventListener('DOMContentLoaded', () => {
 	const btn = document.getElementById('btnToggleSidebar');
-	const sidebar = document.querySelector('.sidebar');
-	const main = document.querySelector('.main-content');
-
-	if (!btn || !sidebar || !main) return;
-
-	btn.addEventListener('click', () => {
-		sidebar.classList.toggle('hidden');
-		main.classList.toggle('expanded');
-	});
+	const menu = document.querySelector('.sidebar');
+	const overlay = document.getElementById('menuOverlay');
+	if (!btn || !menu || !overlay) return;
+	btn.onclick = () => {
+		menu.classList.toggle('visible');
+		overlay.classList.toggle('visible');
+	};
+	overlay.onclick = () => {
+		menu.classList.remove('visible');
+		overlay.classList.remove('visible');
+	};
 });
-
-document.getElementById('prevPage').addEventListener('click', () => {
-	if (currentPage > 1) {
-		cargarMovimientos(currentPage - 1);
-	}
-});
-
-document.getElementById('nextPage').addEventListener('click', () => {
-	if (currentPage < totalPages) {
-		cargarMovimientos(currentPage + 1);
-	}
-});
-
-
-/* ------------------------------------------------------------
-   Toggle sidebar (menú lateral)
------------------------------------------------------------- */
-document.addEventListener('DOMContentLoaded', () => {
-	const btn = document.getElementById('btnToggleSidebar');
-	const sidebar = document.querySelector('.sidebar');
-	const appRoot = document.querySelector('.app-root');
-
-	if (!btn || !sidebar || !appRoot) return;
-
-	btn.addEventListener('click', () => {
-		appRoot.classList.toggle('sidebar-collapsed');
-	});
-});
-

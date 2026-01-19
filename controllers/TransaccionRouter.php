@@ -1,6 +1,11 @@
 <?php
-session_start();
 
+/**
+ * TransaccionRouter.php
+ * Gestiona las peticiones de creación, edición y borrado de transacciones.
+ */
+
+// Ya no llamamos a session_start() aquí porque config.php lo hace por nosotros.
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../db.php';
@@ -11,14 +16,14 @@ header('Content-Type: application/json; charset=utf-8');
 $action = $_GET['action'] ?? null;
 
 /* =====================================================
-   🔐 VALIDACIÓN CSRF (solo escritura)
+   🔐 VALIDACIÓN CSRF (Solo para acciones de escritura)
    ===================================================== */
 if (in_array($action, ['crear', 'editar', 'eliminar'], true)) {
 	validar_csrf();
 }
 
 /* =====================================================
-   ROUTER
+   ENRUTADOR
    ===================================================== */
 $controller = new TransaccionController($pdo);
 
@@ -34,6 +39,7 @@ switch ($action) {
 		break;
 
 	case 'crear':
+		// Leemos el JSON enviado por transacciones_form.js
 		$data = json_decode(file_get_contents('php://input'), true) ?? [];
 		$result = $controller->crear($data);
 		break;
