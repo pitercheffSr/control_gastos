@@ -1,101 +1,92 @@
 <?php
 
-/**
- * ------------------------------------------------------------
- * CategoriaController.php
- * ------------------------------------------------------------
- * Controlador para acciones relacionadas con categorías.
- *
- * - Orquesta la lógica (no SQL directo)
- * - Usa CategoriaModel
- * - Devuelve arrays (no imprime ni redirige)
- * ------------------------------------------------------------
- */
-
 require_once __DIR__ . '/../models/CategoriaModel.php';
 
 class CategoriaController
 {
-    private CategoriaModel $model;
+	private CategoriaModel $model;
 
-public function __construct(PDO $pdo)
-{
-    $this->pdo = $pdo;
-    $this->model = new CategoriaModel($pdo);
-}
+	public function __construct(PDO $pdo)
+	{
+		$this->model = new CategoriaModel($pdo);
+	}
 
-    /**
-     * Alta de categoría
-     */
-    public function addCategoria(array $data): array
-    {
-        $nombre = trim($data['nombre'] ?? '');
+	/* =====================================================
+       LISTAR
+    ===================================================== */
+	public function listar(): array
+	{
+		if (!isset($_SESSION['usuario_id'])) {
+			return [];
+		}
 
-        if ($nombre === '') {
-            return [
-                'status'  => 'error',
-                'message' => 'Nombre vacío'
-            ];
-        }
+		return $this->model->listarTodas();
+	}
 
-        $id = $this->model->crearCategoria($nombre);
+	/* =====================================================
+       CREAR
+    ===================================================== */
+	public function crear(array $data): array
+	{
+		$nombre = trim($data['nombre'] ?? '');
+		$tipo   = $data['tipo'] ?? 'gasto';
+		$parent = $data['parent_id'] ?? null;
 
-        return [
-            'status'  => 'success',
-            'message' => 'Categoría agregada',
-            'id'      => $id,
-            'nombre'  => $nombre
-        ];
-    }
-}
-/**
- * Alta de subcategoría
- */
-public function addSubcategoria(array $data)
-{
-    $idCategoria = (int) ($data['id_categoria'] ?? 0);
-    $nombre      = trim($data['nombre'] ?? '');
+		if ($nombre === '') {
+			return ['ok' => false, 'error' => 'Nombre vacío'];
+		}
 
-    if ($idCategoria <= 0 || $nombre === '') {
-        return [
-            'status'  => 'error',
-            'message' => 'Datos inválidos'
-        ];
-    }
+		$id = $this->model->crear([
+			'nombre'    => $nombre,
+			'tipo'      => $tipo,
+			'parent_id' => $parent,
+		]);
 
-    require_once __DIR__ . '/../models/SubcategoriaModel.php';
+		return ['ok' => true, 'id' => $id];
+	}
 
-    $model = new SubcategoriaModel($this->pdo);
-    $id = $model->crearSubcategoria($idCategoria, $nombre);
+	/* =====================================================
+       EDITAR
+    ===================================================== */
+	public function editar(array $data): array
+	{
+		if (empty($data['id'])) {
+			return ['ok' => false, 'error' => 'ID no proporcionado'];
+		}
 
-    return [
-        'status'  => 'success',
-        'message' => 'Subcategoría agregada',
-        'id'      => $id,
-        'nombre'  => $nombre
-    ];
-}
-public function addSubSubcategoria(array $data)
-{
-    $idSubcategoria = (int) ($data['id_subcategoria'] ?? 0);
-    $nombre         = trim($data['nombre'] ?? '');
+		$id = (int) $data['id'];
+		$parent = $data['parent_id'] ?? null;
 
-    if ($idSubcategoria <= 0 || $nombre === '') {
-        return [
-            'status'  => 'error',
-            'message' => 'Datos inválidos'
-        ];
-    }
+		// 🚫 No permitir que una categoría sea padre de sí misma
+		if ($parent !== null && (int)$parent === $id) {
+			return [
+				'ok' => false,
+				'error' => 'Una categoría no puede depender de sí misma'
+			];
+		}
 
-    require_once __DIR__ . '/../models/SubSubcategoriaModel.php';
+		$ok = $this->model->editar(
+			$id,
+			[
+				'nombre'    => trim($data['nombre'] ?? ''),
+				'tipo'      => $data['tipo'] ?? 'gasto',
+				'parent_id' => $parent,
+			]
+		);
 
-    $model = new SubSubcategoriaModel($this->pdo);
-    $id = $model->crearSubSubcategoria($idSubcategoria, $nombre);
+		return ['ok' => $ok];
+	}
 
-    return [
-        'status'  => 'success',
-        'message' => 'Sub-Subcategoría agregada',
-        'id'      => $id,
-        'nombre'  => $nombre
-    ];
+	/* =====================================================
+       ELIMINAR
+    ===================================================== */
+	public function eliminar(array $data): array
+	{
+		if (empty($data['id'])) {
+			return ['ok' => false, 'error' => 'ID no proporcionado'];
+		}
+
+		$ok = $this->model->eliminarConHijos((int) $data['id']);
+		return ['ok' => $ok];
+	}
 }

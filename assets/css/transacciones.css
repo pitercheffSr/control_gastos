@@ -1,0 +1,51 @@
+/* ============================================================
+   transacciones.css
+   Panel lateral + acciones
+============================================================ */
+
+/* ---------- Botones editar / borrar ---------- */
+.edit-btn,
+.delete-btn {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 6px;
+	display: inline-flex;
+}
+
+/* ---------- Panel lateral estilo macOS ---------- */
+#overlayPanel {
+	position: fixed;
+	inset: 0;
+	background: rgba(8, 12, 20, 0.35);
+	backdrop-filter: blur(6px);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.25s ease;
+	z-index: 8500;
+}
+
+#overlayPanel.visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+#panelEditar {
+	position: fixed;
+	top: 6vh;
+	right: 36px;
+	width: 420px;
+	height: 88vh;
+	background: rgba(255, 255, 255, 0.78);
+	border-radius: 14px;
+	backdrop-filter: blur(12px);
+	box-shadow: 0 18px 50px rgba(10, 20, 30, 0.28);
+	padding: 20px;
+	display: none;
+	z-index: 9000;
+}
+
+#panelEditar.visible {
+	display: flex;
+	flex-direction: column;
+}

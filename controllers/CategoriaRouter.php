@@ -1,45 +1,33 @@
 <?php
+session_start();
 
-/**
- * TransaccionRouter.php
- * Gestiona las peticiones de creación, edición y borrado de transacciones.
- */
-
-// Ya no llamamos a session_start() aquí porque config.php lo hace por nosotros.
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../db.php';
-require_once __DIR__ . '/TransaccionController.php';
+require_once __DIR__ . '/CategoriaController.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$action = $_GET['action'] ?? null;
+$action = $_GET['action'] ?? 'listar';
 
 /* =====================================================
-   🔐 VALIDACIÓN CSRF (Solo para acciones de escritura)
+   🔐 VALIDACIÓN CSRF
    ===================================================== */
 if (in_array($action, ['crear', 'editar', 'eliminar'], true)) {
 	validar_csrf();
 }
 
 /* =====================================================
-   ENRUTADOR
+   ROUTER ÚNICO
    ===================================================== */
-$controller = new TransaccionController($pdo);
+$controller = new CategoriaController($pdo);
 
 switch ($action) {
-
 	case 'listar':
 		$result = $controller->listar();
 		break;
 
-	case 'obtener':
-		$id = $_GET['id'] ?? null;
-		$result = $controller->obtener(['id' => $id]);
-		break;
-
 	case 'crear':
-		// Leemos el JSON enviado por transacciones_form.js
 		$data = json_decode(file_get_contents('php://input'), true) ?? [];
 		$result = $controller->crear($data);
 		break;
@@ -50,16 +38,13 @@ switch ($action) {
 		break;
 
 	case 'eliminar':
-		$data = json_decode(file_get_contents('php://input'), true) ?? [];
-		$result = $controller->eliminar($data);
+		$id = $_GET['id'] ?? null;
+		$result = $controller->eliminar(['id' => $id]);
 		break;
 
 	default:
 		http_response_code(400);
-		$result = [
-			'ok'    => false,
-			'error' => 'Acción desconocida'
-		];
+		$result = ['ok' => false, 'error' => 'Acción desconocida'];
 }
 
 echo json_encode($result);

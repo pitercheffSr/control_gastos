@@ -1,227 +1,97 @@
-// =========================================================
-//  DASHBOARD JS — Versión estable y validada
-//  Funciona: menú lateral, toggle, filtros, tabla y totales
-// =========================================================
+/**
+ * dashboard.js - Versión con diagnóstico de errores
+ */
 
+import { renderKpis } from './widgets/widgetKpis.js';
+import { renderDistribucion503020 } from './widgets/widgetDistribucion503020.js';
+import { cargarMovimientos, initMovimientos } from './widgets/widgetMovimientos.js';
+
+async function fetchJSON(url) {
+	const resp = await fetch(url, { credentials: 'same-origin' });
+	if (!resp.ok) throw new Error(`HTTP Error: ${resp.status}`);
+	return await resp.json();
+}
+
+async function cargarPorcentaje() {
+    try {
+        const json = await fetchJSON('controllers/DashboardRouter.php?action=porcentaje');
+        if (json.ok && json.data) {
+            // Convertimos a número y fijamos 2 decimales
+            const valor = parseFloat(json.data.porcentaje_gasto);
+            document.getElementById('kpi-porcentaje').textContent = valor.toFixed(2) + ' %';
+        }
+    } catch (err) {
+        console.error('Error cargando porcentaje:', err);
+    }
+}
+
+async function cargarDistribucion() {
+    try {
+        // Llamada al router para obtener la distribución 50/30/20
+        const json = await fetchJSON('controllers/DashboardRouter.php?action=distribucion');
+        const canvas = document.getElementById('chart503020');
+
+        // Si hay datos y el array no está vacío
+        if (json.ok && json.data && json.data.length > 0) {
+            console.log("Datos recibidos para el gráfico:", json.data);
+
+            // Extraemos las etiquetas (50, 30, 20) y los totales convertidos a números
+            const labels = json.data.map(item => item.categoria);
+            const valores = json.data.map(item => parseFloat(item.total));
+
+            // Llamamos al widget para renderizar en el canvas
+            renderDistribucion503020(canvas, labels, valores);
+        } else {
+            console.warn("No hay datos categorizados como 50/30/20 para graficar.");
+            // Pasamos arrays vacíos para que el widget muestre el mensaje de "Sin datos"
+            renderDistribucion503020(canvas, [], []);
+        }
+    } catch (err) {
+        console.error('Error al cargar la distribución gráfica:', err);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+	console.log("Iniciando carga del Dashboard...");
+	try {
+		const json = await fetchJSON('controllers/DashboardRouter.php?action=resumen');
+
+		// --- DIAGNÓSTICO ---
+		console.log("Respuesta del servidor:", json);
+
+		if (!json.ok) throw new Error(json.error || "Error desconocido en el servidor");
+
+		if (json.data) {
+			console.log("Enviando datos a renderKpis:", json.data);
+			renderKpis(json.data);
+		} else {
+			console.error("El servidor respondió ok pero sin 'data'");
+		}
+
+		// Cargar el resto
+		await cargarPorcentaje();
+		await cargarDistribucion();
+		await cargarMovimientos(1);
+		initMovimientos();
+
+	} catch (err) {
+		console.error('DASHBOARD ERROR CRÍTICO:', err.message);
+		document.querySelectorAll('.kpi-value').forEach(el => el.textContent = 'Err');
+	}
+});
+
+// Menú lateral
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Dashboard.js cargado correctamente');
-
-    const state = {
-        page: 1,
-        per_page: 50,
-        filter_type: 'month',
-    };
-
-    // --------------------------
-    // Helpers
-    // --------------------------
-    const qs = (id) => document.getElementById(id);
-
-    const fmtCurrency = (v) => {
-        return Number(v || 0).toLocaleString('es-ES', {
-            style: 'currency',
-            currency: 'EUR',
-        });
-    };
-
-    // --------------------------
-    // Init selects
-    // --------------------------
-    function initDateSelectors() {
-        const monthSel = qs('filter_month');
-        const yearSel = qs('filter_year');
-        const now = new Date();
-
-        // Meses
-        for (let m = 1; m <= 12; m++) {
-            let opt = document.createElement('option');
-            opt.value = m;
-            opt.text = m;
-            monthSel.appendChild(opt);
-        }
-
-        // Años
-        for (let y = now.getFullYear(); y >= now.getFullYear() - 5; y--) {
-            let opt = document.createElement('option');
-            opt.value = y;
-            opt.text = y;
-            yearSel.appendChild(opt);
-        }
-
-        monthSel.value = now.getMonth() + 1;
-        yearSel.value = now.getFullYear();
-    }
-
-    // --------------------------
-    // Update filter inputs visibility
-    // --------------------------
-    function updateFilterInputs() {
-        const ft = qs('filter_type').value;
-
-        qs('filter_date').style.display = 'none';
-        qs('filter_date_from').style.display = 'none';
-        qs('filter_date_to').style.display = 'none';
-        qs('filter_month').style.display = 'none';
-        qs('filter_year').style.display = 'none';
-
-        if (ft === 'day' || ft === 'week')
-            qs('filter_date').style.display = 'inline-block';
-
-        if (ft === 'month') {
-            qs('filter_month').style.display = 'inline-block';
-            qs('filter_year').style.display = 'inline-block';
-        }
-
-        if (ft === 'range') {
-            qs('filter_date_from').style.display = 'inline-block';
-            qs('filter_date_to').style.display = 'inline-block';
-        }
-    }
-
-    // --------------------------
-    // Fetch data
-    // --------------------------
-    async function fetchData() {
-        const params = new URLSearchParams();
-        params.set('filter_type', state.filter_type);
-        params.set('page', state.page);
-
-        if (state.filter_type === 'month') {
-            params.set('month', qs('filter_month').value);
-            params.set('year', qs('filter_year').value);
-        }
-
-        if (state.filter_type === 'day' || state.filter_type === 'week') {
-            const d =
-                qs('filter_date').value ||
-                new Date().toISOString().slice(0, 10);
-            params.set('date', d);
-        }
-
-        if (state.filter_type === 'range') {
-            params.set('date_from', qs('filter_date_from').value);
-            params.set('date_to', qs('filter_date_to').value);
-        }
-
-        const r = await fetch('/control_gastos/api/ftch.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params,
-        });
-
-        const text = await r.text();
-        console.log('Respuesta RAW ftch.php:', text);
-
-        try {
-            const data = JSON.parse(text);
-            //	 renderTotals(data.totals);
-            renderTable(data.transactions);
-            qs('pageInfo').innerText = `Página ${data.page}`;
-        } catch (e) {
-            console.error('Error parseando JSON:', e, text);
-        }
-    }
-
-    // --------------------------
-    // Render totales
-    // --------------------------
-    function renderTotals(t) {
-        qs('t_ingresos').innerText = fmtCurrency(t.total_ingresos);
-        qs('t_gastos').innerText = fmtCurrency(t.total_gastos);
-        qs('t_saldo').innerText = fmtCurrency(t.saldo);
-    }
-
-    // --------------------------
-    // Render tabla
-    // --------------------------
-    function renderTable(rows) {
-        const tbody = qs('transactionsTable').querySelector('tbody');
-        tbody.innerHTML = '';
-
-        if (!rows || rows.length === 0) {
-            let tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan="6" class="text-center">No hay datos</td>`;
-            tbody.appendChild(tr);
-            return;
-        }
-
-        rows.forEach((r) => {
-            let tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${r.fecha}</td>
-                <td>${r.descripcion || ''}</td>
-                <td>${r.id_categoria || ''}</td>
-                <td>${r.id_subcategoria || ''}</td>
-                <td>${fmtCurrency(r.monto)}</td>
-                <td>${r.tipo}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // --------------------------
-    // EVENTOS
-    // --------------------------
-    qs('filter_type').addEventListener('change', () => {
-        state.filter_type = qs('filter_type').value;
-        updateFilterInputs();
-    });
-
-    qs('btnApplyFilter').addEventListener('click', () => {
-        state.page = 1;
-        fetchData();
-    });
-
-    qs('prevPage').addEventListener('click', () => {
-        if (state.page > 1) {
-            state.page--;
-            fetchData();
-        }
-    });
-
-    qs('nextPage').addEventListener('click', () => {
-        state.page++;
-        fetchData();
-    });
-
-    // --------------------------
-    // SIDEBAR TOGGLE (☰)
-    // --------------------------
-    qs('btnToggleSidebar').addEventListener('click', () => {
-        console.log('Toggle sidebar!');
-        document.body.classList.toggle('sidebar-collapsed');
-    });
-
-    // --------------------------
-    // NAV MENU
-    // --------------------------
-    document.querySelectorAll('.menu-item').forEach((item) => {
-        item.addEventListener('click', (e) => {
-            // Si el enlace tiene href válido, dejamos que el navegador navegue.
-            const href = item.getAttribute('href');
-            if (href && href.trim() !== '' && href.trim() !== '#') {
-                // añadimos la clase visual pero NO prevenimos la navegación
-                document
-                    .querySelectorAll('.menu-item')
-                    .forEach((e2) => e2.classList.remove('is-active'));
-                item.classList.add('is-active');
-                // no call to e.preventDefault(); let navigation happen
-                return;
-            }
-            // Si no tiene href (modo SPA), evitamos la navegación y actuamos como SPA:
-            e.preventDefault();
-            document
-                .querySelectorAll('.menu-item')
-                .forEach((e2) => e2.classList.remove('is-active'));
-            item.classList.add('is-active');
-            // aquí podrías mostrar la sección SPA correspondiente
-        });
-    });
-
-    // --------------------------
-    // INICIALIZAR
-    // --------------------------
-    initDateSelectors();
-    updateFilterInputs();
-    fetchData();
+	const btn = document.getElementById('btnToggleSidebar');
+	const menu = document.querySelector('.sidebar');
+	const overlay = document.getElementById('menuOverlay');
+	if (!btn || !menu || !overlay) return;
+	btn.onclick = () => {
+		menu.classList.toggle('visible');
+		overlay.classList.toggle('visible');
+	};
+	overlay.onclick = () => {
+		menu.classList.remove('visible');
+		overlay.classList.remove('visible');
+	};
 });
