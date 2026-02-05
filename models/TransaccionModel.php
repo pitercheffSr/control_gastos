@@ -1,137 +1,70 @@
 <?php
-
 /**
- * ------------------------------------------------------------
- * TransaccionModel.php
- * ------------------------------------------------------------
- * Modelo de acceso a datos para transacciones.
- * ------------------------------------------------------------
+ * models/TransaccionModel.php
+ * Gestiona la lectura, inserción y modificación de movimientos contables.
  */
+class TransaccionModel {
+    private $db;
 
-class TransaccionModel
-{
-	private PDO $pdo;
+    public function __construct($db) {
+        $this->db = $db;
+    }
 
-	public function __construct(PDO $pdo)
-	{
-		$this->pdo = $pdo;
-	}
+    /**
+     * Lista las transacciones ordenadas por fecha (más reciente primero).
+     * Incluye datos de la categoría asociada (nombre, icono, color).
+     */
+    public function listar($limit = 50) {
+        $sql = "SELECT 
+                    t.id, 
+                    t.fecha, 
+                    t.descripcion, 
+                    t.importe, 
+                    c.nombre AS categoria_nombre, 
+                    c.icono AS categoria_icono, 
+                    c.color AS categoria_color 
+                FROM transacciones t
+                LEFT JOIN categorias c ON t.categoria_id = c.id
+                ORDER BY t.fecha DESC, t.id DESC
+                LIMIT :limit";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-	public function crear(array $data): void
-	{
-		$sql = "
-            INSERT INTO transacciones
-            (id_usuario, fecha, descripcion, monto, tipo,
-             id_categoria, id_subcategoria, id_subsubcategoria)
-            VALUES
-            (:uid, :fecha, :descripcion, :monto, :tipo,
-             :cat, :subcat, :subsub)
-        ";
+    /**
+     * Obtiene el balance total (Suma de importes)
+     */
+    public function obtenerBalance() {
+        $stmt = $this->db->query("SELECT SUM(importe) as total FROM transacciones");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row['total'] ?? 0;
+    }
 
-		$stmt = $this->pdo->prepare($sql);
+    /**
+     * Crea una nueva transacción
+     */
+    public function crear($fecha, $descripcion, $importe, $categoria_id) {
+        $sql = "INSERT INTO transacciones (fecha, descripcion, importe, categoria_id) 
+                VALUES (:fecha, :desc, :importe, :cat_id)";
+        
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([
+            ':fecha' => $fecha,
+            ':desc' => $descripcion,
+            ':importe' => $importe,
+            ':cat_id' => !empty($categoria_id) ? $categoria_id : null
+        ]);
+    }
 
-		$stmt->execute([
-			'uid'        => $data['id_usuario'],
-			'fecha'      => $data['fecha'],
-			'descripcion' => $data['descripcion'],
-			'monto'      => $data['monto'],
-			'tipo'       => $data['tipo'],
-			'cat'        => $data['id_categoria'],
-			'subcat'     => $data['id_subcategoria'],
-			'subsub'     => $data['id_subsubcategoria'],
-		]);
-	}
-	/**
-	 * Obtener todas las transacciones del usuario
-	 */
-	public function listarPorUsuario(int $idUsuario): array
-	{
-		$sql = "
-            SELECT
-                t.id,
-                t.fecha,
-                t.descripcion,
-                t.monto,
-                t.tipo,
-                c.nombre AS categoria,
-                s.nombre AS subcategoria
-            FROM transacciones t
-            LEFT JOIN categorias c ON c.id = t.id_categoria
-            LEFT JOIN subcategorias s ON s.id = t.id_subcategoria
-            WHERE t.id_usuario = :uid
-            ORDER BY t.fecha DESC, t.id DESC
-        ";
-
-		$stmt = $this->pdo->prepare($sql);
-		$stmt->execute(['uid' => $idUsuario]);
-
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
-	}
-
-	/**
-	 * Eliminar transacción
-	 */
-	public function eliminar(int $id, int $idUsuario): bool
-	{
-		$sql = "DELETE FROM transacciones WHERE id = :id AND id_usuario = :uid";
-		$stmt = $this->pdo->prepare($sql);
-
-		return $stmt->execute([
-			'id'  => $id,
-			'uid' => $idUsuario
-		]);
-	}
-	/**
-	 * Obtener una transacción por ID y usuario
-	 */
-	public function obtenerPorId(int $id, int $usuarioId): ?array
-	{
-		$stmt = $this->pdo->prepare("
-        SELECT *
-        FROM transacciones
-        WHERE id = :id AND id_usuario = :uid
-        LIMIT 1
-    ");
-
-		$stmt->execute([
-			'id'  => $id,
-			'uid' => $usuarioId
-		]);
-
-		$res = $stmt->fetch(PDO::FETCH_ASSOC);
-		return $res ?: null;
-	}
-
-	/**
-	 * Editar transacción
-	 */
-	public function editar(int $id, int $idUsuario, array $data): bool
-	{
-		$sql = "
-            UPDATE transacciones
-            SET
-                fecha = :fecha,
-                descripcion = :descripcion,
-                monto = :monto,
-                tipo = :tipo,
-                id_categoria = :cat,
-                id_subcategoria = :subcat,
-                id_subsubcategoria = :subsub
-            WHERE id = :id AND id_usuario = :uid
-        ";
-
-		$stmt = $this->pdo->prepare($sql);
-
-		return $stmt->execute([
-			'fecha'   => $data['fecha'],
-			'descripcion' => $data['descripcion'],
-			'monto'   => $data['monto'],
-			'tipo'    => $data['tipo'],
-			'cat'     => $data['id_categoria'],
-			'subcat'  => $data['id_subcategoria'],
-			'subsub'  => $data['id_subsubcategoria'],
-			'id'      => $id,
-			'uid'     => $idUsuario,
-		]);
-	}
+    /**
+     * Elimina una transacción por ID
+     */
+    public function eliminar($id) {
+        $stmt = $this->db->prepare("DELETE FROM transacciones WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
 }
