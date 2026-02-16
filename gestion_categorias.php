@@ -1,262 +1,139 @@
 <?php
-session_start();
-
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/controllers/CategoriasController.php';
 
-// Seguridad
-if (!isset($_SESSION["usuario_id"])) {
-	header("Location: index.php");
-	exit;
+$controller = new CategoriasController($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['accion']) && $_POST['accion'] === 'eliminar') {
+        $controller->eliminar($_POST['id']);
+    } else {
+        $controller->guardar($_POST);
+    }
+    header("Location: gestion_categorias.php");
+    exit;
 }
 
-$db = $conn;
-
-// =============================================================
-// FUNCIONES
-// =============================================================
-
-// Cargar toda la tabla
-$st = $db->query("SELECT id, nombre, parent_id, tipo
-                  FROM categorias
-                  ORDER BY parent_id, nombre");
-$categorias = $st->fetchAll(PDO::FETCH_ASSOC);
-
-// Construir árbol jerárquico
-function buildTree($elements, $parent = null)
-{
-	$branch = [];
-	foreach ($elements as $el) {
-		if ($el["parent_id"] == $parent) {
-			$children = buildTree($elements, $el["id"]);
-			if ($children) {
-				$el["hijos"] = $children;
-			}
-			$branch[] = $el;
-		}
-	}
-	return $branch;
-}
-
-$tree = buildTree($categorias);
-
-// =============================================================
-// PROCESAR CREACIÓN DE CATEGORÍA RAÍZ
-// =============================================================
-
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "add_root") {
-	$nombre = trim($_POST["nombre_root"]);
-	$tipo = trim($_POST["tipo_root"]);
-
-	if ($nombre !== "" && ($tipo === "gasto" || $tipo === "ingreso")) {
-		$ins = $db->prepare("INSERT INTO categorias (nombre, parent_id, tipo) VALUES (:n, NULL, :t)");
-		$ins->execute(["n" => $nombre, "t" => $tipo]);
-	}
-
-	header("Location: gestion_categorias.php");
-	exit;
-}
-
-// =============================================================
-// FUNCION PARA DIBUJAR NODOS (SOLO LECTURA)
-// =============================================================
-
-function renderNode($nodo, $nivel = 1)
-{
-	// Elegir estilo visual según nivel
-	$class = $nivel === 1 ? "cat-root" : ($nivel === 2 ? "cat-child" : "cat-sub");
-
-	// Iconos según profundidad
-	$icon = ($nivel === 1)
-		? "<svg width='20' height='20' stroke='#333' fill='none' stroke-width='1.8' viewBox='0 0 24 24'><path d='M3 7h6l2 2h10v10H3z'/></svg>"
-		: (($nivel === 2)
-			? "<svg width='18' height='18' stroke='#555' fill='none' stroke-width='1.6' viewBox='0 0 24 24'><path d='M3 7h6l2 2h10v10H3z'/></svg>"
-			: "<svg width='16' height='16' stroke='#777' fill='none' stroke-width='1.4' viewBox='0 0 24 24'><path d='M3 7h6l2 2h10v10H3z'/></svg>");
-
-	echo "<div class='{$class}'>";
-
-	echo "<div class='flex-between'>";
-	echo "<div class='flex-row'>";
-
-	// Icono + Nombre
-	echo $icon . " <strong>" . htmlspecialchars($nodo["nombre"]) . "</strong>";
-
-	// Tipo solo en raíz
-	if ($nivel === 1) {
-		echo "<span class='label tipo-label'>" . htmlspecialchars($nodo["tipo"]) . "</span>";
-	}
-
-	echo "</div></div>";
-
-	// Dibujar hijos
-	if (isset($nodo["hijos"])) {
-		foreach ($nodo["hijos"] as $h) {
-			renderNode($h, $nivel + 1);
-		}
-	}
-
-	echo "</div>";
-}
-
+$categorias = $controller->index();
+include __DIR__ . '/includes/header.php';
 ?>
-<!doctype html>
-<html lang="es">
 
-<head>
-	<meta charset="utf-8">
-	<title>Gestión de Categorías</title>
+<div class="columns mb-2">
+    <div class="column col-12">
+        <button class="btn btn-primary float-right" onclick="abrirModal()">
+            <i class="icon icon-plus"></i> Nueva Categoría
+        </button>
+        <h3>Mis Categorías</h3>
+    </div>
+</div>
 
-	<!-- 1️⃣ Framework base -->
-	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
-	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
-	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+<div class="columns">
+    <?php foreach ($categorias as $cat): ?>
+    <div class="column col-12">
+        <div class="card p-2 mb-1" style="border-left: 5px solid <?= $cat['color'] ?>; margin-left: <?= $cat['nivel'] * 30 ?>px;">
+            <div class="tile tile-centered">
+                <div class="tile-icon">
+                    <i class="icon <?= $cat['icono'] ?>"></i>
+                </div>
+                <div class="tile-content">
+                    <div class="tile-title text-bold">
+                        <?= htmlspecialchars($cat['nombre']) ?>
+                        <?php if($cat['grupo_503020']!='indefinido'): ?>
+                            <span class="label label-secondary ml-2"><?= ucfirst($cat['grupo_503020']) ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="tile-action">
+                    <button class="btn btn-link" onclick='editar(<?= json_encode($cat) ?>)'>Editar</button>
+                    <form method="POST" style="display:inline" onsubmit="return confirm('¿Borrar?');">
+                        <input type="hidden" name="accion" value="eliminar">
+                        <input type="hidden" name="id" value="<?= $cat['id'] ?>">
+                        <button class="btn btn-link text-error"><i class="icon icon-delete"></i></button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
 
-	<!-- 2️⃣ CSS base de la app (layout, sidebar, topbar) -->
-	<link rel="stylesheet" href="assets/css/base.css">
+<div class="modal" id="modalCategoria">
+    <a href="#close" class="modal-overlay" onclick="cerrarModal()"></a>
+    <div class="modal-container">
+        <div class="modal-header">
+            <div class="h5 modal-title" id="modalTitulo">Categoría</div>
+        </div>
+        <div class="modal-body">
+            <form method="POST" id="formCategoria">
+                <input type="hidden" name="id" id="inputID">
+                <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <input class="form-input" type="text" name="nombre" id="inputNombre" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Padre</label>
+                    <select class="form-select" name="parent_id" id="inputParent">
+                        <option value="">-- Principal --</option>
+                        <?php foreach ($categorias as $c): ?>
+                            <option value="<?= $c['id'] ?>"><?= $c['nombre_display'] ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Grupo 50/30/20</label>
+                    <select class="form-select" name="grupo_503020" id="inputGrupo">
+                        <option value="indefinido">- Sin asignar -</option>
+                        <option value="necesidad">Necesidad (50%)</option>
+                        <option value="deseo">Deseo (30%)</option>
+                        <option value="ahorro">Ahorro (20%)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color y Tipo</label>
+                    <div class="input-group">
+                        <input class="form-input" type="color" name="color" id="inputColor" value="#5755d9" style="height:36px; width:50px;">
+                        <select class="form-select" name="tipo" id="inputTipo">
+                            <option value="gasto">Gasto</option>
+                            <option value="ingreso">Ingreso</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icono</label>
+                    <select class="form-select" name="icono" id="inputIcono">
+                        <option value="icon-bookmark">Etiqueta</option>
+                        <option value="icon-home">Casa</option>
+                        <option value="icon-cart">Carrito</option>
+                        <option value="icon-people">Gente</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block mt-2">Guardar</button>
+            </form>
+        </div>
+    </div>
+</div>
 
-	<!-- 3️⃣ CSS específico de categorías (SIEMPRE EL ÚLTIMO) -->
-	<link rel="stylesheet" href="assets/css/categorias.css">
+<script>
+const modal = document.getElementById('modalCategoria');
+function abrirModal() {
+    document.getElementById('formCategoria').reset();
+    document.getElementById('inputID').value = '';
+    document.getElementById('modalTitulo').innerText = 'Nueva Categoría';
+    modal.classList.add('active');
+}
+function cerrarModal() { modal.classList.remove('active'); }
+function editar(cat) {
+    abrirModal();
+    document.getElementById('modalTitulo').innerText = 'Editar Categoría';
+    document.getElementById('inputID').value = cat.id;
+    document.getElementById('inputNombre').value = cat.nombre;
+    document.getElementById('inputParent').value = cat.parent_id || '';
+    document.getElementById('inputGrupo').value = cat.grupo_503020;
+    document.getElementById('inputColor').value = cat.color;
+    document.getElementById('inputTipo').value = cat.tipo;
+    document.getElementById('inputIcono').value = cat.icono;
+}
+</script>
 
-	<style>
-		body {
-			background: #f8f9fb;
-		}
-
-		/* Contenedor */
-		.container {
-			max-width: 900px;
-			margin: 2rem auto;
-		}
-
-		/* Estilo del árbol */
-		.cat-root,
-		.cat-child,
-		.cat-sub {
-			padding: 10px 14px;
-			border-radius: 8px;
-			margin-bottom: 8px;
-		}
-
-		.cat-root {
-			background: #e8f1ff;
-			border-left: 4px solid #1a73e8;
-		}
-
-		.cat-child {
-			background: #fff4d8;
-			border-left: 4px solid #ffa000;
-			margin-left: 25px;
-		}
-
-		.cat-sub {
-			background: #e7fff2;
-			border-left: 4px solid #20c997;
-			margin-left: 50px;
-		}
-
-		.flex-row {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-		}
-
-		.flex-between {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-		}
-
-		.tipo-label {
-			background: #5755d2;
-			color: white;
-			padding: 2px 6px;
-			border-radius: 4px;
-			margin-left: 8px;
-		}
-
-		/* Card título */
-		.card-header {
-			font-size: 1.1rem;
-			font-weight: 600;
-		}
-	</style>
-</head>
-
-<body>
-
-	<!-- Contenedor principal -->
-	<div class="container">
-
-		<h2>Gestión de Categorías</h2>
-
-
-		<!-- ==========================
-     SOLO VISUALIZACIÓN ÁRBOL
-============================== -->
-		<div class="card">
-			<div class="card-header" style="background:#32b643;color:white;">
-				Estructura de categorías
-			</div>
-
-			<div class="card-body">
-				<div id="estructuraCategorias"></div>
-			</div>
-		</div>
-
-		<div style="margin-top:2rem;">
-			<a href="dashboard.php" class="btn btn-default">
-				<i class="icon icon-arrow-left"></i> Volver al Dashboard
-			</a>
-		</div>
-		<!-- =========================================================
-     PANEL DE MANTENIMIENTO DE CATEGORÍAS
-========================================================= -->
-		<div class="card" style="margin-bottom:2rem;">
-			<div class="card-header">
-				<strong>Mantenimiento de categorías</strong>
-			</div>
-
-			<div class="card-body">
-				<form id="formCategoria" class="form-horizontal">
-
-					<div class="form-group">
-						<label>Nombre</label>
-						<input type="text" id="cat_nombre" class="form-input" required>
-					</div>
-
-					<div class="form-group">
-						<label>Tipo</label>
-						<select id="cat_tipo" class="form-select">
-							<option value="gasto">Gasto</option>
-							<option value="ingreso">Ingreso</option>
-						</select>
-					</div>
-
-					<div class="form-group">
-						<label>Depende de</label>
-						<select id="cat_parent" class="form-select">
-							<option value="">— Categoría raíz —</option>
-						</select>
-					</div>
-
-					<button class="btn btn-primary">
-						<i class="icon icon-save"></i> Guardar
-					</button>
-
-					<button type="button" class="btn btn-link" id="btnCancelar" style="display:none;">
-						Cancelar edición
-					</button>
-
-				</form>
-			</div>
-		</div>
-
-	</div>
-	<!-- JS ÁRBOL -->
-	<?php require_once __DIR__ . '/includes/csrf_js.php'; ?>
-	<script src="assets/js/categorias.js"></script>
-
-</body>
-
-</html>
+<?php include __DIR__ . '/includes/footer.php'; ?>

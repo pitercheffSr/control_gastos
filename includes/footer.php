@@ -1,56 +1,14 @@
-        </div> <!-- Cierre del container -->
-    <!-- No se usa Bootstrap; eliminar script innecesario -->
+</div> </div> <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const periodoSelect = document.getElementById('periodo');
-            const fechaInicioInput = document.getElementById('fecha_inicio');
-            const fechaFinInput = document.getElementById('fecha_fin');
-
-            // Función para limpiar los campos de fecha
-            function clearDateInputs() {
-                if (!fechaInicioInput || !fechaFinInput) return;
-                fechaInicioInput.value = '';
-                fechaFinInput.value = '';
-            }
-
-            // Añadir manejadores solo si los elementos existen
-            if (periodoSelect && fechaInicioInput && fechaFinInput) {
-                periodoSelect.addEventListener('change', function() {
-                    if (this.value !== 'todos') {
-                        clearDateInputs();
-                    }
-                });
-
-                fechaInicioInput.addEventListener('change', function() {
-                    if (this.value !== '') {
-                        periodoSelect.value = 'todos';
-                    }
-                });
-
-                fechaFinInput.addEventListener('change', function() {
-                    if (this.value !== '') {
-                        periodoSelect.value = 'todos';
-                    }
-                });
-            }
-        });
-           // Nuevo código para sincronizar categoría y tipo
-        const idCategoriaSelect = document.getElementById('id_categoria');
-        const tipoSelect = document.getElementById('tipo');
-
-        if (idCategoriaSelect && tipoSelect) {
-            idCategoriaSelect.addEventListener('change', function() {
-                const selectedOption = this.options[this.selectedIndex];
-                const selectedType = selectedOption ? selectedOption.getAttribute('data-type') : null;
-
-                if (selectedType) {
-                    tipoSelect.value = selectedType;
-                }
+        // Si hay alertas, las cerramos suavemente tras 5 segundos
+        setTimeout(function() {
+            let alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(function(alert) {
+                let bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
             });
-        }
+        }, 5000);
     </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </body>
 </html>

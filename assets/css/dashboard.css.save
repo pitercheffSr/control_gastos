@@ -1,28 +1,4 @@
-/* ============================================================
-   1. VARIABLES Y RESET GLOBAL
-============================================================ */
-:root {
-    --bg-body: #f4f6f9;
-    --bg-sidebar: #1e293b;
-    --color-sidebar-text: #e2e8f0;
-    --color-primary: #5755d9; /* Color base de Spectre */
-    --width-sidebar: 240px;
-}
-
-html, body {
-    height: 100%;
-    margin: 0;
-    background-color: var(--bg-body);
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-}
-
-/* ============================================================
-   2. ESTRUCTURA DE LA APP (Layout)
-============================================================ */
-.app-root {
-    display: flex;
-    min-height: 100vh;
-    overflow: hidden; /* Evita doble scroll */
+ /* Evita doble scroll */
 }
 
 /* --- SIDEBAR (Menú Lateral) --- */
@@ -235,5 +211,5 @@ html, body {
 }
 
 .overlay.visible {
-    display: block;
+    display: blblock;
 }

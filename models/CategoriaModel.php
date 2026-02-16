@@ -1,97 +1,37 @@
 <?php
+class CategoriaModel {
+    private $db;
+    private $userId;
 
-/**
- * ------------------------------------------------------------
- * CategoriaModel.php
- * ------------------------------------------------------------
- * Modelo de acceso a datos para categorías (MVC completo)
- * ------------------------------------------------------------
- */
+    public function __construct($db, $userId) {
+        $this->db = $db;
+        $this->userId = $userId;
+    }
 
-class CategoriaModel
-{
-	private PDO $pdo;
+    public function listarArbol() {
+        $stmt = $this->db->prepare("SELECT * FROM categorias WHERE usuario_id = ? ORDER BY tipo, nombre ASC");
+        $stmt->execute([$this->userId]);
+        $cats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Aquí iría tu lógica de ordenar, pero para simplificar devolvemos lista plana filtrada
+        // Si tienes la función ordenarCategorias, úsala aquí.
+        return $cats; 
+    }
 
-	public function __construct(PDO $pdo)
-	{
-		$this->pdo = $pdo;
-	}
-
-	/* =====================================================
-       LISTAR TODAS (PLANO)
-    ===================================================== */
-	public function listarTodas(): array
-	{
-		$stmt = $this->pdo->query(
-			'SELECT id, nombre, parent_id, tipo FROM categorias ORDER BY nombre'
-		);
-
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
-	}
-
-	/* =====================================================
-       CREAR
-    ===================================================== */
-	public function crear(array $data): int
-	{
-		$stmt = $this->pdo->prepare(
-			'INSERT INTO categorias (nombre, tipo, parent_id)
-             VALUES (:nombre, :tipo, :parent)'
-		);
-
-		$stmt->execute([
-			'nombre' => $data['nombre'],
-			'tipo'   => $data['tipo'],
-			'parent' => $data['parent_id'],
-		]);
-
-		return (int) $this->pdo->lastInsertId();
-	}
-
-	/* =====================================================
-       EDITAR
-    ===================================================== */
-	public function editar(int $id, array $data): bool
-	{
-		$stmt = $this->pdo->prepare(
-			'UPDATE categorias
-             SET nombre = :nombre,
-                 tipo = :tipo,
-                 parent_id = :parent
-             WHERE id = :id'
-		);
-
-		return $stmt->execute([
-			'nombre' => $data['nombre'],
-			'tipo'   => $data['tipo'],
-			'parent' => $data['parent_id'],
-			'id'     => $id,
-		]);
-	}
-
-	/* =====================================================
-       ELIMINAR CON HIJOS (RECURSIVO)
-    ===================================================== */
-	public function eliminarConHijos(int $id): bool
-	{
-		// Obtener hijos directos
-		$stmt = $this->pdo->prepare(
-			'SELECT id FROM categorias WHERE parent_id = :id'
-		);
-		$stmt->execute(['id' => $id]);
-
-		$hijos = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-		// Eliminar recursivamente
-		foreach ($hijos as $hid) {
-			$this->eliminarConHijos((int) $hid);
-		}
-
-		// Eliminar la categoría actual
-		$stmt = $this->pdo->prepare(
-			'DELETE FROM categorias WHERE id = :id'
-		);
-
-		return $stmt->execute(['id' => $id]);
-	}
+    public function obtenerTotalesPorGrupo() {
+        $sql = "SELECT c.grupo_503020, SUM(ABS(t.importe)) as total 
+                FROM transacciones t 
+                JOIN categorias c ON t.categoria_id = c.id 
+                WHERE t.usuario_id = ? AND t.importe < 0 AND c.grupo_503020 != 'indefinido'
+                GROUP BY c.grupo_503020";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$this->userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    // Métodos mínimos para que no falle el dashboard
+    public function crear($nombre, $parent, $tipo, $grupo, $color, $icono) {
+        $sql = "INSERT INTO categorias (usuario_id, nombre, parent_id, tipo, grupo_503020, color, icono) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$this->userId, $nombre, $parent, $tipo, $grupo, $color, $icono]);
+    }
 }

@@ -1,93 +1,52 @@
 <?php
 session_start();
-if (isset($_SESSION['usuario_id'])) {
-    header("Location: dashboard.php");
-    exit;
+require_once 'config.php';
+require_once 'db.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $nombre = $_POST['nombre'];
+    $email = $_POST['email'];
+    $pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare("INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)");
+    if ($stmt->execute([$nombre, $email, $pass])) {
+        header("Location: index.php?registro=exito");
+        exit;
+    }
 }
 ?>
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<title>Registro — ControlGastos</title>
-
-<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
-<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
-<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
-
-<style>
-<?php echo file_get_contents("assets/css/auth_common.css") ?: "
-    body {
-        background: #f6f8fb;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        font-family: Inter, system-ui, sans-serif;
-    }
-    .auth-card {
-        width: 360px;
-        background: #fff;
-        padding: 32px;
-        border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-    }
-    .auth-title {
-        font-size: 1.4rem;
-        font-weight: 600;
-        margin-bottom: 12px;
-        text-align: center;
-    }
-    .auth-subtitle {
-        text-align: center;
-        color: #666;
-        font-size: .85rem;
-        margin-bottom: 24px;
-    }
-    .auth-footer {
-        text-align: center;
-        margin-top: 12px;
-        font-size: .8rem;
-    }
-    .auth-footer a { color: #7c3aed; }
-"; ?>
-</style>
-
+    <meta charset="UTF-8">
+    <title>Registro - ControlGastos</title>
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    <style>
+        body { background: #f4f6f9; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        .card { width: 100%; max-width: 360px; border: none; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+    </style>
 </head>
 <body>
-
-<div class="auth-card">
-    <div class="auth-title">Crear cuenta</div>
-    <div class="auth-subtitle">Regístrate para comenzar</div>
-
-    <?php if (!empty($_GET['error'])) : ?>
-        <div class="toast toast-error"><?= htmlspecialchars($_GET['error']); ?></div>
-    <?php endif; ?>
-
-    <form method="POST" action="procesar_registro.php">
-        <div class="form-group">
-            <label>Nombre</label>
-            <input name="nombre" type="text" class="form-input" required>
+    <div class="card">
+        <div class="card-header text-center"><div class="card-title h4">Crear Usuario</div></div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <input class="form-input" type="text" name="nombre" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input class="form-input" type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contraseña</label>
+                    <input class="form-input" type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block mt-2">Registrar</button>
+            </form>
         </div>
-
-        <div class="form-group">
-            <label>Email</label>
-            <input name="email" type="email" class="form-input" required>
-        </div>
-
-        <div class="form-group">
-            <label>Contraseña</label>
-            <input name="password" type="password" class="form-input" required>
-        </div>
-
-        <button class="btn btn-primary btn-block" style="margin-top: 16px;">Crear cuenta</button>
-    </form>
-
-    <div class="auth-footer">
-        ¿Ya tienes cuenta? <a href="login.php">Inicia sesión</a>
+        <div class="card-footer text-center"><a href="index.php">Volver al Login</a></div>
     </div>
-</div>
-
 </body>
 </html>

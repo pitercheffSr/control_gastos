@@ -1,259 +1,36 @@
 <?php
-
-/**
- * ============================================================
- * dashboard.php
- * ============================================================
- * Vista principal del Dashboard de ControlGastos
- *
- * RESPONSABILIDADES:
- * - Verificar sesión
- * - Definir estructura HTML
- * - Proveer IDs que el JS rellenará
- *
- * NO DEBE:
- * - Consultar BD
- * - Calcular datos
- * - Procesar lógica
- *
- * La lógica vive en:
- * - controllers/DashboardRouter.php
- * - assets/js/dashboard.js
- * ============================================================
- */
-
-require_once "config.php";
-
-/* ------------------------------------------------------------
-   Seguridad: usuario autenticado
------------------------------------------------------------- */
+session_start(); // <--- CRÍTICO: SIEMPRE PRIMERO
 if (!isset($_SESSION['usuario_id'])) {
-	header("Location: index.php");
-	exit;
+    header("Location: index.php");
+    exit;
 }
+
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
+// Asegúrate de que DashboardController.php es el que me pasaste antes
+require_once __DIR__ . '/controllers/DashboardController.php'; 
+
+$dashController = new DashboardController($pdo);
+$resumen = $dashController->obtenerResumen();
+
+include __DIR__ . '/includes/header.php';
 ?>
-<!doctype html>
-<html lang="es">
 
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+<div class="columns">
+    <div class="column col-12">
+        <div class="card">
+            <div class="card-header">Resumen</div>
+            <div class="card-body">
+                <h3>Bienvenido, <?= htmlspecialchars($_SESSION['usuario_nombre'] ?? 'Usuario') ?></h3>
+                <p>Balance: <strong><?= number_format($resumen['balance'], 2) ?> €</strong></p>
+                <canvas id="chartGastos" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
 
-	<title>ControlGastos — Dashboard</title>
+<script>
+    // Tu código Chart.js aquí
+</script>
 
-	<!-- =========================================================
-	     Framework CSS (Spectre.css)
-	     ========================================================= -->
-	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
-	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
-	<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
-
-	<!-- =========================================================
-	     CSS propio del proyecto
-	     ========================================================= -->
-	<link rel="stylesheet" href="assets/css/base.css">
-	<link rel="stylesheet" href="assets/css/dashboard.css">
-</head>
-
-<body>
-	<div id="menuOverlay"></div>
-
-	<div class="app-root">
-
-		<!-- =========================================================
-	     SIDEBAR / MENÚ LATERAL
-	     ========================================================= -->
-		<aside class="sidebar">
-			<div class="sidebar-header">
-				<h3 class="brand">ControlGastos</h3>
-			</div>
-
-			<nav class="menu">
-				<a class="menu-item is-active" href="dashboard.php">
-					<i class="icon icon-home"></i> Dashboard
-				</a>
-
-				<a class="menu-item" href="transacciones.php">
-					<i class="icon icon-list"></i> Transacciones
-				</a>
-
-				<a class="menu-item" href="gestion_categorias.php">
-					<i class="icon icon-folder"></i> Categorías
-				</a>
-
-				<a class="menu-item" href="informes.php">
-					<i class="icon icon-chart"></i> Informes
-				</a>
-
-				<a class="menu-item" href="config.php">
-					<i class="icon icon-cog"></i> Configuración
-				</a>
-
-				<div class="menu-spacer"></div>
-
-				<a class="menu-item" href="logout.php">
-					<i class="icon icon-exit"></i> Cerrar sesión
-				</a>
-			</nav>
-		</aside>
-
-		<!-- =========================================================
-	     CONTENIDO PRINCIPAL
-	     ========================================================= -->
-		<main class="main-content">
-
-			<!-- ===================== TOPBAR ===================== -->
-			<header class="topbar">
-				<div class="topbar-left">
-					<button
-						id="btnToggleSidebar"
-						class="btn btn-link btn-action"
-						title="Mostrar / ocultar menú">☰</button>
-					<h2>Dashboard</h2>
-				</div>
-			</header>
-
-			<!-- =====================================================
-		     KPIs SUPERIORES
-		     ===================================================== -->
-			<section class="container grid-lg">
-				<div class="columns">
-
-					<div class="column col-3 col-sm-6">
-						<div class="card kpi">
-							<div class="card-header">
-								<div class="card-title h6 text-gray">Ingresos (mes)</div>
-							</div>
-							<div class="card-body">
-								<div id="kpi-ingresos" class="kpi-value">—</div>
-							</div>
-						</div>
-					</div>
-
-					<div class="column col-3 col-sm-6">
-						<div class="card kpi">
-							<div class="card-header">
-								<div class="card-title h6 text-gray">Gastos (mes)</div>
-							</div>
-							<div class="card-body">
-								<div id="kpi-gastos" class="kpi-value">—</div>
-							</div>
-						</div>
-					</div>
-
-					<div class="column col-3 col-sm-6">
-						<div class="card kpi">
-							<div class="card-header">
-								<div class="card-title h6 text-gray">Balance</div>
-							</div>
-							<div class="card-body">
-								<div id="kpi-balance" class="kpi-value">—</div>
-							</div>
-						</div>
-					</div>
-
-					<div class="column col-3 col-sm-6">
-						<div class="card kpi">
-							<div class="card-header">
-								<div class="card-title h6 text-gray">% gasto</div>
-							</div>
-							<div class="card-body">
-								<div id="kpi-porcentaje" class="kpi-value">—</div>
-							</div>
-						</div>
-					</div>
-
-				</div>
-			</section>
-
-			<!-- =====================================================
-		GRÁFICO DONUT 50 / 30 / 20
-		===================================================== -->
-			<section class="container grid-lg">
-				<div class="columns">
-					<div class="column col-12">
-						<div class="card card-donut">
-							<div class="card-header">
-								<div class="card-title h5">
-									Distribución 50 / 30 / 20
-								</div>
-							</div>
-
-							<div class="donut-layout">
-								<!-- DONUT -->
-								<div class="donut-canvas">
-									<canvas id="chart503020"></canvas>
-								</div>
-
-								<!-- LEYENDA (Chart.js la renderiza aquí debajo) -->
-								<div class="donut-legend">
-									<!-- Chart.js inserta la leyenda aquí -->
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			<!-- =====================================================
-			HISTORIAL DE MOVIMIENTOS
-			===================================================== -->
-			<section class="container grid-lg">
-				<div class="columns">
-					<div class="column col-12">
-						<div class="card">
-							<div class="card-header">
-								<div class="card-title h5">Movimientos</div>
-								<div class="card-subtitle text-gray">
-									Historial de transacciones
-								</div>
-							</div>
-
-							<div class="card-body">
-								<div class="table-responsive">
-									<table class="table table-striped" id="transactionsTable">
-										<thead>
-											<tr>
-												<th>Fecha</th>
-												<th>Descripción</th>
-												<th>Categoría</th>
-												<th>Subcat.</th>
-												<th>Sub-subcat.</th>
-												<th>Importe</th>
-												<th>Tipo</th>
-											</tr>
-										</thead>
-										<tbody id="transactionsTableBody">
-											<!-- JS inyecta filas aquí -->
-										</tbody>
-									</table>
-								</div>
-
-								<div class="paginator mt-2">
-									<button id="prevPage" class="btn btn-sm">Anterior</button>
-									<span id="pageInfo">Página 1</span>
-									<button id="nextPage" class="btn btn-sm">Siguiente</button>
-								</div>
-							</div>
-
-						</div>
-					</div>
-				</div>
-			</section>
-
-		</main>
-	</div>
-
-	<!-- =========================================================
-     SCRIPTS
-     ========================================================= -->
-
-	<!-- Chart.js (necesario para el donut) -->
-	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-	<!-- Script principal del dashboard -->
-	<script type="module" src="assets/js/dashboard.js"></script>
-
-</body>
-
-</html>
+<?php include __DIR__ . '/includes/footer.php'; ?>
