@@ -1,17 +1,24 @@
 <?php
-session_start();
 require_once 'config.php';
-require_once 'db.php';
+require_once 'controllers/AuthController.php';
+
+if (isset($_SESSION['user_id'])) redirect('dashboard.php');
+
+$error = '';
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre = $_POST['nombre'];
-    $email = $_POST['email'];
-    $pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
+    $auth = new AuthController($pdo);
+    $nombre = $_POST['nombre'] ?? '';
+    $email = $_POST['email'] ?? '';
+    $pass = $_POST['password'] ?? '';
 
-    $stmt = $pdo->prepare("INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)");
-    if ($stmt->execute([$nombre, $email, $pass])) {
-        header("Location: index.php?registro=exito");
-        exit;
+    $resultado = $auth->registro($nombre, $email, $pass);
+
+    if ($resultado === true) {
+        $success = "¡Cuenta creada con éxito! Ahora puedes iniciar sesión.";
+    } else {
+        $error = $resultado;
     }
 }
 ?>
@@ -19,34 +26,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registro - ControlGastos</title>
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #f4f6f9; display: flex; align-items: center; justify-content: center; height: 100vh; }
-        .card { width: 100%; max-width: 360px; border: none; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        body { background-color: #f8f9fc; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card-login { width: 100%; max-width: 400px; border: none; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); border-radius: 10px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="card-header text-center"><div class="card-title h4">Crear Usuario</div></div>
-        <div class="card-body">
-            <form method="POST">
-                <div class="form-group">
-                    <label class="form-label">Nombre</label>
-                    <input class="form-input" type="text" name="nombre" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Email</label>
-                    <input class="form-input" type="email" name="email" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Contraseña</label>
-                    <input class="form-input" type="password" name="password" required>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block mt-2">Registrar</button>
-            </form>
+    <div class="card card-login p-4">
+        <div class="text-center mb-4">
+            <h3 class="text-primary fw-bold">Crear Cuenta</h3>
+            <p class="text-muted">Únete y organiza tus gastos</p>
         </div>
-        <div class="card-footer text-center"><a href="index.php">Volver al Login</a></div>
+
+        <?php if($error): ?>
+            <div class="alert alert-danger py-2"><?= $error ?></div>
+        <?php endif; ?>
+
+        <?php if($success): ?>
+            <div class="alert alert-success py-2">
+                <?= $success ?>
+                <div class="mt-2"><a href="index.php" class="btn btn-sm btn-success w-100">Ir al Login</a></div>
+            </div>
+        <?php else: ?>
+
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">Nombre Completo</label>
+                <input type="text" name="nombre" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Correo Electrónico</label>
+                <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Contraseña</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Registrarse</button>
+        </form>
+
+        <div class="text-center mt-3 pt-3 border-top">
+            <small class="text-muted">¿Ya tienes cuenta?</small><br>
+            <a href="index.php" class="text-decoration-none fw-bold">Inicia Sesión</a>
+        </div>
+        
+        <?php endif; ?>
     </div>
 </body>
 </html>

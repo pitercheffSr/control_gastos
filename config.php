@@ -10,8 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'control_gastos');
 define('DB_USER', 'admin_gastos'); // <-- PON TU USUARIO AQUÍ (ej: root)
-define('DB_PASS', 'Pasword123!'); // <-- PON TU CONTRASEÑA AQUÍ
-
+define('DB_PASS', 'Password123!'); // <-- PON TU CONTRASEÑA AQUÍ
 try {
     // Conexión PDO segura
     $pdo = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8", DB_USER, DB_PASS);
@@ -41,4 +40,5 @@ function checkAuth() {
         redirect('index.php');
     }
 }
-?>
+
+

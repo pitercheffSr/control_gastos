@@ -1,30 +1,21 @@
 <?php
-session_start();
 require_once 'config.php';
-require_once 'db.php';
+require_once 'controllers/AuthController.php';
 
-// Si ya hay sesión, al Dashboard directo
-if (isset($_SESSION['usuario_id'])) {
-    header("Location: dashboard.php");
-    exit;
-}
+// Si ya está logueado, ir al dashboard
+if (isset($_SESSION['user_id'])) redirect('dashboard.php');
 
 $error = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email']);
-    $pass  = $_POST['password'];
+    $auth = new AuthController($pdo);
+    $email = $_POST['email'] ?? '';
+    $pass = $_POST['password'] ?? '';
 
-    $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE email = ? LIMIT 1");
-    $stmt->execute([$email]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($user && password_verify($pass, $user['password'])) {
-        $_SESSION['usuario_id'] = $user['id'];
-        $_SESSION['usuario_nombre'] = $user['nombre'];
-        header("Location: dashboard.php");
-        exit;
+    if ($auth->login($email, $pass)) {
+        redirect('dashboard.php');
     } else {
-        $error = "Email o contraseña incorrectos.";
+        $error = "Credenciales incorrectas.";
     }
 }
 ?>
@@ -32,34 +23,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - ControlGastos</title>
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #f4f6f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .card { width: 100%; max-width: 360px; border: none; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        body { background-color: #f8f9fc; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card-login { width: 100%; max-width: 400px; border: none; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); border-radius: 10px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="card-header text-center">
-            <div class="card-title h4">ControlGastos</div>
+    <div class="card card-login p-4">
+        <div class="text-center mb-4">
+            <h3 class="text-primary fw-bold">Finanzas 50/30/20</h3>
+            <p class="text-muted">Inicia sesión para continuar</p>
         </div>
-        <div class="card-body">
-            <?php if($error): ?> <div class="toast toast-error mb-2"><?= $error ?></div> <?php endif; ?>
-            <form method="POST">
-                <div class="form-group">
-                    <label class="form-label">Email</label>
-                    <input class="form-input" type="email" name="email" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Contraseña</label>
-                    <input class="form-input" type="password" name="password" required>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block mt-2">Entrar</button>
-            </form>
-        </div>
-        <div class="card-footer text-center">
-            ¿No tienes cuenta? <a href="registro.php">Regístrate aquí</a>
+
+        <?php if($error): ?>
+            <div class="alert alert-danger py-2"><?= $error ?></div>
+        <?php endif; ?>
+
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">Correo Electrónico</label>
+                <input type="email" name="email" class="form-control" required placeholder="admin@ejemplo.com">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Contraseña</label>
+                <input type="password" name="password" class="form-control" required placeholder="******">
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Entrar</button>
+        </form>
+
+        <div class="text-center mt-3 pt-3 border-top">
+            <small class="text-muted">¿No tienes cuenta?</small><br>
+            <a href="registro.php" class="text-decoration-none fw-bold">Crear Cuenta Nueva</a>
         </div>
     </div>
 </body>
