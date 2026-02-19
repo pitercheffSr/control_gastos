@@ -1,37 +1,46 @@
 <?php
+// Aseguramos que las rutas coinciden exactamente con los nombres de los archivos
 require_once __DIR__ . '/../models/TransaccionModel.php';
 require_once __DIR__ . '/../models/CategoriaModel.php';
 
 class TransaccionesController {
-    private $transModel;
-    private $catModel;
+    private $model;
+    private $categoriaModel;
 
-    public function __construct($db) {
-        $userId = $_SESSION['usuario_id'];
-        $this->transModel = new TransaccionModel($db, $userId);
-        $this->catModel = new CategoriaModel($db, $userId);
+    public function __construct($pdo) {
+        $this->model = new TransaccionModel($pdo);
+        $this->categoriaModel = new CategoriaModel($pdo);
     }
 
-    public function index() {
-        return [
-            'categorias' => $this->catModel->listarArbol(),
-            'movimientos' => $this->transModel->listar(100)
-        ];
-    }
+    public function manejarPeticion($uid) {
+        header('Content-Type: application/json');
+        $action = $_GET['action'] ?? '';
+        $method = $_SERVER['REQUEST_METHOD'];
 
-    public function guardar($datos) {
-        $fecha = $datos['fecha'];
-        $desc  = $datos['descripcion'];
-        $cat   = $datos['categoria_id'];
-        $importe = abs($datos['importe']);
-        if ($datos['tipo'] === 'gasto') { $importe *= -1; }
-
-        if (!empty($datos['id'])) {
-            return $this->transModel->actualizar($datos['id'], $fecha, $desc, $importe, $cat);
-        } else {
-            return $this->transModel->crear($fecha, $desc, $importe, $cat);
+        if ($method === 'GET') {
+            switch ($action) {
+                case 'get':
+                    echo json_encode($this->model->getById($_GET['id'], $uid));
+                    break;
+                case 'getCategorias':
+                    echo json_encode($this->categoriaModel->getAll($uid));
+                    break;
+                case 'getAllLimit':
+                    echo json_encode($this->model->getAll($uid, 5));
+                    break;
+                default:
+                    echo json_encode($this->model->getAll($uid));
+                    break;
+            }
+        } elseif ($method === 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            if ($action === 'save') {
+                $input['usuario_id'] = $uid; 
+                echo json_encode(['success' => $this->model->save($input)]);
+            } elseif ($action === 'delete') {
+                echo json_encode(['success' => $this->model->delete($input['id'], $uid)]);
+            }
         }
+        exit;
     }
-
-    public function eliminar($id) { return $this->transModel->eliminar($id); }
 }

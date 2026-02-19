@@ -1,88 +1,30 @@
 <?php
-
-/**
- * ------------------------------------------------------------
- * DashboardRouter
- * ------------------------------------------------------------
- * Punto de entrada HTTP para el dashboard.
- *
- * Reglas:
- * - NO SQL
- * - NO lógica de negocio
- * - SOLO enrutar acciones
- * ------------------------------------------------------------
- */
-
-
 require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../db.php';
-require_once __DIR__ . '/DashboardController.php';
+require_once __DIR__ . '/../models/DashboardModel.php';
 
-header('Content-Type: application/json; charset=utf-8');
-
-/**
- * Acción solicitada
- * Por defecto: resumen
- */
-$action = $_GET['action'] ?? 'resumen';
-
-$controller = new DashboardController($pdo);
-
-switch ($action) {
-
-
-	// -----------------------------------------
-	// Movimientos recientes
-	// -----------------------------------------
-
-	case 'movimientos':
-		if (!isset($_SESSION['usuario_id'])) {
-			$result = ['ok' => false, 'error' => 'No autenticado'];
-			break;
-		}
-
-		$page  = max(1, (int)($_GET['page'] ?? 1));
-		$limit = max(1, (int)($_GET['limit'] ?? 10));
-
-		$result = $controller->movimientos(
-			(int) $_SESSION['usuario_id'],
-			$page,
-			$limit = 5
-		);
-		break;
-
-	// -----------------------------------------
-	// Resumen general (ingresos / gastos / balance)
-	// -----------------------------------------
-	case 'resumen':
-		$res = $controller->resumen();
-		// Forzamos que si el controlador devuelve ok:true, el resultado final sea consistente
-		$result = $res;
-		break;
-	// -----------------------------------------
-	// Distribución 50 / 30 / 20
-	// -----------------------------------------
-	case 'distribucion':
-		$result = $controller->distribucion();
-		break;
-	// -----------------------------------------
-	// Porcentaje de gasto sobre ingresos
-	// -----------------------------------------
-	case 'porcentaje':
-		$result = $controller->porcentaje();
-		break;
-
-
-	// -----------------------------------------
-	// Acción no válida
-	// -----------------------------------------
-	default:
-		http_response_code(400);
-		$result = [
-			'ok'    => false,
-			'error' => 'Acción desconocida'
-		];
+// CORRECCIÓN: Le decimos a PHP que solo inicie la sesión si no se ha iniciado ya antes en config.php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
-echo json_encode($result);
-exit;
+if (!isset($_SESSION['usuario_id'])) {
+    echo json_encode(['error' => 'No autorizado']);
+    exit;
+}
+
+$uid = $_SESSION['usuario_id'];
+$model = new DashboardModel($pdo);
+$action = $_GET['action'] ?? '';
+$mes = $_GET['mes'] ?? date('Y-m');
+
+// Limpiamos cualquier espacio en blanco o aviso previo antes de enviar el JSON
+ob_clean();
+header('Content-Type: application/json');
+
+if ($action === 'getKpis') {
+    echo json_encode($model->getKpis($uid, $mes));
+} elseif ($action === 'getDistribucionGastos') {
+    echo json_encode($model->getDistribucionGastos($uid, $mes));
+} else {
+    echo json_encode(['error' => 'Acción no encontrada']);
+}

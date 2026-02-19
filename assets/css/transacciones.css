@@ -49,3 +49,85 @@
 	display: flex;
 	flex-direction: column;
 }
+/* Estilo del Modal */
+.modal {
+    display: none; /* Se cambia a 'flex' con JS */
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.flex {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.modal-content input {
+    width: 100%;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.hidden {
+    display: none !important;
+}
+/* Filtros Superiores */
+.filters-section {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+    padding: 15px;
+    background: #f4f7f6;
+    border-radius: 8px;
+    align-items: flex-end;
+}
+
+.filters-section div { display: flex; flex-direction: column; gap: 5px; }
+
+.row-hidden { display: none !important; }
+
+/* Modal y Animación */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.25s ease-out;
+}
+
+.modal.flex { display: flex; opacity: 1; }
+
+.modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    transform: translateY(-20px);
+    transition: transform 0.25s ease-out;
+}
+
+.modal.flex .modal-content { transform: translateY(0); }
+
+.modal-form-group { margin-bottom: 15px; }
+.modal-form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+.modal-form-group input, .modal-form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }

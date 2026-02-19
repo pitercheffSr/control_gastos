@@ -1,120 +1,79 @@
-/* ============================================================
-   transacciones.js — CONTROL DE LISTADO, EDITAR Y ELIMINAR
-   ============================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('modalTransaccion');
+    const form = document.getElementById('formTransaccion');
+    const selectCat = document.getElementById('categoria_id');
+    const filterCat = document.getElementById('filterCategory');
 
-console.log('transacciones.js cargado'); // ← único log
+    async function cargarCategorias() {
+        const res = await fetch('controllers/TransaccionRouter.php?action=getCategorias');
+        const cats = await res.json();
+        const options = cats.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+        selectCat.innerHTML = '<option value="">Seleccione...</option>' + options;
+        if(filterCat) filterCat.innerHTML = '<option value="">Todas</option>' + options;
+    }
 
-/* ------------------------------------------------------------
-   FUNCIÓN: Cargar transacciones en la tabla
------------------------------------------------------------- */
-async function cargarTransacciones() {
-	try {
-		const resp = await fetch('controllers/TransaccionRouter.php?action=listar');
-		const json = await resp.json(); // Cambiamos 'data' por 'json' para claridad
+    window.openModal = function() {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => {
+            modal.classList.add('opacity-100');
+            modal.querySelector('.transform').classList.replace('scale-90', 'scale-100');
+        }, 10);
+    };
 
-		console.log('Transacciones recibidas:', json);
+    window.closeModal = function() {
+        modal.classList.replace('opacity-100', 'opacity-0');
+        modal.querySelector('.transform').classList.replace('scale-100', 'scale-90');
+        setTimeout(() => modal.classList.add('hidden'), 300);
+    };
 
-		const tbody = document.querySelector('#tablaTransacciones tbody');
-		if (!tbody) return;
-		tbody.innerHTML = '';
+    window.nuevaTransaccion = async function() {
+        form.reset();
+        document.getElementById('transaccion_id').value = '';
+        document.getElementById('modalTitle').innerText = 'Nueva Transacción';
+        await cargarCategorias();
+        openModal();
+    };
 
-		// CORRECCIÓN: Accedemos a json.data que es donde están los 17 movimientos
-		if (!json.ok || !Array.isArray(json.data) || json.data.length === 0) {
-			tbody.innerHTML = "<tr><td colspan='8'>No hay transacciones</td></tr>";
-			return;
-		}
+    window.editarTransaccion = async function(id) {
+        await cargarCategorias();
+        const res = await fetch(`controllers/TransaccionRouter.php?action=get&id=${id}`);
+        const data = await res.json();
+        document.getElementById('transaccion_id').value = data.id;
+        document.getElementById('fecha').value = data.fecha;
+        document.getElementById('descripcion').value = data.descripcion;
+        document.getElementById('monto').value = data.monto;
+        document.getElementById('categoria_id').value = data.categoria_id;
+        document.getElementById('modalTitle').innerText = 'Editar Transacción';
+        openModal();
+    };
 
-		json.data.forEach((t) => {
-			const id = t.id;
-			// Usamos los alias definidos en el Paso 3 del controlador: cat_nombre, sub_nombre, subsub_nombre
-			const cat = t.cat_nombre || '-';
-			const sub = t.sub_nombre || '-';
-			const subsub = t.subsub_nombre || '-';
-			const importeClase = t.tipo === 'ingreso' ? 'text-success' : 'text-error';
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(form));
+        const res = await fetch('controllers/TransaccionRouter.php?action=save', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        if((await res.json()).success) location.reload();
+    };
 
-			tbody.insertAdjacentHTML(
-				'beforeend',
-				`
-                <tr data-id="${id}">
-                    <td>${t.fecha ?? ''}</td>
-                    <td>${t.descripcion ?? ''}</td>
-                    <td>${cat}</td>
-                    <td>${sub}</td>
-                    <td>${subsub}</td>
-                    <td class="${importeClase}"><strong>${parseFloat(t.monto).toFixed(2)} €</strong></td>
-                    <td><span class="chip">${t.tipo}</span></td>
-                    <td style="text-align:right;">
-                        <button class="edit-btn btn btn-link" data-id="${id}" title="Editar">
-                            <i class="icon icon-edit"></i>
-                        </button>
-                        <button class="delete-btn btn btn-link" data-id="${id}" title="Eliminar">
-                            <i class="icon icon-delete"></i>
-                        </button>
-                    </td>
-                </tr>
-            `
-			);
-		});
-	} catch (err) {
-		console.error('Error cargando transacciones:', err);
-		document.querySelector('#tablaTransacciones tbody').innerHTML =
-			"<tr><td colspan='8'>Error cargando datos</td></tr>";
-	}
-}
-/* ------------------------------------------------------------
-   EVENTOS DE BOTONES — EDITAR y ELIMINAR (delegación)
------------------------------------------------------------- */
-document.addEventListener('click', (ev) => {
-	/* ------ EDITAR ------ */
-	const btnEdit = ev.target.closest('.edit-btn');
-	if (btnEdit) {
-		const id = btnEdit.dataset.id;
-		console.log('Editar clic en id:', id);
+    window.filtrarTabla = function() {
+        const mes = document.getElementById('filterMonth').value;
+        const cat = document.getElementById('filterCategory').value;
+        document.querySelectorAll('.transaccion-row').forEach(row => {
+            const m = !mes || row.dataset.mes === mes;
+            const c = !cat || row.dataset.categoria === cat;
+            row.style.display = (m && c) ? '' : 'none';
+        });
+    };
 
-		// Evento que escucha transacciones_editar.js
-		window.dispatchEvent(
-			new CustomEvent('tx:editar', {
-				detail: { id },
-			})
-		);
-		return;
-	}
+    // Auto-abrir si viene de Dashboard
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'new') {
+        window.nuevaTransaccion();
+        window.history.replaceState({}, '', 'transacciones.php');
+    }
 
-	/* ------ ELIMINAR ------ */
-	const btnDel = ev.target.closest('.delete-btn');
-	if (btnDel) {
-		const id = btnDel.dataset.id;
-		console.log('Eliminar clic en id:', id);
-
-		if (!confirm('¿Seguro que quieres eliminar esta transacción?')) return;
-
-		fetch('controllers/TransaccionRouter.php?action=eliminar', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-CSRF-TOKEN': window.csrf_token
-			},
-			body: JSON.stringify({ id }),
-		})
-
-			.then((r) => r.json())
-			.then((j) => {
-				console.log('Respuesta eliminar:', j);
-				if (j.ok) cargarTransacciones();
-				else alert('Error: ' + j.error);
-			})
-			.catch((err) => {
-				console.error('Error eliminando transacción:', err);
-				alert('Error en la petición.');
-			});
-
-		return;
-	}
-});
-
-/* ------------------------------------------------------------
-   INICIO
------------------------------------------------------------- */
-document.addEventListener('DOMContentLoaded', () => {
-	cargarTransacciones(); // ← se ejecuta UNA sola vez
+    cargarCategorias();
 });

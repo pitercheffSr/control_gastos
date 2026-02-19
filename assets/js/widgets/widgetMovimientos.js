@@ -1,95 +1,43 @@
 /**
- * widgetMovimientos.js - Gestiona la tabla de transacciones
+ * Widget de Movimientos Recientes
+ * Muestra las últimas 5 transacciones y permite ir a "Nueva"
  */
+document.addEventListener('DOMContentLoaded', function() {
+    const contenedor = document.getElementById('lista-movimientos-recent');
+    if (!contenedor) return;
 
-let paginaActual = 1;
-const limite = 5; // Mantenemos tu límite de 5
+    window.cargarMovimientosWidget = async function() {
+        try {
+            // Usamos el router de transacciones con el límite de 5 definido en el modelo
+            const res = await fetch('controllers/TransaccionRouter.php?action=getAllLimit');
+            const movimientos = await res.json();
 
-/**
- * Renderiza las filas en la tabla
- */
-function renderMovimientos(rows) {
-	const tbody = document.getElementById('transactionsTableBody');
-	if (!tbody) return;
+            if (!movimientos || movimientos.length === 0) {
+                contenedor.innerHTML = '<p class="text-center p-4">No hay movimientos recientes.</p>';
+                return;
+            }
 
-	tbody.innerHTML = '';
+            contenedor.innerHTML = movimientos.map(m => `
+                <div class="flex justify-between items-center border-b border-gray-100 py-3">
+                    <div>
+                        <p class="font-semibold text-sm text-gray-800">${m.descripcion}</p>
+                        <p class="text-xs text-gray-500">${m.fecha} • ${m.categoria_nombre || 'Sin categoría'}</p>
+                    </div>
+                    <span class="font-bold ${parseFloat(m.monto) < 0 ? 'text-red-500' : 'text-green-500'}">
+                        ${parseFloat(m.monto).toFixed(2)}€
+                    </span>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error("Error cargando movimientos recientes:", error);
+            contenedor.innerHTML = '<p class="text-red-500 text-xs text-center">Error al cargar datos</p>';
+        }
+    };
 
-	// Si no hay datos, ocupamos las 7 columnas (Fecha, Desc, Cat, Sub, SubSub, Importe, Tipo)
-	if (!rows || rows.length === 0) {
-		tbody.innerHTML = "<tr><td colspan='7' class='text-center'>No hay movimientos registrados</td></tr>";
-		return;
-	}
+    window.irANuevaTransaccion = function() {
+        // Redirige a transacciones con flag para abrir el modal automáticamente
+        window.location.href = 'transacciones.php?action=new';
+    };
 
-	rows.forEach((t) => {
-		// Determinamos el color según el tipo de transacción
-		const importeClase = t.tipo === 'ingreso' ? 'text-success' : 'text-error';
-
-		// Aseguramos que el monto sea un número para evitar errores de .toFixed()
-		const montoNum = parseFloat(t.monto || 0);
-
-		// Extraemos los nombres de las categorías con nombres seguros
-		const cat = t.categoria_nombre || '-';
-		const sub = t.subcategoria_nombre || '-';
-		const subsub = t.subsubcategoria_nombre || '<span class="text-gray">-</span>';
-
-		tbody.insertAdjacentHTML(
-			'beforeend',
-			`
-            <tr>
-                <td>${t.fecha || ''}</td>
-                <td>${t.descripcion || ''}</td>
-                <td>${cat}</td>
-                <td>${sub}</td>
-                <td>${subsub}</td>
-                <td class="${importeClase}"><strong>${montoNum.toFixed(2)} €</strong></td>
-                <td><span class="chip">${t.tipo || ''}</span></td>
-            </tr>
-            `
-		);
-	});
-}
-
-/**
- * Carga los movimientos desde el controlador
- */
-export async function cargarMovimientos(pagina = 1) {
-	try {
-		// Usamos ruta relativa para Fedora
-		const resp = await fetch(`controllers/DashboardRouter.php?action=movimientos&page=${pagina}&limit=${limite}`, {
-			credentials: 'same-origin'
-		});
-
-		if (!resp.ok) throw new Error('Error HTTP ' + resp.status);
-
-		const json = await resp.json();
-		if (!json.ok) throw new Error(json.error || 'Error en el servidor');
-
-		paginaActual = pagina;
-		renderMovimientos(json.data);
-
-		// Actualizar el indicador de página si existe
-		const info = document.getElementById('pageInfo');
-		if (info) info.textContent = `Página ${paginaActual}`;
-
-	} catch (err) {
-		console.error('Error cargando movimientos:', err);
-	}
-}
-
-/**
- * Inicializa los botones de navegación
- */
-export function initMovimientos() {
-	const prev = document.getElementById('prevPage');
-	const next = document.getElementById('nextPage');
-
-	if (prev) {
-		prev.onclick = () => {
-			if (paginaActual > 1) cargarMovimientos(paginaActual - 1);
-		};
-	}
-
-	if (next) {
-		next.onclick = () => cargarMovimientos(paginaActual + 1);
-	}
-}
+    cargarMovimientosWidget();
+});

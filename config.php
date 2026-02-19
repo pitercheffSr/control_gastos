@@ -1,44 +1,48 @@
 <?php
-// config.php
-// Inicia la sesión de usuario automáticamente en todo el sitio
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+/**
+ * Configuración Global y Conexión a la Base de Datos
+ */
 
-// --- CREDENCIALES DE BASE DE DATOS ---
-// Cambia esto por tu usuario y contraseña de MySQL (normalmente 'root' y vacío o 'root')
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'control_gastos');
-define('DB_USER', 'admin_gastos'); // <-- PON TU USUARIO AQUÍ (ej: root)
-define('DB_PASS', 'Password123!'); // <-- PON TU CONTRASEÑA AQUÍ
+// 1. Configuración de errores (Desactivar en producción)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// 2. Parámetros de conexión
+$host    = 'localhost';
+$db_name = 'control_gastos'; // <-- ASEGÚRATE DE QUE ESTE NOMBRE SEA CORRECTO
+$user    = 'admin_gastos';               // Tu usuario de MySQL
+$pass    = 'Password123!';               // Tu contraseña de MySQL
+$charset = 'utf8mb4';
+// 3. Opciones de PDO
+$options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
+];
+
+$dsn = "mysql:host=$host;dbname=$db_name;charset=$charset";
+
 try {
-    // Conexión PDO segura
-    $pdo = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8", DB_USER, DB_PASS);
+    // Creamos la conexión global $pdo
+    $pdo = new PDO($dsn, $user, $pass, $options);
     
-    // Configuración de errores: lanza excepciones si algo falla
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    // Por defecto, los datos vienen como array asociativo
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    // También creamos $db por si algunos de tus controladores viejos usan ese nombre
+    $db = $pdo; 
 
-} catch (PDOException $e) {
-    // Si falla la conexión, mostramos el error y detenemos todo
-    die("❌ Error de conexión a la Base de Datos: " . $e->getMessage());
+} catch (\PDOException $e) {
+    die("Error de conexión a la base de datos: " . $e->getMessage());
 }
 
-// --- FUNCIONES AYUDANTES ---
-
-// Redirige a otra página y detiene la ejecución
-function redirect($url) {
-    header("Location: $url");
-    exit;
-}
-
-// Verifica si el usuario está logueado. Si no, lo manda al login.
-function checkAuth() {
-    if (!isset($_SESSION['user_id'])) {
-        redirect('index.php');
+// 4. Funciones auxiliares globales
+if (!function_exists('redirect')) {
+    function redirect($url) {
+        header("Location: $url");
+        exit();
     }
 }
 
-
+// 5. Asegurar inicio de sesión
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}

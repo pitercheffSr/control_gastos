@@ -1,216 +1,240 @@
-<?php
-require_once 'config.php';
-require_once 'controllers/DashboardController.php';
+<?php include 'includes/header.php'; ?>
 
-// ESTO SOLUCIONA TU ERROR DE REDIRECCIÓN:
-checkAuth(); // Usa la función correcta del nuevo sistema
+<style>
+    /* Forzamos el scroll nativo del navegador para evitar bloqueos en pantallas divididas */
+    html, body {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+</style>
 
-$dash = new DashboardController($pdo);
-
-// --- PROCESAR FILTROS ---
-$rango = $_GET['rango'] ?? 'defecto';
-$cat_padre = $_GET['cat_padre'] ?? '';
-$f_ini = $_GET['fecha_ini'] ?? '';
-$f_fin = $_GET['fecha_fin'] ?? '';
-
-$datos = $dash->obtenerDatos([
-    'rango' => $rango, 
-    'cat_padre' => $cat_padre,
-    'fecha_ini' => $f_ini,
-    'fecha_fin' => $f_fin
-]);
-
-// Preparar datos para Chart.js
-$dataJS = [
-    $datos['grupos']['necesidad'],
-    $datos['grupos']['deseo'],
-    $datos['grupos']['ahorro']
-];
-$total = $datos['total_gastos'] > 0 ? $datos['total_gastos'] : 1; // Evitar división por cero
-
-include 'includes/header.php';
-?>
-
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Resumen Financiero</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="transacciones.php" class="btn btn-sm btn-outline-primary">
-            <i class="fas fa-plus"></i> Nuevo Movimiento
-        </a>
-    </div>
-</div>
-
-<div class="card mb-4 border-0 shadow-sm bg-white">
-    <div class="card-body p-3">
-        <form method="GET" class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="small text-muted fw-bold">Periodo</label>
-                <select name="rango" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="defecto" <?= $rango=='defecto'?'selected':'' ?>>Últimos 15 (Defecto)</option>
-                    <option value="mes_actual" <?= $rango=='mes_actual'?'selected':'' ?>>Este Mes Actual</option>
-                    <option value="3_meses" <?= $rango=='3_meses'?'selected':'' ?>>Últimos 3 Meses</option>
-                    <option value="custom" <?= $rango=='custom'?'selected':'' ?>>Personalizado</option>
-                </select>
+<div class="w-full bg-gray-50 min-h-screen pb-32 pt-6 px-4 md:px-6">
+    <div class="container mx-auto max-w-6xl">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold text-gray-800">Panel de Control</h1>
+                <p class="text-sm text-gray-500 mt-1">Tu resumen financiero automático.</p>
             </div>
-            
-            <?php if($rango == 'custom'): ?>
-            <div class="col-md-2">
-                <label class="small text-muted">Desde</label>
-                <input type="date" name="fecha_ini" value="<?= $f_ini ?>" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-2">
-                <label class="small text-muted">Hasta</label>
-                <input type="date" name="fecha_fin" value="<?= $f_fin ?>" class="form-control form-control-sm">
-            </div>
-            <?php endif; ?>
-
-            <div class="col-md-3">
-                <label class="small text-muted fw-bold">Grupo / Categoría</label>
-                <select name="cat_padre" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="">Todas</option>
-                    <?php foreach($dash->obtenerCategoriasPadre() as $p): ?>
-                        <option value="<?= $p['id'] ?>" <?= $cat_padre==$p['id']?'selected':'' ?>>
-                            <?= $p['nombre'] ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-lg-4 mb-3">
-        <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="card-title text-center text-muted mb-3">REGLA 50 / 30 / 20</h6>
-                <div style="height: 220px; position: relative;">
-                    <canvas id="reglaChart"></canvas>
-                </div>
+            <div class="bg-white p-2 rounded-xl border shadow-sm flex items-center gap-2">
+                <span class="text-sm font-bold text-gray-600 pl-2">Mes:</span>
+                <input type="month" id="dashboardFilterMonth" value="<?= date('Y-m') ?>" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-8">
-        <div class="row g-3 h-100">
-            <div class="col-md-6">
-                <div class="card bg-primary text-white h-100 border-0">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-white-50 fw-bold">INGRESOS</small>
-                                <h3 class="fw-bold mb-0"><?= number_format($datos['ingresos'], 2) ?> €</h3>
-                            </div>
-                            <i class="fas fa-arrow-up fa-2x text-white-50"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card bg-secondary text-white h-100 border-0">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-white-50 fw-bold">GASTOS TOTALES</small>
-                                <h3 class="fw-bold mb-0"><?= number_format($datos['total_gastos'], 2) ?> €</h3>
-                            </div>
-                            <i class="fas fa-arrow-down fa-2x text-white-50"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12">
-                <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body">
-                        <div class="row text-center align-items-center h-100">
-                            <div class="col-4 border-end">
-                                <small class="text-muted fw-bold d-block">NECESIDADES</small>
-                                <h4 class="text-necesidad mb-0"><?= number_format($datos['grupos']['necesidad'], 2) ?> €</h4>
-                                <small class="text-muted"><?= round(($datos['grupos']['necesidad']/$total)*100) ?>%</small>
-                            </div>
-                            <div class="col-4 border-end">
-                                <small class="text-muted fw-bold d-block">DESEOS</small>
-                                <h4 class="text-deseo mb-0"><?= number_format($datos['grupos']['deseo'], 2) ?> €</h4>
-                                <small class="text-muted"><?= round(($datos['grupos']['deseo']/$total)*100) ?>%</small>
-                            </div>
-                            <div class="col-4">
-                                <small class="text-muted fw-bold d-block">AHORRO</small>
-                                <h4 class="text-ahorro mb-0"><?= number_format($datos['grupos']['ahorro'], 2) ?> €</h4>
-                                <small class="text-muted"><?= round(($datos['grupos']['ahorro']/$total)*100) ?>%</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8" id="widget-kpis-container">
+            <p class="text-gray-400 italic col-span-3">Calculando métricas...</p>
         </div>
-    </div>
-</div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white py-3">
-        <h6 class="mb-0 fw-bold text-primary">Últimos Movimientos</h6>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th scope="col" class="ps-4">Fecha</th>
-                    <th scope="col">Categoría</th>
-                    <th scope="col">Descripción</th>
-                    <th scope="col" class="text-end pe-4">Importe</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach($datos['transacciones'] as $t): ?>
-                <tr>
-                    <td class="ps-4 text-muted"><?= date('d/m/Y', strtotime($t['fecha'])) ?></td>
-                    <td>
-                        <span class="badge rounded-pill fw-normal" style="background-color: <?= $t['color'] ?>; color: #fff;">
-                            <?= $t['cat_nombre'] ?>
-                        </span>
-                    </td>
-                    <td><?= htmlspecialchars($t['descripcion']) ?></td>
-                    <td class="text-end pe-4 fw-bold <?= $t['importe'] < 0 ? 'text-danger' : 'text-success' ?>">
-                        <?= number_format($t['importe'], 2) ?> €
-                    </td>
-                </tr>
-                <?php endforeach; ?>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-bold text-gray-800">Regla 50/30/20</h2>
+                    <span class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide">Análisis</span>
+                </div>
+                <p class="text-sm text-gray-500 mb-6 border-b border-gray-100 pb-4">Progreso sobre tus ingresos actuales.</p>
                 
-                <?php if(empty($datos['transacciones'])): ?>
-                    <tr><td colspan="4" class="text-center py-4 text-muted">No hay movimientos en este periodo</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                <div id="progress-503020-container" class="flex-grow flex flex-col justify-center gap-2">
+                    <p class="text-gray-400 italic text-center">Generando gráficos...</p>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Movimientos Recientes</h2>
+                    <a href="transacciones.php" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition font-bold shadow-md flex items-center gap-2">
+                        Ver todo / Nuevo
+                    </a>
+                </div>
+                <div id="lista-movimientos-recent" class="overflow-x-auto">
+                    <p class="text-gray-400 italic">Cargando...</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
-    const ctx = document.getElementById('reglaChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Necesidades', 'Deseos', 'Ahorro'],
-            datasets: [{
-                data: <?= json_encode($dataJS) ?>,
-                backgroundColor: ['#e74a3b', '#f6c23e', '#1cc88a'], // Rojo, Amarillo, Verde
-                hoverOffset: 4,
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
-            },
-            cutout: '75%' // Grosor del donut
+// ==========================================
+// MOTOR DEL DASHBOARD (Todo unificado aquí)
+// ==========================================
+
+async function cargarDashboard() {
+    const mes = document.getElementById('dashboardFilterMonth').value;
+    
+    try {
+        // 1. OBTENEMOS INGRESOS Y GASTOS (KPIs)
+        const resKpis = await fetch(`controllers/DashboardRouter.php?action=getKpis&mes=${mes}`);
+        const kpis = await resKpis.json();
+        
+        const ingresos = parseFloat(kpis.ingresos) || 0;
+        const gastos = parseFloat(kpis.gastos) || 0;
+        const balance = ingresos - gastos;
+
+        // Pintamos los recuadros superiores
+        document.getElementById('widget-kpis-container').innerHTML = `
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 transition hover:shadow-md">
+                <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Ingresos</p>
+                <p class="text-3xl font-extrabold text-green-600">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 transition hover:shadow-md">
+                <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Gastos</p>
+                <p class="text-3xl font-extrabold text-red-600">${gastos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-indigo-500 transition hover:shadow-md">
+                <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Balance Total</p>
+                <p class="text-3xl font-extrabold ${balance >= 0 ? 'text-indigo-600' : 'text-red-500'}">${balance.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</p>
+            </div>
+        `;
+
+        // 2. DIBUJAMOS BARRAS 50/30/20 (Pasándole los ingresos)
+        await renderizarBarras(mes, ingresos);
+
+    } catch (e) {
+        console.error("Error en KPIs:", e);
+    }
+
+    // 3. OBTENEMOS MOVIMIENTOS RECIENTES
+    try {
+        const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getAllLimit`);
+        const movs = await resMovs.json();
+        
+        const containerMovs = document.getElementById('lista-movimientos-recent');
+        
+        if (!movs || movs.length === 0) {
+            containerMovs.innerHTML = '<p class="text-gray-500 italic text-center py-6">No hay movimientos registrados este mes.</p>';
+            return;
         }
-    });
+
+        let html = '<ul class="divide-y divide-gray-100">';
+        movs.forEach(m => {
+            const monto = parseFloat(m.monto);
+            const isGasto = monto < 0;
+            // Damos formato a la fecha (DD/MM/YYYY)
+            const fechaParts = m.fecha.split('-');
+            const fechaFormato = `${fechaParts[2]}/${fechaParts[1]}/${fechaParts[0]}`;
+
+            html += `
+                <li class="py-4 flex justify-between items-center hover:bg-gray-50 px-2 rounded transition">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${isGasto ? 'bg-red-400' : 'bg-green-400'}">
+                            ${isGasto ? '▼' : '▲'}
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800 text-sm md:text-base">${m.descripcion}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">${fechaFormato} • <span class="bg-gray-100 px-1.5 py-0.5 rounded border">${m.categoria_nombre || 'Sin categoría'}</span></p>
+                        </div>
+                    </div>
+                    <span class="font-extrabold text-sm md:text-base ${isGasto ? 'text-red-500' : 'text-green-500'}">
+                        ${monto.toLocaleString('es-ES', {minimumFractionDigits: 2})}€
+                    </span>
+                </li>
+            `;
+        });
+        html += '</ul>';
+        containerMovs.innerHTML = html;
+
+    } catch(e) {
+        console.error("Error en Movimientos:", e);
+    }
+}
+
+async function renderizarBarras(mes, ingresos) {
+    const container = document.getElementById('progress-503020-container');
+    
+    if (ingresos <= 0) {
+        container.innerHTML = `
+            <div class="text-center p-6 bg-indigo-50 rounded-xl border border-indigo-100">
+                <p class="text-indigo-800 font-bold mb-1">Esperando ingresos</p>
+                <p class="text-sm text-indigo-600">Registra un ingreso en este mes para que el sistema calcule tu capacidad de gasto.</p>
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        const resDist = await fetch(`controllers/DashboardRouter.php?action=getDistribucionGastos&mes=${mes}`);
+        const distribucion = await resDist.json();
+
+        let gastos = { necesidad: 0, deseo: 0, ahorro: 0 };
+        if (Array.isArray(distribucion)) {
+            distribucion.forEach(d => {
+                if(gastos[d.tipo] !== undefined) {
+                    gastos[d.tipo] = parseFloat(d.total) || 0;
+                }
+            });
+        }
+
+        const crearBarraHTML = (titulo, gastado, limitePct, tipo) => {
+            const porcentaje = (gastado / ingresos) * 100;
+            const porcentajeVisual = Math.min(porcentaje, 100); 
+            
+            let colorBarra = 'bg-indigo-500', bgFondo = 'bg-gray-50', mensaje = '', txtColor = 'text-gray-500';
+
+            if (tipo === 'necesidad' || tipo === 'deseo') {
+                if (porcentaje <= limitePct) { 
+                    colorBarra = 'bg-green-500'; 
+                    mensaje = 'Dentro de lo recomendado.'; 
+                    txtColor = 'text-green-600 font-semibold'; 
+                } else { 
+                    colorBarra = 'bg-red-500'; 
+                    bgFondo = 'bg-red-50'; 
+                    mensaje = `¡Aviso! Superaste el ${limitePct}%.`; 
+                    txtColor = 'text-red-600 font-bold'; 
+                }
+            } else if (tipo === 'ahorro') {
+                if (porcentaje >= limitePct) { 
+                    colorBarra = 'bg-indigo-500'; 
+                    mensaje = '¡Meta alcanzada!'; 
+                    txtColor = 'text-indigo-600 font-bold'; 
+                } else { 
+                    colorBarra = 'bg-yellow-400'; 
+                    mensaje = `Aún falta para el ${limitePct}%.`; 
+                    txtColor = 'text-yellow-600 font-semibold'; 
+                }
+            }
+
+            return `
+                <div class="mb-4 p-4 rounded-xl ${bgFondo} border border-gray-100">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="font-bold text-gray-800 text-sm">${titulo}</span>
+                        <div class="text-right">
+                            <span class="text-sm font-extrabold text-gray-900">${gastado.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span>
+                            <span class="text-xs text-gray-500 ml-1">/ ${porcentaje.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden shadow-inner">
+                        <div class="${colorBarra} h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: ${porcentajeVisual}%"></div>
+                    </div>
+                    <p class="text-xs ${txtColor}">${mensaje}</p>
+                </div>
+            `;
+        };
+
+        container.innerHTML = `
+            ${crearBarraHTML('Necesidades (Límite 50%)', gastos.necesidad, 50, 'necesidad')}
+            ${crearBarraHTML('Deseos (Límite 30%)', gastos.deseo, 30, 'deseo')}
+            ${crearBarraHTML('Ahorro e Inversión (Meta 20%)', gastos.ahorro, 20, 'ahorro')}
+            
+            <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                <span class="text-xs text-gray-400 uppercase tracking-wide font-bold">Base de cálculo</span>
+                <span class="font-extrabold text-gray-700">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span>
+            </div>
+        `;
+
+    } catch(e) {
+        console.error("Error en Barras:", e);
+        container.innerHTML = '<p class="text-red-500 font-bold text-center">No se pudieron calcular los porcentajes.</p>';
+    }
+}
+
+// Inicializamos todo cuando la página cargue
+document.addEventListener('DOMContentLoaded', () => {
+    const inputMes = document.getElementById('dashboardFilterMonth');
+    inputMes.addEventListener('change', cargarDashboard);
+    cargarDashboard(); // Primera carga automática
+});
 </script>
 
 <?php include 'includes/footer.php'; ?>

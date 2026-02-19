@@ -1,235 +1,48 @@
 <?php
+class DashboardModel {
+    private $db;
 
-/**
- * ------------------------------------------------------------
- * DashboardModel
- * ------------------------------------------------------------
- * Acceso a datos del dashboard.
- *
- * Reglas:
- * - SOLO SQL
- * - SOLO PDO
- * - NO sesiones
- * - NO JSON
- * ------------------------------------------------------------
- */
+    public function __construct($db) {
+        $this->db = $db;
+    }
 
-class DashboardModel
-{
-	private PDO $pdo;
+    public function getDistribucionGastos($usuario_id, $mes = null) {
+        // CORRECCIÓN: Usamos c.tipo_fijo en lugar de c.tipo
+        $sql = "SELECT c.tipo_fijo as tipo, SUM(ABS(t.importe)) as total 
+                FROM transacciones t
+                JOIN categorias c ON t.categoria_id = c.id
+                WHERE t.usuario_id = ? AND t.importe < 0";
+        
+        $params = [$usuario_id];
 
-	public function __construct(PDO $pdo)
-	{
-		$this->pdo = $pdo;
-	}
+        if ($mes) {
+            $sql .= " AND DATE_FORMAT(t.fecha, '%Y-%m') = ?";
+            $params[] = $mes;
+        }
 
-	/**
-	 * Resumen general:
-	 * - Total ingresos
-	 * - Total gastos
-	 * - Balance
-	 */
-	public function resumenGeneral(int $usuarioId): array
-	{
-		$stmt = $this->pdo->prepare("
-            SELECT
-                SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END) AS ingresos,
-                SUM(CASE WHEN tipo = 'gasto'   THEN monto ELSE 0 END) AS gastos
-            FROM transacciones
-            WHERE id_usuario = :uid
-        ");
+        $sql .= " GROUP BY c.tipo_fijo";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-		$stmt->execute(['uid' => $usuarioId]);
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+    public function getKpis($usuario_id, $mes = null) {
+        $sql = "SELECT 
+                    SUM(CASE WHEN importe > 0 THEN importe ELSE 0 END) as ingresos,
+                    SUM(CASE WHEN importe < 0 THEN ABS(importe) ELSE 0 END) as gastos
+                FROM transacciones 
+                WHERE usuario_id = ?";
+        
+        $params = [$usuario_id];
 
-		$ingresos = (float) ($row['ingresos'] ?? 0);
-		$gastos   = (float) ($row['gastos'] ?? 0);
+        if ($mes) {
+            $sql .= " AND DATE_FORMAT(fecha, '%Y-%m') = ?";
+            $params[] = $mes;
+        }
 
-		return [
-			'ingresos' => $ingresos,
-			'gastos'   => $gastos,
-			'balance'  => $ingresos - $gastos
-		];
-	}
-
-	/**
-	 * Distribución 50 / 30 / 20
-	 *
-	 * Se basa en categorías raíz:
-	 * - 50% Necesidades
-	 * - 30% Deseos
-	 * - 20% Ahorro
-	 */
-	public function distribucion503020(int $usuarioId): array
-	{
-		// Total de gastos
-		$stmtTotal = $this->pdo->prepare("
-        SELECT SUM(monto) AS total
-        FROM transacciones
-        WHERE id_usuario = :uid
-          AND tipo = 'gasto'
-    ");
-		$stmtTotal->execute(['uid' => $usuarioId]);
-		$totalGastos = (float) ($stmtTotal->fetchColumn() ?? 0);
-
-		// Distribución por categoría raíz
-		$stmt = $this->pdo->prepare("
-        SELECT
-            c.nombre AS categoria,
-            SUM(t.monto) AS total
-        FROM transacciones t
-        JOIN categorias c ON c.id = t.id_categoria
-        WHERE t.id_usuario = :uid
-          AND t.tipo = 'gasto'
-          AND c.parent_id IS NULL
-        GROUP BY c.id
-    ");
-
-		$stmt->execute(['uid' => $usuarioId]);
-		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-		// Añadir porcentaje a cada categoría
-		foreach ($rows as &$r) {
-			$r['total'] = (float) $r['total'];
-			$r['porcentaje'] = ($totalGastos > 0)
-				? round(($r['total'] / $totalGastos) * 100, 2)
-				: 0.0;
-		}
-
-		return $rows;
-	}
-	/**
-	 * Porcentajes reales de gasto
-	 *
-	 * Devuelve:
-	 * - ingresos
-	 * - gastos
-	 * - porcentaje_gasto (0–100)
-	 *
-	 * Regla:
-	 * - Si ingresos = 0 → porcentaje = 0 (evitar división por cero)
-	 */
-	public function porcentajeGasto(int $usuarioId): array
-	{
-		$stmt = $this->pdo->prepare("
-				SELECT
-					SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END) AS ingresos,
-					SUM(CASE WHEN tipo = 'gasto'   THEN monto ELSE 0 END) AS gastos
-				FROM transacciones
-				WHERE id_usuario = :uid
-			");
-
-		$stmt->execute(['uid' => $usuarioId]);
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-		$ingresos = (float) ($row['ingresos'] ?? 0);
-		$gastos   = (float) ($row['gastos'] ?? 0);
-
-		$porcentaje = ($ingresos > 0)
-			? round(($gastos / $ingresos) * 100, 2)
-			: 0.0;
-
-		return [
-			'ingresos'          => $ingresos,
-			'gastos'            => $gastos,
-			'porcentaje_gasto'  => $porcentaje
-		];
-	}
-	/**
-	 * Transacciones paginadas para dashboard
-	 */
-	public function transaccionesPaginadas(
-
-		int $usuarioId,
-		int $page = 1,
-		int $limit = 10
-	): array {
-		$offset = ($page - 1) * $limit;
-
-		// Datos
-		$stmt = $this->pdo->prepare("
-			SELECT
-				t.fecha,
-				t.descripcion,
-				t.monto,
-				t.tipo,
-				c.nombre AS categoria,
-				sc.nombre AS subcategoria
-			FROM transacciones t
-			LEFT JOIN categorias c ON c.id = t.id_categoria
-			LEFT JOIN categorias sc ON sc.id = t.id_subcategoria
-			WHERE t.id_usuario = :uid
-			ORDER BY t.fecha DESC, t.id DESC
-			LIMIT :lim OFFSET :off
-		");
-
-		$stmt->bindValue(':uid', $usuarioId, PDO::PARAM_INT);
-		$stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
-		$stmt->bindValue(':off', $offset, PDO::PARAM_INT);
-		$stmt->execute();
-
-		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-		// Total
-		$totalStmt = $this->pdo->prepare("
-			SELECT COUNT(*) FROM transacciones WHERE id_usuario = :uid
-		");
-		$totalStmt->execute(['uid' => $usuarioId]);
-		$total = (int) $totalStmt->fetchColumn();
-
-		return [
-			'items' => $rows,
-			'total' => $total,
-			'page'  => $page,
-			'pages' => (int) ceil($total / $limit)
-		];
-	}
-
-	/**
-	 * Últimos movimientos para el dashboard
-	 */
-
-	public function ultimosMovimientos(
-		int $usuarioId,
-		int $limit,
-		int $offset
-	): array {
-		$stmt = $this->pdo->prepare("
-        SELECT
-            t.fecha,
-            t.descripcion,
-            c.nombre AS categoria,
-            sc.nombre AS subcategoria,
-            t.monto,
-            t.tipo
-        FROM transacciones t
-        LEFT JOIN categorias c ON c.id = t.id_categoria
-        LEFT JOIN categorias sc ON sc.id = t.id_subcategoria
-        WHERE t.id_usuario = :uid
-        ORDER BY t.fecha DESC, t.id DESC
-        LIMIT :limit OFFSET :offset
-    ");
-
-		$stmt->bindValue(':uid', $usuarioId, PDO::PARAM_INT);
-		$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-		$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-		$stmt->execute();
-
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
-	}
-
-	/**
-	 * Contar movimientos totales
-	 */
-	public function contarMovimientos(int $usuarioId): int
-	{
-		$stmt = $this->pdo->prepare("
-			SELECT COUNT(*)
-			FROM transacciones
-			WHERE id_usuario = :uid
-		");
-
-		$stmt->execute(['uid' => $usuarioId]);
-		return (int) $stmt->fetchColumn();
-	}
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }
