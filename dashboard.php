@@ -1,7 +1,7 @@
 <?php include 'includes/header.php'; ?>
 
 <style>
-    /* Forzamos el scroll nativo del navegador para evitar bloqueos en pantallas divididas */
+    /* Forzamos el scroll nativo del navegador */
     html, body {
         overflow-y: auto !important;
         height: auto !important;
@@ -20,6 +20,30 @@
                 <span class="text-sm font-bold text-gray-600 pl-2">Mes:</span>
                 <input type="month" id="dashboardFilterMonth" value="<?= date('Y-m') ?>" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
             </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            
+            <div class="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl flex items-start gap-4">
+                <div class="bg-blue-100 p-2.5 rounded-xl text-blue-600 mt-0.5">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-blue-800 font-bold">Importación desde Excel</h3>
+                    <p class="text-blue-600/80 text-sm mt-1 leading-relaxed">Próximamente podrás importar tu historial bancario directamente. <strong class="text-blue-700">Admitirá un máximo de 3 meses de antigüedad</strong> para mantener tu sistema optimizado.</p>
+                </div>
+            </div>
+
+            <div class="bg-orange-50/50 border border-orange-100 p-5 rounded-2xl flex items-start gap-4 relative overflow-hidden">
+                <div class="bg-orange-100 p-2.5 rounded-xl text-orange-600 mt-0.5">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-orange-800 font-bold">Privacidad Temporal</h3>
+                    <p class="text-orange-600/80 text-sm mt-1 leading-relaxed">Tu cuenta y tus datos se eliminarán de forma irreversible el <strong><?= $fecha_borrado_str ?? '...'; ?></strong> (4 meses de retención máxima).</p>
+                </div>
+            </div>
+
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8" id="widget-kpis-container">
@@ -56,15 +80,10 @@
 </div>
 
 <script>
-// ==========================================
-// MOTOR DEL DASHBOARD (Todo unificado aquí)
-// ==========================================
-
 async function cargarDashboard() {
     const mes = document.getElementById('dashboardFilterMonth').value;
     
     try {
-        // 1. OBTENEMOS INGRESOS Y GASTOS (KPIs)
         const resKpis = await fetch(`controllers/DashboardRouter.php?action=getKpis&mes=${mes}`);
         const kpis = await resKpis.json();
         
@@ -72,7 +91,6 @@ async function cargarDashboard() {
         const gastos = parseFloat(kpis.gastos) || 0;
         const balance = ingresos - gastos;
 
-        // Pintamos los recuadros superiores
         document.getElementById('widget-kpis-container').innerHTML = `
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 transition hover:shadow-md">
                 <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Ingresos</p>
@@ -88,30 +106,28 @@ async function cargarDashboard() {
             </div>
         `;
 
-        // 2. DIBUJAMOS BARRAS 50/30/20 (Pasándole los ingresos)
         await renderizarBarras(mes, ingresos);
 
     } catch (e) {
         console.error("Error en KPIs:", e);
     }
 
-    // 3. OBTENEMOS MOVIMIENTOS RECIENTES
     try {
         const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getAllLimit`);
         const movs = await resMovs.json();
         
         const containerMovs = document.getElementById('lista-movimientos-recent');
         
-        if (!movs || movs.length === 0) {
-            containerMovs.innerHTML = '<p class="text-gray-500 italic text-center py-6">No hay movimientos registrados este mes.</p>';
+        if (!movs || movs.length === 0 || movs.error) {
+            containerMovs.innerHTML = '<p class="text-gray-500 italic text-center py-6">No hay movimientos registrados recientes.</p>';
             return;
         }
 
         let html = '<ul class="divide-y divide-gray-100">';
         movs.forEach(m => {
-            const monto = parseFloat(m.monto);
-            const isGasto = monto < 0;
-            // Damos formato a la fecha (DD/MM/YYYY)
+            const importeValue = parseFloat(m.importe) || 0; 
+            const isGasto = importeValue < 0;
+            
             const fechaParts = m.fecha.split('-');
             const fechaFormato = `${fechaParts[2]}/${fechaParts[1]}/${fechaParts[0]}`;
 
@@ -127,7 +143,7 @@ async function cargarDashboard() {
                         </div>
                     </div>
                     <span class="font-extrabold text-sm md:text-base ${isGasto ? 'text-red-500' : 'text-green-500'}">
-                        ${monto.toLocaleString('es-ES', {minimumFractionDigits: 2})}€
+                        ${importeValue.toLocaleString('es-ES', {minimumFractionDigits: 2})}€
                     </span>
                 </li>
             `;
@@ -225,15 +241,13 @@ async function renderizarBarras(mes, ingresos) {
 
     } catch(e) {
         console.error("Error en Barras:", e);
-        container.innerHTML = '<p class="text-red-500 font-bold text-center">No se pudieron calcular los porcentajes.</p>';
     }
 }
 
-// Inicializamos todo cuando la página cargue
 document.addEventListener('DOMContentLoaded', () => {
     const inputMes = document.getElementById('dashboardFilterMonth');
     inputMes.addEventListener('change', cargarDashboard);
-    cargarDashboard(); // Primera carga automática
+    cargarDashboard(); 
 });
 </script>
 
