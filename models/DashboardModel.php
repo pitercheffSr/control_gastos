@@ -6,108 +6,74 @@ class DashboardModel {
         $this->db = $db;
     }
 
-    /**
-     * Rastrea el árbol genealógico de las categorías para saber 
-     * si un movimiento es Ingreso, Necesidad, Deseo o Ahorro.
-     */
-    private function getTiposJerarquia($usuario_id) {
-        try {
-            $stmt = $this->db->prepare("SELECT id, parent_id, tipo_fijo FROM categorias WHERE usuario_id = ?");
-            $stmt->execute([$usuario_id]);
-            $cats = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $diccionario = [];
-            foreach ($cats as $c) { $diccionario[$c['id']] = $c; }
-
-            $tipos = [];
-            foreach ($cats as $c) {
-                $idActual = $c['id'];
-                $limite = 0;
-                while (!empty($diccionario[$idActual]['parent_id']) && $limite < 10) {
-                    $idActual = $diccionario[$idActual]['parent_id'];
-                    $limite++;
-                }
-                $tipoRaiz = !empty($diccionario[$idActual]['tipo_fijo']) ? $diccionario[$idActual]['tipo_fijo'] : 'personalizado';
-                $tipos[$c['id']] = strtolower(trim($tipoRaiz));
-            }
-            return $tipos;
-        } catch (Exception $e) { return []; }
+    public function getKpis($usuario_id, $fecha_inicio, $fecha_fin) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                COALESCE(SUM(CASE WHEN importe > 0 THEN importe ELSE 0 END), 0) as ingresos,
+                COALESCE(ABS(SUM(CASE WHEN importe < 0 THEN importe ELSE 0 END)), 0) as gastos
+            FROM transacciones 
+            WHERE usuario_id = ? AND fecha >= ? AND fecha <= ?
+        ");
+        $stmt->execute([$usuario_id, $fecha_inicio, $fecha_fin]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Obtiene los totales de ingresos y gastos del mes
-     */
-    public function getKpis($usuario_id, $mes) {
-        try {
-            $tipos = $this->getTiposJerarquia($usuario_id);
-            $mesParam = trim($mes) . '%'; // Ej: "2026-02%"
-
-            // ¡AQUÍ ESTÁ LA MAGIA! Pedimos la columna "importe" (tu nombre real en la BD)
-            $stmt = $this->db->prepare("SELECT categoria_id, importe FROM transacciones WHERE usuario_id = ? AND fecha LIKE ?");
-            $stmt->execute([$usuario_id, $mesParam]);
-            $movimientos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $ingresos = 0.0;
-            $gastos = 0.0;
-
-            foreach ($movimientos as $m) {
-                $catId = $m['categoria_id'];
-                $tipo = isset($tipos[$catId]) ? $tipos[$catId] : 'personalizado';
-                
-                // Leemos el 'importe' y lo pasamos a positivo absoluto
-                $valor = abs((float)$m['importe']); 
-
-                if ($tipo === 'ingreso') {
-                    $ingresos += $valor;
-                } else {
-                    $gastos += $valor;
-                }
-            }
-
-            return ['ingresos' => $ingresos, 'gastos' => $gastos];
-            
-        } catch (Exception $e) {
-            error_log("Error fatal en getKpis: " . $e->getMessage());
-            return ['ingresos' => 0, 'gastos' => 0];
+    public function getDistribucionGastos($usuario_id, $fecha_inicio, $fecha_fin) {
+        // 1. Obtenemos TODAS las categorías del usuario para reconstruir el "Árbol Genealógico"
+        $stmtCats = $this->db->prepare("SELECT id, parent_id, tipo_fijo FROM categorias WHERE usuario_id = ?");
+        $stmtCats->execute([$usuario_id]);
+        $categorias = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
+        
+        $diccionarioCats = [];
+        foreach ($categorias as $c) {
+            $diccionarioCats[$c['id']] = $c;
         }
-    }
-
-    /**
-     * Obtiene cuánto se ha gastado en cada caja fuerte (50/30/20)
-     */
-    public function getDistribucionGastos($usuario_id, $mes) {
-        try {
-            $tipos = $this->getTiposJerarquia($usuario_id);
-            $mesParam = trim($mes) . '%';
-
-            // Pedimos 'importe' de nuevo
-            $stmt = $this->db->prepare("SELECT categoria_id, importe FROM transacciones WHERE usuario_id = ? AND fecha LIKE ?");
-            $stmt->execute([$usuario_id, $mesParam]);
-            $movimientos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $dist = [];
-
-            foreach ($movimientos as $m) {
-                $catId = $m['categoria_id'];
-                $tipo = isset($tipos[$catId]) ? $tipos[$catId] : 'personalizado';
-                $valor = abs((float)$m['importe']);
-
-                // Si no es un ingreso, lo sumamos a su caja (necesidad, deseo o ahorro)
-                if ($tipo !== 'ingreso') {
-                    if (!isset($dist[$tipo])) $dist[$tipo] = 0.0;
-                    $dist[$tipo] += $valor;
-                }
-            }
-
-            $resultado = [];
-            foreach ($dist as $t => $total) {
-                $resultado[] = ['tipo' => $t, 'total' => $total];
-            }
-            return $resultado;
+        
+        // 2. Función recursiva: Si una subcategoría no tiene etiqueta, le pregunta a su padre
+        $resolverTipo = function($id) use (&$diccionarioCats, &$resolverTipo) {
+            if (!isset($diccionarioCats[$id])) return 'otros';
             
-        } catch (Exception $e) {
-            error_log("Error fatal en getDistribucion: " . $e->getMessage());
-            return [];
+            $tipoActual = strtolower(trim($diccionarioCats[$id]['tipo_fijo'] ?? ''));
+            
+            // Si la categoría tiene la etiqueta oficial, la devolvemos
+            if (in_array($tipoActual, ['necesidad', 'deseo', 'ahorro'])) {
+                return $tipoActual;
+            }
+            
+            // Si no tiene etiqueta pero tiene un padre, subimos un nivel para heredar su sangre
+            if (!empty($diccionarioCats[$id]['parent_id'])) {
+                return $resolverTipo($diccionarioCats[$id]['parent_id']);
+            }
+            
+            return 'otros';
+        };
+
+        // 3. Obtenemos todos los gastos (importe negativo) del periodo de fechas
+        $stmtTrans = $this->db->prepare("
+            SELECT categoria_id, importe 
+            FROM transacciones 
+            WHERE usuario_id = ? AND fecha >= ? AND fecha <= ? AND importe < 0
+        ");
+        $stmtTrans->execute([$usuario_id, $fecha_inicio, $fecha_fin]);
+        $transacciones = $stmtTrans->fetchAll(PDO::FETCH_ASSOC);
+
+        // 4. Repartimos cada gasto sumándolo al tipo que heredó de su padre/abuelo
+        $totales = ['necesidad' => 0, 'deseo' => 0, 'ahorro' => 0];
+        
+        foreach ($transacciones as $t) {
+            $tipoHeredado = $resolverTipo($t['categoria_id']);
+            if (isset($totales[$tipoHeredado])) {
+                $totales[$tipoHeredado] += abs((float)$t['importe']);
+            }
         }
+
+        // 5. Formateamos la respuesta para que las gráficas la entiendan
+        $resultado = [];
+        foreach ($totales as $tipo => $total) {
+            $resultado[] = ['tipo' => $tipo, 'total' => $total];
+        }
+        
+        return $resultado;
     }
 }
+?>

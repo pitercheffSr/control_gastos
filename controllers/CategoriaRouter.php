@@ -1,51 +1,34 @@
 <?php
-session_start();
-
 require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../includes/csrf.php';
-require_once __DIR__ . '/../db.php';
-require_once __DIR__ . '/CategoriaController.php';
+require_once __DIR__ . '/../models/CategoriaModel.php';
 
-header('Content-Type: application/json; charset=utf-8');
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
-$action = $_GET['action'] ?? 'listar';
-
-/* =====================================================
-   🔐 VALIDACIÓN CSRF
-   ===================================================== */
-if (in_array($action, ['crear', 'editar', 'eliminar'], true)) {
-	validar_csrf();
+// Seguridad
+if (!isset($_SESSION['usuario_id'])) {
+    echo json_encode(['success' => false, 'error' => 'No autorizado']);
+    exit;
 }
 
-/* =====================================================
-   ROUTER ÚNICO
-   ===================================================== */
-$controller = new CategoriaController($pdo);
+$uid = $_SESSION['usuario_id'];
+$model = new CategoriaModel($pdo);
+$action = $_GET['action'] ?? '';
 
-switch ($action) {
-	case 'listar':
-		$result = $controller->listar();
-		break;
+ob_clean();
+header('Content-Type: application/json');
 
-	case 'crear':
-		$data = json_decode(file_get_contents('php://input'), true) ?? [];
-		$result = $controller->crear($data);
-		break;
-
-	case 'editar':
-		$data = json_decode(file_get_contents('php://input'), true) ?? [];
-		$result = $controller->editar($data);
-		break;
-
-	case 'eliminar':
-		$id = $_GET['id'] ?? null;
-		$result = $controller->eliminar(['id' => $id]);
-		break;
-
-	default:
-		http_response_code(400);
-		$result = ['ok' => false, 'error' => 'Acción desconocida'];
+try {
+    if ($action === 'save') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $success = $model->save($data, $uid);
+        echo json_encode(['success' => $success]);
+    } elseif ($action === 'delete') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $success = $model->delete($data['id'], $uid);
+        echo json_encode(['success' => $success]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Acción no válida']);
+    }
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
-
-echo json_encode($result);
-exit;

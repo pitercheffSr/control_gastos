@@ -3,13 +3,19 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// ¡AQUÍ ESTÁ LA CLAVE! Llamamos a la conexión de la base de datos
-require_once __DIR__ . '/../config.php';
+// Verificamos si ya existe la conexión, si no, intentamos cargarla de forma segura
+if (!isset($pdo)) {
+    $configPath = __DIR__ . '/../config.php';
+    if (file_exists($configPath)) {
+        require_once $configPath;
+    }
+}
 
 // --- ALGORITMO DE CADUCIDAD DE 4 MESES ---
 $fecha_borrado_str = 'Desconocida';
 $dias_restantes = 120;
 
+// Solo ejecutamos si tenemos sesión y la conexión PDO está lista
 if (isset($_SESSION['usuario_id']) && isset($pdo)) {
     try {
         $stmtUser = $pdo->prepare("SELECT fecha_registro FROM usuarios WHERE id = ?");
@@ -20,18 +26,14 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
             $fechaRegistro = new DateTime($userObj['fecha_registro']);
             $fechaActual = new DateTime();
             
-            // Calculamos la fecha límite (Registro + 4 meses)
             $fechaCaducidad = clone $fechaRegistro;
             $fechaCaducidad->modify('+4 months');
             
             $fecha_borrado_str = $fechaCaducidad->format('d/m/Y');
-            $dias_restantes = $fechaActual->diff($fechaCaducidad)->days;
-            $ya_caducado = $fechaActual >= $fechaCaducidad;
-
+            
             // Si ya ha pasado la fecha... ¡KABOOM!
-            if ($ya_caducado) {
+            if ($fechaActual >= $fechaCaducidad) {
                 $uid = $_SESSION['usuario_id'];
-                
                 $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ?")->execute([$uid]);
                 $pdo->prepare("DELETE FROM categorias WHERE usuario_id = ?")->execute([$uid]);
                 $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$uid]);
@@ -42,11 +44,10 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
             }
         }
     } catch (Exception $e) {
-        // Ignorar error para no romper la vista
+        // Error silencioso para no romper el Dashboard
     }
 }
-?>
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="es">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,6 +91,7 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
             <a href="dashboard.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Dashboard</a>
             <a href="transacciones.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> Movimientos</a>
             <a href="categorias.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg> Categorías</a>
+            <a href="perfil.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg> Mi Perfil</a>
         </div>
         <div class="p-4 border-t border-gray-100 bg-gray-50">
             <a href="logout.php" class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-bold text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> Cerrar Sesión</a>

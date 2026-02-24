@@ -6,79 +6,60 @@ class CategoriaModel {
         $this->db = $db;
     }
 
-    /**
-     * Obtiene las categorías ordenadas jerárquicamente para el desplegable
-     */
+    // Obtiene todas las categorías planas (para los desplegables)
     public function getAll($usuario_id) {
-        try {
-            // 1. Obtenemos TODAS las categorías (incluyendo a quién pertenecen)
-            $sql = "SELECT id, nombre, parent_id, tipo_fijo as tipo 
-                    FROM categorias 
-                    WHERE usuario_id = ? 
-                    ORDER BY nombre ASC";
-            
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([$usuario_id]);
-            $todas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // 2. Las organizamos en forma de Árbol
-            $arbol = $this->construirArbol($todas, null);
-
-            // 3. Las aplanamos en una lista ordenada con sangría visual
-            $listaOrdenada = [];
-            $this->aplanarArbol($arbol, $listaOrdenada, 0);
-
-            return $listaOrdenada;
-            
-        } catch (PDOException $e) {
-            error_log("Error cargando categorías: " . $e->getMessage());
-            return [];
-        }
+        $stmt = $this->db->prepare("SELECT * FROM categorias WHERE usuario_id = ? ORDER BY nombre ASC");
+        $stmt->execute([$usuario_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // --- FUNCIONES AUXILIARES PARA CREAR EL EFECTO DESPLEGABLE ---
+    // Obtiene el árbol genealógico (Madres e Hijas) para la pantalla principal
+    public function getAllTree($usuario_id) {
+        $stmt = $this->db->prepare("SELECT * FROM categorias WHERE usuario_id = ? ORDER BY parent_id, nombre ASC");
+        $stmt->execute([$usuario_id]);
+        $categorias = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        return $this->buildTree($categorias);
+    }
 
-    /**
-     * Agrupa las subcategorías dentro de sus padres correspondientes
-     */
-    private function construirArbol(array &$elementos, $parentId = null) {
-        $rama = [];
-        foreach ($elementos as $elemento) {
-            if ($elemento['parent_id'] == $parentId) {
-                $hijos = $this->construirArbol($elementos, $elemento['id']);
-                if ($hijos) {
-                    $elemento['subcategorias'] = $hijos;
+    // Función mágica que construye las ramas del árbol
+    private function buildTree(array $elements, $parentId = null) {
+        $branch = array();
+        foreach ($elements as $element) {
+            if ($element['parent_id'] == $parentId) {
+                $children = $this->buildTree($elements, $element['id']);
+                if ($children) {
+                    $element['children'] = $children;
+                } else {
+                    $element['children'] = [];
                 }
-                $rama[] = $elemento;
+                $branch[] = $element;
             }
         }
-        return $rama;
+        return $branch;
     }
 
-    /**
-     * Convierte el árbol en una lista simple añadiendo guiones (—) a las hijas
-     */
-    private function aplanarArbol($arbol, &$resultado, $nivel = 0) {
-        foreach ($arbol as $nodo) {
-            
-            // Generamos la "sangría" visual. 
-            // Nivel 0: "", Nivel 1: "— ", Nivel 2: "— — "
-            $prefijo = '';
-            if ($nivel > 0) {
-                $prefijo = str_repeat('— ', $nivel) . ' ';
-            }
+    public function save($data, $usuario_id) {
+        $parent = !empty($data['parent_id']) ? $data['parent_id'] : null;
+        $color = !empty($data['color']) ? $data['color'] : '#cbd5e1';
 
-            // Añadimos la categoría a la lista final que leerá el formulario
-            $resultado[] = [
-                'id' => $nodo['id'],
-                'nombre' => $prefijo . $nodo['nombre'],
-                'tipo' => $nodo['tipo']
-            ];
-
-            // Si tiene hijas, repetimos el proceso aumentando el nivel
-            if (isset($nodo['subcategorias'])) {
-                $this->aplanarArbol($nodo['subcategorias'], $resultado, $nivel + 1);
-            }
+        if (!empty($data['id'])) {
+            $stmt = $this->db->prepare("UPDATE categorias SET nombre = ?, parent_id = ?, color = ? WHERE id = ? AND usuario_id = ?");
+            return $stmt->execute([$data['nombre'], $parent, $color, $data['id'], $usuario_id]);
+        } else {
+            $stmt = $this->db->prepare("INSERT INTO categorias (usuario_id, nombre, parent_id, color) VALUES (?, ?, ?, ?)");
+            return $stmt->execute([$usuario_id, $data['nombre'], $parent, $color]);
         }
+    }
+
+    public function delete($id, $usuario_id) {
+        // Por seguridad, borramos primero las subcategorías que dependan de esta
+        $stmtHijas = $this->db->prepare("DELETE FROM categorias WHERE parent_id = ? AND usuario_id = ?");
+        $stmtHijas->execute([$id, $usuario_id]);
+
+        // Luego borramos la categoría principal
+        $stmt = $this->db->prepare("DELETE FROM categorias WHERE id = ? AND usuario_id = ?");
+        return $stmt->execute([$id, $usuario_id]);
     }
 }
+?>
