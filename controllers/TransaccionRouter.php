@@ -1,35 +1,70 @@
 <?php
-require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../models/TransaccionModel.php';
+require_once '../config.php';
+require_once '../models/TransaccionModel.php';
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// BARRERA DE SEGURIDAD
-if (!isset($_SESSION['usuario_id'])) {
-    echo json_encode(['error' => 'No autorizado']);
-    exit;
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['usuario_id'])) { 
+    echo json_encode(['success' => false, 'error' => 'No autorizado']);
+    exit; 
 }
 
 $uid = $_SESSION['usuario_id'];
-$model = new TransaccionModel($pdo);
 $action = $_GET['action'] ?? '';
+$model = new TransaccionModel($pdo);
 
-// Limpiamos basura oculta antes de imprimir JSON
-ob_clean();
-header('Content-Type: application/json');
+if ($action === 'save') {
+    $data = json_decode(file_get_contents("php://input"), true);
+    $id = $data['id'] ?? null;
+    $fecha = $data['fecha'] ?? '';
+    $desc = $data['descripcion'] ?? '';
+    $monto = $data['monto'] ?? 0;
+    $cat = $data['categoria_id'] ?? null;
+
+    if ($id) { $model->update($id, $uid, $cat, $fecha, $desc, $monto); } 
+    else { $model->create($uid, $cat, $fecha, $desc, $monto); }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+if ($action === 'delete') {
+    $data = json_decode(file_get_contents("php://input"), true);
+    $id = $data['id'] ?? null;
+    if ($id) { $model->delete($id, $uid); }
+    echo json_encode(['success' => true]);
+    exit;
+}
 
 if ($action === 'getAllLimit') {
-    echo json_encode($model->getAllLimit($uid, 5));
-} elseif ($action === 'save') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    // Pasamos el $uid para garantizar que se guarde a su nombre
-    echo json_encode(['success' => $model->save($data, $uid)]);
-} elseif ($action === 'delete') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    // Pasamos el $uid para que solo pueda borrar lo suyo
-    echo json_encode(['success' => $model->delete($data['id'], $uid)]);
-} else {
-    echo json_encode(['error' => 'Acción no válida']);
+    $stmt = $pdo->prepare("
+        SELECT t.id, t.fecha, t.descripcion, t.monto as importe, t.categoria_id, c.nombre as categoria_nombre 
+        FROM transacciones t 
+        LEFT JOIN categorias c ON t.categoria_id = c.id 
+        WHERE t.usuario_id = ? 
+        ORDER BY t.fecha DESC, t.id DESC 
+        LIMIT 5
+    ");
+    $stmt->execute([$uid]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
+// --- NUEVA ACCIÓN: BORRADO MASIVO ---
+if ($action === 'deleteMasivo') {
+    $data = json_decode(file_get_contents("php://input"), true);
+    $fecha_inicio = $data['fecha_inicio'] ?? null;
+    $fecha_fin = $data['fecha_fin'] ?? null;
+
+    if ($fecha_inicio && $fecha_fin) {
+        // Ejecutamos el DELETE entre las dos fechas para el usuario activo
+        $stmt = $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ? AND fecha >= ? AND fecha <= ?");
+        $stmt->execute([$uid, $fecha_inicio, $fecha_fin]);
+        
+        // rowCount() nos devuelve el número exacto de filas que se acaban de destruir
+        $eliminados = $stmt->rowCount(); 
+        
+        echo json_encode(['success' => true, 'eliminados' => $eliminados]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Fechas no válidas']);
+    }
+    exit;
 }

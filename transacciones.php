@@ -49,7 +49,10 @@ include 'includes/header.php';
             <a href="controllers/ExportarRouter.php" class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-emerald-700 font-bold transition flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> Exportar CSV
             </a>
-            <button onclick="document.getElementById('modalImportar').classList.remove('hidden')" class="bg-green-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-green-700 font-bold transition flex items-center gap-2">
+            <button onclick="abrirModalBorradoMasivo()" class="bg-red-50 text-red-600 border border-red-200 px-5 py-2.5 rounded-xl shadow-sm hover:bg-red-100 font-bold transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Borrar
+            </button>
+            <button onclick="abrirModalImportar()" class="bg-green-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-green-700 font-bold transition flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Importar CSV
             </button>
             <button onclick="abrirModalTransaccion()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
@@ -143,14 +146,42 @@ include 'includes/header.php';
 </div>
 
 <div id="modalImportar" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+    <div id="modalImportarContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300">
         <h2 class="text-2xl font-extrabold mb-4 text-gray-800">Importar CSV</h2>
         <form action="controllers/ImportarRouter.php" method="POST" enctype="multipart/form-data" class="space-y-5">
             <input type="file" name="archivo_csv" accept=".csv" required class="w-full border border-gray-300 rounded-lg p-2 font-medium">
             <label class="block text-sm font-bold mb-1.5 text-gray-700">Asignar a:</label>
             <input list="listaSugerencias" id="input_cat_excel" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required autocomplete="off">
             <input type="hidden" name="categoria_id" id="hidden_cat_excel">
-            <div class="flex justify-end gap-3 mt-8"><button type="button" onclick="document.getElementById('modalImportar').classList.add('hidden')" class="px-6 py-2.5 text-gray-500 font-bold">Cancelar</button><button type="submit" class="px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl">Importar</button></div>
+            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                <button type="button" onclick="cerrarModalImportar()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button>
+                <button type="submit" class="px-6 py-2.5 bg-green-600 text-white font-bold hover:bg-green-700 rounded-xl shadow-md transition">Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modalBorradoMasivo" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm">
+    <div id="modalBorradoMasivoContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300 border-t-8 border-red-500">
+        <h2 class="text-2xl font-extrabold mb-2 text-gray-800">Borrado Masivo</h2>
+        <p class="text-sm text-gray-500 mb-6">Elimina de golpe todos los movimientos entre dos fechas. <strong class="text-red-500">Esta acción no se puede deshacer.</strong></p>
+        
+        <form id="formBorradoMasivo" class="space-y-5">
+            <div class="flex gap-4">
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold mb-1.5 text-gray-700">Desde</label>
+                    <input type="date" id="borrado_inicio" required class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500 transition cursor-pointer">
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold mb-1.5 text-gray-700">Hasta</label>
+                    <input type="date" id="borrado_fin" required class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500 transition cursor-pointer">
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                <button type="button" onclick="cerrarModalBorradoMasivo()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button>
+                <button type="submit" class="px-6 py-2.5 bg-red-600 text-white font-bold hover:bg-red-700 rounded-xl shadow-md transition">Eliminar Definitivamente</button>
+            </div>
         </form>
     </div>
 </div>
@@ -170,11 +201,8 @@ function limpiarFiltrosTransacciones() {
     document.getElementById('filterMesContable').value = '';
     document.getElementById('inputFilterCategory').value = '';
     document.getElementById('filterCategory').value = '';
-    
-    // Ahora "Limpiar" vacía totalmente las fechas
     document.getElementById('filterFechaInicio').value = '';
     document.getElementById('filterFechaFin').value = '';
-    
     resetPaginaYFiltrar();
 }
 
@@ -307,6 +335,8 @@ function vincularDatalist(inputId, hiddenId) {
 }
 setTimeout(() => { vincularDatalist('input_cat_form', 'hidden_cat_id'); vincularDatalist('input_cat_excel', 'hidden_cat_excel'); vincularDatalist('inputFilterCategory', 'filterCategory'); }, 50);
 
+
+// --- FUNCIONES DEL MODAL "NUEVO/EDITAR" ---
 function abrirModalTransaccion(id = null, fecha = '', descripcion = '', monto = '', categoria_id = null) {
     document.getElementById('formTransaccion').reset();
     document.getElementById('transaccion_id').value = id || '';
@@ -329,11 +359,37 @@ function cerrarModalTransaccion() {
     setTimeout(() => { const modal = document.getElementById('modalTransaccion'); if(modal) modal.classList.add('hidden'); }, 300);
 }
 
+// --- FUNCIONES DEL MODAL "IMPORTAR" ---
+function abrirModalImportar() {
+    document.getElementById('modalImportar').classList.remove('hidden');
+    setTimeout(() => { document.getElementById('modalImportarContent').classList.add('scale-100', 'opacity-100'); }, 10);
+}
+
+function cerrarModalImportar() {
+    const content = document.getElementById('modalImportarContent');
+    if(content) content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { const modal = document.getElementById('modalImportar'); if(modal) modal.classList.add('hidden'); }, 300);
+}
+
+// --- FUNCIONES DEL MODAL "BORRADO MASIVO" ---
+function abrirModalBorradoMasivo() {
+    document.getElementById('formBorradoMasivo').reset();
+    document.getElementById('modalBorradoMasivo').classList.remove('hidden');
+    setTimeout(() => { document.getElementById('modalBorradoMasivoContent').classList.add('scale-100', 'opacity-100'); }, 10);
+}
+
+function cerrarModalBorradoMasivo() {
+    const content = document.getElementById('modalBorradoMasivoContent');
+    if(content) content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { const modal = document.getElementById('modalBorradoMasivo'); if(modal) modal.classList.add('hidden'); }, 300);
+}
+
+// --- CIERRE DE TODOS LOS MODALES CON ESCAPE ---
 document.addEventListener('keydown', (e) => { 
     if(e.key === "Escape") { 
         cerrarModalTransaccion(); 
-        const importModal = document.getElementById('modalImportar'); 
-        if(importModal) importModal.classList.add('hidden'); 
+        cerrarModalImportar();
+        cerrarModalBorradoMasivo();
     } 
 });
 
@@ -344,6 +400,7 @@ function guardarMemoriaFiltros() {
     sessionStorage.setItem('memoriaFiltroMes', document.getElementById('filterMesContable').value);
 }
 
+// --- ENVÍO DE FORMULARIOS AL BACKEND ---
 document.getElementById('formTransaccion').addEventListener('submit', async (e) => {
     e.preventDefault();
     const catId = document.getElementById('hidden_cat_id').value;
@@ -368,12 +425,38 @@ function eliminarTransaccion(id) {
     });
 }
 
+document.getElementById('formBorradoMasivo').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fInicio = document.getElementById('borrado_inicio').value;
+    const fFin = document.getElementById('borrado_fin').value;
+
+    if (fInicio > fFin) return alert("La fecha 'Desde' no puede ser posterior a 'Hasta'.");
+    
+    if (!confirm(`¿Estás SEGURO de que quieres borrar TODOS los movimientos entre el ${fInicio} y el ${fFin}?`)) return;
+
+    try {
+        const res = await fetch('controllers/TransaccionRouter.php?action=deleteMasivo', {
+            method: 'POST',
+            body: JSON.stringify({ fecha_inicio: fInicio, fecha_fin: fFin }),
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(`Limpieza completada: Se han eliminado ${data.eliminados} movimientos.`);
+            guardarMemoriaFiltros(); 
+            location.reload();
+        } else {
+            alert("Hubo un error al intentar borrar los movimientos.");
+        }
+    } catch (err) { console.error(err); }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     let defInicio = '';
     let defFin = '';
     let defMes = '';
 
-    // Recuperamos los filtros si existen, diferenciando claramente entre nulo (primera visita) o cadena vacía (filtro borrado)
     if (sessionStorage.getItem('memoriaFiltroInicio') !== null) {
         defInicio = sessionStorage.getItem('memoriaFiltroInicio');
         sessionStorage.removeItem('memoriaFiltroInicio');

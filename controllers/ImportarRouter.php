@@ -1,88 +1,121 @@
 <?php
-require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../models/TransaccionModel.php';
+// controllers/ImportarRouter.php
+require_once '../config.php';
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-
-if (!isset($_SESSION['usuario_id'])) {
-    die("No autorizado");
+if (!isset($_SESSION['usuario_id'])) { 
+    header('Location: ../index.php'); 
+    exit; 
 }
 
 $uid = $_SESSION['usuario_id'];
-$model = new TransaccionModel($pdo);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv'])) {
-    $archivo = $_FILES['archivo_csv']['tmp_name'];
+// 1. Verificar si se ha enviado un archivo y no hay errores
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_FILES['archivo_csv']['error'] === UPLOAD_ERR_OK) {
     
-    // Categoría de rescate si el sistema no logra adivinar
-    $cat_fallback = isset($_POST['categoria_id']) && !empty($_POST['categoria_id']) ? $_POST['categoria_id'] : null;
-
-    // 1. CARGAMOS LA MEMORIA HISTÓRICA DEL USUARIO
-    // Obtenemos todos los movimientos pasados para que el sistema "aprenda" cómo categoriza este usuario.
-    $stmtMemoria = $pdo->prepare("SELECT descripcion, categoria_id FROM transacciones WHERE usuario_id = ? AND categoria_id IS NOT NULL ORDER BY fecha DESC");
-    $stmtMemoria->execute([$uid]);
-    
-    $diccionario_ia = [];
-    foreach ($stmtMemoria->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $descLimpiada = strtolower(trim($row['descripcion']));
-        // Guardamos la relación. Al estar ordenado por fecha, se queda con la categoría más reciente que usaste para ese concepto.
-        if (!isset($diccionario_ia[$descLimpiada])) {
-            $diccionario_ia[$descLimpiada] = $row['categoria_id'];
-        }
+    // Obtenemos la categoría elegida en el modal. Esta será nuestro "Salvavidas"
+    $categoria_defecto = $_POST['categoria_id'] ?? null;
+    if (empty($categoria_defecto)) {
+        header('Location: ../transacciones.php?mensaje=ErrorSinCategoria');
+        exit;
     }
 
-    // 2. PROCESAMOS EL ARCHIVO
-    if (($handle = fopen($archivo, "r")) !== FALSE) {
-        // Saltamos la primera línea si son las cabeceras (Fecha, Descripcion, etc.)
-        $primera_linea = fgetcsv($handle, 1000, ";");
+    $archivoTmp = $_FILES['archivo_csv']['tmp_name'];
+    
+    if (($handle = fopen($archivoTmp, "r")) !== FALSE) {
         
-        while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
-            // Asumiendo formato estándar: Fecha | Descripcion | (Categoría Excel) | Importe
-            // Dependiendo del formato real de tu Excel, podrías tener que ajustar los índices $data[0], $data[1]...
-            
-            $fechaRaw = $data[0] ?? date('Y-m-d');
-            $descripcionRaw = $data[1] ?? 'Movimiento Excel';
-            
-            // Buscamos el importe. Normalmente en los extractos de banco está en la última o penúltima columna.
-            // Si tu CSV tiene 4 columnas: 0=Fecha, 1=Desc, 2=CategoriaTxt, 3=Importe
-            $importeStr = isset($data[3]) ? $data[3] : (isset($data[2]) ? $data[2] : '0'); 
-            
-            // Limpiamos el importe (quitamos euros, cambiamos comas por puntos)
-            $importeStr = str_replace(['€', ' ', '.'], ['', '', ''], $importeStr);
-            $importeStr = str_replace(',', '.', $importeStr);
-            $monto = (float)$importeStr;
+        // --- NUEVO: Cargar todas las categorías del usuario para el auto-etiquetado ---
+        $stmtCats = $pdo->prepare("SELECT id, nombre FROM categorias WHERE usuario_id = ?");
+        $stmtCats->execute([$uid]);
+        $categoriasUsuario = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
 
-            // Formateamos la fecha si viene como dd/mm/yyyy a yyyy-mm-dd
-            $fechaObj = DateTime::createFromFormat('d/m/Y', $fechaRaw);
-            $fechaFinal = $fechaObj ? $fechaObj->format('Y-m-d') : date('Y-m-d', strtotime(str_replace('/', '-', $fechaRaw)));
+        $delimitador = ";"; 
+        $insertados = 0;
+        $omitidos = 0;
 
-            // 3. LA MAGIA DE LA CATEGORIZACIÓN AUTOMÁTICA
-            $descBuscador = strtolower(trim($descripcionRaw));
+        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM transacciones WHERE usuario_id = ? AND fecha = ? AND importe = ? AND descripcion = ?");
+        
+        $stmtInsert = $pdo->prepare("INSERT INTO transacciones (usuario_id, categoria_id, fecha, descripcion, importe) VALUES (?, ?, ?, ?, ?)");
+
+        $bloqueActual = 'DESCONOCIDO';
+
+        // 3. Leer línea por línea
+        while (($datos = fgetcsv($handle, 1000, $delimitador)) !== FALSE) {
             
-            if (isset($diccionario_ia[$descBuscador])) {
-                // ¡Coincidencia! El sistema recuerda esta descripción y le pone la misma categoría
-                $cat_asignada = $diccionario_ia[$descBuscador];
-            } else {
-                // No lo reconoce. Usa la categoría por defecto del formulario.
-                $cat_asignada = $cat_fallback;
+            // Detector de cabeceras según el formato de tu banco
+            if (count($datos) >= 3 && $datos[0] === 'Fecha' && strpos($datos[1], 'Descripci') !== false) {
+                $bloqueActual = 'PENDIENTES';
+                continue;
+            } else if (count($datos) >= 4 && $datos[0] === 'Fecha contable' && strpos($datos[2], 'Descripci') !== false) {
+                $bloqueActual = 'CONSOLIDADOS';
+                continue;
             }
 
-            // Guardamos el movimiento en la base de datos
-            $nuevaTransaccion = [
-                'id' => null,
-                'fecha' => $fechaFinal,
-                'descripcion' => $descripcionRaw,
-                'monto' => $monto,
-                'categoria_id' => $cat_asignada
-            ];
-            
-            $model->save($uid, $nuevaTransaccion);
+            // Comprobar si la fila contiene una fecha válida (DD/MM/YYYY)
+            if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', trim($datos[0]))) {
+                $fecha_raw = trim($datos[0]);
+                
+                if ($bloqueActual === 'PENDIENTES') {
+                    $concepto = trim($datos[1]);
+                    $importe_raw = trim($datos[2]);
+                } else if ($bloqueActual === 'CONSOLIDADOS') {
+                    $concepto = trim($datos[2]);
+                    $importe_raw = trim($datos[3]);
+                } else {
+                    $concepto = trim($datos[1]);
+                    $importe_raw = trim($datos[2]);
+                }
+
+                if(empty($concepto)) {
+                    $concepto = "Movimiento bancario";
+                }
+
+                // Limpieza de fechas y números
+                $partes_fecha = explode('/', $fecha_raw);
+                $fecha = $partes_fecha[2] . '-' . $partes_fecha[1] . '-' . $partes_fecha[0];
+
+                $importe_str = str_replace('.', '', $importe_raw);
+                $importe_str = str_replace(',', '.', $importe_str);
+                $importe = (float) $importe_str;
+                
+                // Comprobar si es un duplicado exacto
+                $stmtCheck->execute([$uid, $fecha, $importe, $concepto]);
+                $existe = $stmtCheck->fetchColumn();
+
+                if ($existe > 0) {
+                    $omitidos++;
+                    continue; // Es duplicado, saltamos al siguiente
+                }
+
+                // --- LA MAGIA DE LA AUTO-CATEGORIZACIÓN ---
+                $categoria_final = $categoria_defecto; // Partimos con la de "salvavidas"
+                
+                // Recorremos todas tus categorías buscando coincidencias
+                foreach ($categoriasUsuario as $cat) {
+                    // Si el nombre de tu categoría está dentro del texto del banco...
+                    // Ej: "Mercadona" está dentro de "MERCADONA AVDA. AGUSTINOS"
+                    if (stripos($concepto, $cat['nombre']) !== false) {
+                        $categoria_final = $cat['id'];
+                        break; // ¡Coincidencia encontrada! Dejamos de buscar
+                    }
+                }
+
+                // 6. Guardamos en la BD usando la categoría final detectada
+                $stmtInsert->execute([$uid, $categoria_final, $fecha, $concepto, $importe]);
+                $insertados++;
+            }
         }
+        
         fclose($handle);
+        
+        header('Location: ../transacciones.php?importados=' . $insertados . '&omitidos=' . $omitidos);
+        exit;
+    } else {
+         header('Location: ../transacciones.php?mensaje=ErrorAbrirArchivo');
+         exit;
     }
-    
-    // Devolvemos al usuario a la pantalla de transacciones para que afine lo que haga falta
-    header('Location: ../transacciones.php');
+} else {
+    header('Location: ../transacciones.php?mensaje=ErrorArchivoNoValido');
     exit;
 }
 ?>
