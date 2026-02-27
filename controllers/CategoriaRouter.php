@@ -19,9 +19,24 @@ header('Content-Type: application/json');
 
 try {
     if ($action === 'save') {
+        // 1. Recibimos la caja con los datos
         $data = json_decode(file_get_contents('php://input'), true);
-        $success = $model->save($data, $uid);
+        
+        // 2. Sacamos los datos uno por uno
+        $id = $data['id'] ?? null;
+        $nombre = $data['nombre'] ?? '';
+        $tipo_fijo = $data['tipo_fijo'] ?? 'gasto';
+        $parent_id = $data['parent_id'] ?? null;
+
+        // 3. Si viene un ID, actualizamos. Si no, creamos.
+        if (!empty($id)) {
+            $success = $model->update($id, $uid, $nombre, $tipo_fijo, $parent_id);
+        } else {
+            $success = $model->save($uid, $nombre, $tipo_fijo, $parent_id);
+        }
+        
         echo json_encode(['success' => $success]);
+
     } elseif ($action === 'delete') {
         $data = json_decode(file_get_contents('php://input'), true);
         $success = $model->delete($data['id'], $uid);
@@ -32,3 +47,4 @@ try {
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
+?>

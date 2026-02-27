@@ -10,10 +10,16 @@ if (!isset($_SESSION['usuario_id'])) {
 
 $uid = $_SESSION['usuario_id'];
 
-// 1. Verificar si se ha enviado un archivo y no hay errores
+// Función Helper: Quita mayúsculas y acentos para que las búsquedas no fallen
+function limpiarTexto($texto) {
+    $texto = strtolower(trim($texto));
+    $buscar  = ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ', 'Á', 'É', 'Í', 'Ó', 'Ú', 'Ü', 'Ñ'];
+    $reemplazar = ['a', 'e', 'i', 'o', 'u', 'u', 'n', 'a', 'e', 'i', 'o', 'u', 'u', 'n'];
+    return str_replace($buscar, $reemplazar, $texto);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_FILES['archivo_csv']['error'] === UPLOAD_ERR_OK) {
     
-    // Obtenemos la categoría elegida en el modal. Esta será nuestro "Salvavidas"
     $categoria_defecto = $_POST['categoria_id'] ?? null;
     if (empty($categoria_defecto)) {
         header('Location: ../transacciones.php?mensaje=ErrorSinCategoria');
@@ -24,7 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_
     
     if (($handle = fopen($archivoTmp, "r")) !== FALSE) {
         
-        // --- NUEVO: Cargar todas las categorías del usuario para el auto-etiquetado ---
         $stmtCats = $pdo->prepare("SELECT id, nombre FROM categorias WHERE usuario_id = ?");
         $stmtCats->execute([$uid]);
         $categoriasUsuario = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
@@ -34,15 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_
         $omitidos = 0;
 
         $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM transacciones WHERE usuario_id = ? AND fecha = ? AND importe = ? AND descripcion = ?");
-        
         $stmtInsert = $pdo->prepare("INSERT INTO transacciones (usuario_id, categoria_id, fecha, descripcion, importe) VALUES (?, ?, ?, ?, ?)");
 
         $bloqueActual = 'DESCONOCIDO';
 
-        // 3. Leer línea por línea
         while (($datos = fgetcsv($handle, 1000, $delimitador)) !== FALSE) {
             
-            // Detector de cabeceras según el formato de tu banco
+            // Detector de cabeceras
             if (count($datos) >= 3 && $datos[0] === 'Fecha' && strpos($datos[1], 'Descripci') !== false) {
                 $bloqueActual = 'PENDIENTES';
                 continue;
@@ -51,7 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_
                 continue;
             }
 
-            // Comprobar si la fila contiene una fecha válida (DD/MM/YYYY)
             if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', trim($datos[0]))) {
                 $fecha_raw = trim($datos[0]);
                 
@@ -70,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_
                     $concepto = "Movimiento bancario";
                 }
 
-                // Limpieza de fechas y números
                 $partes_fecha = explode('/', $fecha_raw);
                 $fecha = $partes_fecha[2] . '-' . $partes_fecha[1] . '-' . $partes_fecha[0];
 
@@ -78,29 +79,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_
                 $importe_str = str_replace(',', '.', $importe_str);
                 $importe = (float) $importe_str;
                 
-                // Comprobar si es un duplicado exacto
                 $stmtCheck->execute([$uid, $fecha, $importe, $concepto]);
-                $existe = $stmtCheck->fetchColumn();
-
-                if ($existe > 0) {
+                if ($stmtCheck->fetchColumn() > 0) {
                     $omitidos++;
-                    continue; // Es duplicado, saltamos al siguiente
+                    continue; 
                 }
 
-                // --- LA MAGIA DE LA AUTO-CATEGORIZACIÓN ---
-                $categoria_final = $categoria_defecto; // Partimos con la de "salvavidas"
-                
-                // Recorremos todas tus categorías buscando coincidencias
+                // --- LA NUEVA MAGIA: BÚSQUEDA POR PALABRAS EXACTAS ---
+                $categoria_final = $categoria_defecto; 
+                $conceptoLimpio = limpiarTexto($concepto);
+
                 foreach ($categoriasUsuario as $cat) {
-                    // Si el nombre de tu categoría está dentro del texto del banco...
-                    // Ej: "Mercadona" está dentro de "MERCADONA AVDA. AGUSTINOS"
-                    if (stripos($concepto, $cat['nombre']) !== false) {
+                    $nombreCat = $cat['nombre'];
+                    $encontrado = false;
+
+                    if (preg_match('/\((.*?)\)/', $nombreCat, $coincidencias)) {
+                        $palabrasClave = explode(',', $coincidencias[1]);
+                        
+                        foreach ($palabrasClave as $palabra) {
+                            $palabraLimpia = limpiarTexto($palabra);
+                            if (!empty($palabraLimpia)) {
+                                // Expresión regular: busca la palabra EXACTA aislada por espacios o símbolos
+                                $patron = '/(^|[^a-z0-9])' . preg_quote($palabraLimpia, '/') . '([^a-z0-9]|$)/i';
+                                if (preg_match($patron, $conceptoLimpio)) {
+                                    $encontrado = true;
+                                    break; 
+                                }
+                            }
+                        }
+                    }
+
+                    if (!$encontrado) {
+                        $nombreBase = trim(preg_replace('/\((.*?)\)/', '', $nombreCat));
+                        $nombreBaseLimpio = limpiarTexto($nombreBase);
+                        
+                        if (!empty($nombreBaseLimpio)) {
+                            // Expresión regular: busca la palabra EXACTA aislada por espacios o símbolos
+                            $patron = '/(^|[^a-z0-9])' . preg_quote($nombreBaseLimpio, '/') . '([^a-z0-9]|$)/i';
+                            if (preg_match($patron, $conceptoLimpio)) {
+                                $encontrado = true;
+                            }
+                        }
+                    }
+
+                    if ($encontrado) {
                         $categoria_final = $cat['id'];
-                        break; // ¡Coincidencia encontrada! Dejamos de buscar
+                        break;
                     }
                 }
 
-                // 6. Guardamos en la BD usando la categoría final detectada
                 $stmtInsert->execute([$uid, $categoria_final, $fecha, $concepto, $importe]);
                 $insertados++;
             }
