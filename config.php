@@ -9,7 +9,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 // 2. Parámetros de conexión
-$host    = 'localhost';
+$host    = 'localhost'; // Cambia esto si tu base de datos no está en el mismo servidor
 $db_name = 'control_gastos'; // <-- ASEGÚRATE DE QUE ESTE NOMBRE SEA CORRECTO
 $user    = 'admin_gastos';               // Tu usuario de MySQL
 $pass    = 'Password123!';               // Tu contraseña de MySQL
@@ -26,9 +26,9 @@ $dsn = "mysql:host=$host;dbname=$db_name;charset=$charset";
 try {
     // Creamos la conexión global $pdo
     $pdo = new PDO($dsn, $user, $pass, $options);
-    
+
     // También creamos $db por si algunos de tus controladores viejos usan ese nombre
-    $db = $pdo; 
+    $db = $pdo;
 
 } catch (\PDOException $e) {
     die("Error de conexión a la base de datos: " . $e->getMessage());
