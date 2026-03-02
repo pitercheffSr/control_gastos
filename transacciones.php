@@ -77,8 +77,8 @@ include 'includes/header.php';
         </div>
         
         <div class="flex-grow max-w-xs relative">
-            <label class="block text-sm font-bold mb-1 text-gray-700">Categoría</label>
-            <input list="listaFiltroCategorias" id="inputFilterCategory" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-200 outline-none transition font-medium text-gray-700" placeholder="Escribe para buscar...">
+            <label class="block text-sm font-bold mb-1 text-gray-700">Buscar (Categoría o Texto)</label>
+            <input list="listaFiltroCategorias" id="inputFilterCategory" oninput="resetPaginaYFiltrar()" onkeydown="if(event.key === 'Enter') resetPaginaYFiltrar()" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-200 outline-none transition font-medium text-gray-700" placeholder="Ej: bizum o Amazon...">
             <input type="hidden" id="filterCategory">
             <datalist id="listaFiltroCategorias">
                 <option data-id="" value="Todas las categorías"></option>
@@ -163,26 +163,33 @@ include 'includes/header.php';
 
 <div id="modalBorradoMasivo" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm">
     <div id="modalBorradoMasivoContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300 border-t-8 border-red-500">
-        <h2 class="text-2xl font-extrabold mb-2 text-gray-800">Borrado Masivo</h2>
-        <p class="text-sm text-gray-500 mb-6">Elimina de golpe todos los movimientos entre dos fechas. <strong class="text-red-500">Esta acción no se puede deshacer.</strong></p>
+        <h2 class="text-2xl font-extrabold mb-2 text-gray-800">Borrado de Movimientos</h2>
+        <p class="text-sm text-gray-500 mb-6">Elimina movimientos por rango de fechas o limpia todo tu historial de golpe. <strong class="text-red-500">No se puede deshacer.</strong></p>
         
         <form id="formBorradoMasivo" class="space-y-5">
             <div class="flex gap-4">
                 <div class="w-1/2">
                     <label class="block text-sm font-bold mb-1.5 text-gray-700">Desde</label>
-                    <input type="date" id="borrado_inicio" required class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500 transition cursor-pointer">
+                    <input type="date" id="borrado_inicio" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500 transition cursor-pointer">
                 </div>
                 <div class="w-1/2">
                     <label class="block text-sm font-bold mb-1.5 text-gray-700">Hasta</label>
-                    <input type="date" id="borrado_fin" required class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500 transition cursor-pointer">
+                    <input type="date" id="borrado_fin" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500 transition cursor-pointer">
                 </div>
             </div>
             
-            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+            <div class="flex justify-end gap-3 mt-6">
                 <button type="button" onclick="cerrarModalBorradoMasivo()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button>
-                <button type="submit" class="px-6 py-2.5 bg-red-600 text-white font-bold hover:bg-red-700 rounded-xl shadow-md transition">Eliminar Definitivamente</button>
+                <button type="submit" class="px-6 py-2.5 bg-red-600 text-white font-bold hover:bg-red-700 rounded-xl shadow-md transition">Borrar Fechas</button>
             </div>
         </form>
+
+        <div class="mt-6 pt-6 border-t border-red-100 text-center">
+            <button type="button" onclick="borrarTodoElHistorial()" class="w-full px-6 py-3 bg-red-900 text-white font-extrabold hover:bg-red-950 rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                ¡PELIGRO! Borrar ABSOLUTAMENTE TODO
+            </button>
+        </div>
     </div>
 </div>
 
@@ -243,19 +250,31 @@ function actualizarVista() {
 
         const fInicio = document.getElementById('filterFechaInicio').value;
         const fFin = document.getElementById('filterFechaFin').value;
-        const catFiltro = document.getElementById('filterCategory').value;
+        
+        const catFiltroId = document.getElementById('filterCategory').value;
+        const textoBusqueda = document.getElementById('inputFilterCategory').value.toLowerCase().trim();
+        
         const rows = Array.from(document.querySelectorAll('.transaccion-row'));
 
         filasFiltradas = rows.filter(row => {
             const rowFecha = row.getAttribute('data-fecha') || '';
             const rowFamilia = (row.getAttribute('data-familia') || '').split(',');
             
+            const textoDesc = row.cells[1].textContent.toLowerCase();
+            const textoCat = row.cells[2].textContent.toLowerCase();
+
             let matchFecha = true;
             if (fInicio !== '' && rowFecha < fInicio) matchFecha = false;
             if (fFin !== '' && rowFecha > fFin) matchFecha = false;
 
-            const matchCat = (catFiltro === '' || rowFamilia.includes(catFiltro));
-            return matchFecha && matchCat;
+            let matchBusqueda = true;
+            if (catFiltroId !== '') {
+                matchBusqueda = rowFamilia.includes(catFiltroId);
+            } else if (textoBusqueda !== '') {
+                matchBusqueda = textoDesc.includes(textoBusqueda) || textoCat.includes(textoBusqueda);
+            }
+
+            return matchFecha && matchBusqueda;
         });
 
         const total = filasFiltradas.length;
@@ -335,7 +354,6 @@ function vincularDatalist(inputId, hiddenId) {
 }
 setTimeout(() => { vincularDatalist('input_cat_form', 'hidden_cat_id'); vincularDatalist('input_cat_excel', 'hidden_cat_excel'); vincularDatalist('inputFilterCategory', 'filterCategory'); }, 50);
 
-
 // --- FUNCIONES DEL MODAL "NUEVO/EDITAR" ---
 function abrirModalTransaccion(id = null, fecha = '', descripcion = '', monto = '', categoria_id = null) {
     document.getElementById('formTransaccion').reset();
@@ -414,12 +432,14 @@ document.getElementById('formTransaccion').addEventListener('submit', async (e) 
         if((await res.json()).success) { 
             guardarMemoriaFiltros(); 
             location.reload(); 
+        } else {
+            alert("Error al guardar.");
         }
     } catch (err) { console.error(err); }
 });
 
 function eliminarTransaccion(id) {
-    if(confirm('¿Borrar?')) fetch('controllers/TransaccionRouter.php?action=delete', { method: 'POST', body: JSON.stringify({id}), headers: {'Content-Type': 'application/json'} }).then(() => { 
+    if(confirm('¿Borrar este movimiento?')) fetch('controllers/TransaccionRouter.php?action=delete', { method: 'POST', body: JSON.stringify({id}), headers: {'Content-Type': 'application/json'} }).then(() => { 
         guardarMemoriaFiltros(); 
         location.reload(); 
     });
@@ -430,6 +450,7 @@ document.getElementById('formBorradoMasivo').addEventListener('submit', async (e
     const fInicio = document.getElementById('borrado_inicio').value;
     const fFin = document.getElementById('borrado_fin').value;
 
+    if (!fInicio || !fFin) return alert("Por favor, selecciona las dos fechas.");
     if (fInicio > fFin) return alert("La fecha 'Desde' no puede ser posterior a 'Hasta'.");
     
     if (!confirm(`¿Estás SEGURO de que quieres borrar TODOS los movimientos entre el ${fInicio} y el ${fFin}?`)) return;
@@ -451,6 +472,33 @@ document.getElementById('formBorradoMasivo').addEventListener('submit', async (e
         }
     } catch (err) { console.error(err); }
 });
+
+// --- NUEVA FUNCIÓN: BOTÓN NUCLEAR ---
+async function borrarTodoElHistorial() {
+    if (!confirm("⚠️ ¡ADVERTENCIA EXTREMA! ⚠️\n\nEstás a punto de borrar ABSOLUTAMENTE TODOS tus movimientos. Tu historial quedará a cero.\n\n¿Estás completamente seguro?")) return;
+    
+    if (prompt("Para confirmar esta acción destructiva, escribe la palabra BORRAR en mayúsculas:") !== "BORRAR") {
+        alert("Operación cancelada. Tus datos están a salvo.");
+        return;
+    }
+
+    try {
+        const res = await fetch('controllers/TransaccionRouter.php?action=deleteMasivo', {
+            method: 'POST',
+            body: JSON.stringify({ borrar_todo: true }),
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(`¡Limpieza total completada! Se han fulminado ${data.eliminados} movimientos.`);
+            guardarMemoriaFiltros(); 
+            location.reload();
+        } else {
+            alert("Hubo un error al intentar vaciar la base de datos.");
+        }
+    } catch (err) { console.error(err); }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     let defInicio = '';
