@@ -105,7 +105,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
                 </div>
             <?php endif; ?>
 
-            <form method="POST" class="space-y-6" autocomplete="off">
+            <form method="POST" class="space-y-6">
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">Nombre de Usuario</label>
                     <input type="text" name="usuario" required class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-gray-800 outline-none" placeholder="Ej: pedro123">
@@ -114,7 +114,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">Contraseña</label>
                     <div class="relative">
-                        <input type="password" name="password" id="password" required class="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all font-medium outline-none" placeholder="••••••••">
+                        <input type="password" name="password" id="password" required autocomplete="new-password" class="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all font-medium outline-none" placeholder="••••••••">
                         <button type="button" onclick="togglePassword('password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400">👁️</button>
                     </div>
                 </div>
@@ -122,7 +122,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">Confirmar Contraseña</label>
                     <div class="relative">
-                        <input type="password" name="confirm_password" id="confirm_password" required class="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all font-medium outline-none" placeholder="••••••••">
+                        <input type="password" name="confirm_password" id="confirm_password" required autocomplete="new-password" class="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all font-medium outline-none" placeholder="••••••••">
                         <button type="button" onclick="togglePassword('confirm_password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400">👁️</button>
                     </div>
                 </div>

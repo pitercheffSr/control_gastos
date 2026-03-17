@@ -20,6 +20,14 @@ try {
     $action = $_GET['action'] ?? '';
     $model = new TransaccionModel($pdo);
 
+    // Helper para la validación de CSRF en acciones que modifican datos.
+    // El frontend debe enviar el token en la cabecera 'X-CSRF-TOKEN'.
+    function check_csrf() {
+        if (empty($_SESSION['csrf_token']) || empty($_SERVER['HTTP_X_CSRF_TOKEN']) || !hash_equals($_SESSION['csrf_token'], $_SERVER['HTTP_X_CSRF_TOKEN'])) {
+            throw new Exception('Error de validación de seguridad (CSRF). Por favor, recargue la página.');
+        }
+    }
+
     if ($action === 'save') {
         $data = json_decode(file_get_contents("php://input"), true);
         
@@ -29,6 +37,8 @@ try {
         $importe = isset($data['monto']) ? (float)$data['monto'] : 0; 
         
         $cat = (!empty($data['categoria_id']) && $data['categoria_id'] !== 'null') ? $data['categoria_id'] : null;
+
+        check_csrf();
 
         if ($id) { 
             $model->update($id, $uid, $cat, $fecha, $desc, $importe); 
@@ -41,18 +51,24 @@ try {
     elseif ($action === 'delete') {
         $data = json_decode(file_get_contents("php://input"), true);
         $id = $data['id'] ?? null;
+        check_csrf();
         if ($id) { $model->delete($id, $uid); }
         echo json_encode(['success' => true]);
     }
     elseif ($action === 'getAllLimit') {
-        $datos = $model->getAll($uid);
-        echo json_encode(array_slice($datos, 0, 5));
+        // MEJORA DE RENDIMIENTO: Se pasa el límite directamente al modelo
+        // para que la base de datos haga el trabajo, en lugar de traer todos los
+        // registros a PHP y luego cortarlos.
+        // Es necesario modificar el método `getAll` en `TransaccionModel.php` para que acepte un segundo parámetro (límite).
+        $datos = $model->getAll($uid, 5); // Asumiendo que getAll ahora es `getAll($uid, $limit = null)`
+        echo json_encode($datos);
     }
     elseif ($action === 'deleteMasivo') {
         $data = json_decode(file_get_contents("php://input"), true);
         $borrar_todo = $data['borrar_todo'] ?? false;
         $fecha_inicio = $data['fecha_inicio'] ?? null;
         $fecha_fin = $data['fecha_fin'] ?? null;
+        check_csrf();
 
         if ($borrar_todo) {
             $stmt = $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ?");

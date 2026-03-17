@@ -20,6 +20,21 @@ function limpiarTexto($texto) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_FILES['archivo_csv']['error'] === UPLOAD_ERR_OK) {
     
+    // --- MEJORA DE SEGURIDAD: Validar el archivo subido ---
+    $allowed_mime_types = ['text/csv', 'application/csv', 'text/plain'];
+    $max_file_size = 5 * 1024 * 1024; // 5 MB
+
+    if (!in_array($_FILES['archivo_csv']['type'], $allowed_mime_types)) {
+        header('Location: ../transacciones.php?mensaje=ErrorTipoArchivo');
+        exit;
+    }
+
+    if ($_FILES['archivo_csv']['size'] > $max_file_size) {
+        header('Location: ../transacciones.php?mensaje=ErrorTamanoArchivo');
+        exit;
+    }
+    // --- FIN DE MEJORA DE SEGURIDAD ---
+
     $categoria_defecto = $_POST['categoria_id'] ?? null;
     if (empty($categoria_defecto)) {
         header('Location: ../transacciones.php?mensaje=ErrorSinCategoria');

@@ -53,6 +53,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Generamos un token CSRF si no existe en la sesión para proteger contra ataques
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Definimos el tiempo máximo de inactividad (15 minutos = 900 segundos)
 $timeout_duration = 900; 
 

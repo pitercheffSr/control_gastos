@@ -114,14 +114,48 @@ include 'includes/header.php';
     </div>
 </div>
 
-<script>
-// Helper para escapar HTML y prevenir XSS al renderizar desde JS
-function escapeHTML(str) {
-    const p = document.createElement('p');
-    p.textContent = str;
-    return p.innerHTML;
-}
+<!-- ========= TEMPLATES PARA JAVASCRIPT ========= -->
+<template id="kpi-widget-template">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 transition hover:shadow-md">
+        <p class="kpi-title text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"></p>
+        <p class="kpi-amount text-3xl font-extrabold"></p>
+    </div>
+</template>
 
+<template id="movimiento-reciente-template">
+    <li class="py-4 flex justify-between items-center hover:bg-gray-50 px-2 rounded transition">
+        <div class="flex items-center gap-4">
+            <div class="mov-icon w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"></div>
+            <div>
+                <p class="mov-descripcion font-bold text-gray-800 text-sm md:text-base"></p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    <span class="mov-fecha"></span> • 
+                    <span class="mov-categoria bg-gray-100 px-1.5 py-0.5 rounded border"></span>
+                </p>
+            </div>
+        </div>
+        <span class="mov-importe font-extrabold text-sm md:text-base"></span>
+    </li>
+</template>
+
+<template id="barra-progreso-template">
+    <div class="barra-container mb-4 p-4 rounded-xl border border-gray-100">
+        <div class="flex justify-between items-end mb-2">
+            <span class="barra-titulo font-bold text-gray-800 text-sm"></span>
+            <div class="text-right">
+                <span class="barra-gastado text-sm font-extrabold text-gray-900"></span>
+                <span class="barra-porcentaje text-xs text-gray-500 ml-1"></span>
+            </div>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden shadow-inner">
+            <div class="barra-progreso h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+        </div>
+        <p class="barra-mensaje text-xs"></p>
+    </div>
+</template>
+<!-- ========= FIN DE TEMPLATES ========= -->
+
+<script>
 const DIA_INICIO = <?= $dia_inicio ?>;
 // Inyectamos el mapa de categorías de PHP a JavaScript
 const categoriasArbol = <?= json_encode($categoriasArbol) ?>;
@@ -211,20 +245,27 @@ async function cargarDashboard() {
         const gastos = parseFloat(kpis.gastos) || 0;
         const balance = ingresos - gastos;
 
-        document.getElementById('widget-kpis-container').innerHTML = `
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 transition hover:shadow-md">
-                <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Ingresos</p>
-                <p class="text-3xl font-extrabold text-green-600">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 transition hover:shadow-md">
-                <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Gastos</p>
-                <p class="text-3xl font-extrabold text-red-600">${gastos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-indigo-500 transition hover:shadow-md">
-                <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Balance Total</p>
-                <p class="text-3xl font-extrabold ${balance >= 0 ? 'text-indigo-600' : 'text-red-500'}">${balance.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</p>
-            </div>
-        `;
+        const kpiContainer = document.getElementById('widget-kpis-container');
+        const kpiTemplate = document.getElementById('kpi-widget-template');
+        kpiContainer.innerHTML = ''; // Limpiamos el contenedor
+
+        const createKpiWidget = (title, amount, amountColor, borderColor) => {
+            const clone = kpiTemplate.content.cloneNode(true);
+            const widget = clone.querySelector('div');
+            widget.classList.add(borderColor);
+            
+            clone.querySelector('.kpi-title').textContent = title;
+            
+            const amountEl = clone.querySelector('.kpi-amount');
+            amountEl.textContent = `${amount.toLocaleString('es-ES', {minimumFractionDigits: 2})}€`;
+            amountEl.classList.add(amountColor);
+            
+            return clone;
+        };
+
+        kpiContainer.appendChild(createKpiWidget('Ingresos', ingresos, 'text-green-600', 'border-l-green-500'));
+        kpiContainer.appendChild(createKpiWidget('Gastos', gastos, 'text-red-600', 'border-l-red-500'));
+        kpiContainer.appendChild(createKpiWidget('Balance Total', balance, balance >= 0 ? 'text-indigo-600' : 'text-red-500', 'border-l-indigo-500'));
         
         await renderizarBarras(fInicio, fFin, ingresos, gastos);
     } catch (e) { console.error("Error en KPIs:", e); }
@@ -233,33 +274,44 @@ async function cargarDashboard() {
         const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getAllLimit`);
         const movs = await resMovs.json();
         const containerMovs = document.getElementById('lista-movimientos-recent');
+        const movTemplate = document.getElementById('movimiento-reciente-template');
+
         if (!movs || movs.length === 0 || movs.error) {
             containerMovs.innerHTML = '<p class="text-gray-500 italic text-center py-6">No hay movimientos registrados recientes.</p>'; return;
         }
 
-        let html = '<ul class="divide-y divide-gray-100">';
+        containerMovs.innerHTML = ''; // Limpiamos
+        const ul = document.createElement('ul');
+        ul.className = 'divide-y divide-gray-100';
+
         movs.forEach(m => {
+            const clone = movTemplate.content.cloneNode(true);
             const importeValue = parseFloat(m.importe) || 0; 
             const isGasto = importeValue < 0;
             const fechaParts = m.fecha.split('-');
             const fechaFormato = `${fechaParts[2]}/${fechaParts[1]}/${fechaParts[0]}`;
 
-            html += `
-                <li class="py-4 flex justify-between items-center hover:bg-gray-50 px-2 rounded transition">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${isGasto ? 'bg-red-400' : 'bg-green-400'}">${isGasto ? '▼' : '▲'}</div>
-                        <div><p class="font-bold text-gray-800 text-sm md:text-base">${escapeHTML(m.descripcion)}</p><p class="text-xs text-gray-500 mt-0.5">${fechaFormato} • <span class="bg-gray-100 px-1.5 py-0.5 rounded border">${escapeHTML(m.categoria_nombre || 'Por clasificar')}</span></p></div>
-                    </div>
-                    <span class="font-extrabold text-sm md:text-base ${isGasto ? 'text-red-500' : 'text-green-500'}">${Math.abs(importeValue).toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
-                </li>`;
+            const iconEl = clone.querySelector('.mov-icon');
+            iconEl.textContent = isGasto ? '▼' : '▲';
+            iconEl.classList.add(isGasto ? 'bg-red-400' : 'bg-green-400');
+
+            clone.querySelector('.mov-descripcion').textContent = m.descripcion;
+            clone.querySelector('.mov-fecha').textContent = fechaFormato;
+            clone.querySelector('.mov-categoria').textContent = m.categoria_nombre || 'Por clasificar';
+            
+            const importeEl = clone.querySelector('.mov-importe');
+            importeEl.textContent = `${Math.abs(importeValue).toLocaleString('es-ES', {minimumFractionDigits: 2})} €`;
+            importeEl.classList.add(isGasto ? 'text-red-500' : 'text-green-500');
+
+            ul.appendChild(clone);
         });
-        html += '</ul>';
-        containerMovs.innerHTML = html;
+        containerMovs.appendChild(ul);
     } catch(e) { console.error("Error en Movimientos:", e); }
 }
 
 async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
     const container = document.getElementById('progress-503020-container');
+    const barraTemplate = document.getElementById('barra-progreso-template');
     
     try {
         const resDist = await fetch(`controllers/DashboardRouter.php?action=getDistribucionGastos&fecha_inicio=${fInicio}&fecha_fin=${fFin}`);
@@ -286,7 +338,7 @@ async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
         let totalAsignado = gastos.necesidad + gastos.deseo + gastos.ahorro;
         gastos.gasto = Math.max(0, gastosTotalesKpi - totalAsignado);
 
-        const crearBarraHTML = (titulo, gastado, limitePct, tipo) => {
+        const crearBarraElemento = (titulo, gastado, limitePct, tipo) => {
             const porcentaje = ingresos > 0 ? (gastado / ingresos) * 100 : 0;
             const porcentajeVisual = Math.min(porcentaje, 100); 
             let colorBarra = 'bg-indigo-500', bgFondo = 'bg-gray-50', mensaje = '', txtColor = 'text-gray-500';
@@ -304,20 +356,38 @@ async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
                 else { colorBarra = 'bg-gray-200'; mensaje = '¡Todo clasificado perfectamente!'; txtColor = 'text-gray-400'; }
             }
 
-            return `
-                <div class="mb-4 p-4 rounded-xl ${bgFondo} border border-gray-100">
-                    <div class="flex justify-between items-end mb-2"><span class="font-bold text-gray-800 text-sm">${titulo}</span><div class="text-right"><span class="text-sm font-extrabold text-gray-900">${gastado.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span><span class="text-xs text-gray-500 ml-1">/ ${porcentaje.toFixed(1)}%</span></div></div>
-                    <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden shadow-inner"><div class="${colorBarra} h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: ${porcentajeVisual}%"></div></div>
-                    <p class="text-xs ${txtColor}">${mensaje}</p>
-                </div>`;
+            const clone = barraTemplate.content.cloneNode(true);
+            const containerEl = clone.querySelector('.barra-container');
+            containerEl.classList.add(bgFondo);
+
+            clone.querySelector('.barra-titulo').textContent = titulo;
+            clone.querySelector('.barra-gastado').textContent = `${gastado.toLocaleString('es-ES', {minimumFractionDigits: 2})}€`;
+            clone.querySelector('.barra-porcentaje').textContent = `/ ${porcentaje.toFixed(1)}%`;
+
+            const progresoEl = clone.querySelector('.barra-progreso');
+            progresoEl.classList.add(colorBarra);
+            requestAnimationFrame(() => {
+                progresoEl.style.width = `${porcentajeVisual}%`;
+            });
+
+            const mensajeEl = clone.querySelector('.barra-mensaje');
+            mensajeEl.textContent = mensaje;
+            mensajeEl.className = `barra-mensaje text-xs ${txtColor}`;
+
+            return clone;
         };
 
-        container.innerHTML = `
-            ${crearBarraHTML('Necesidades (Límite 50%)', gastos.necesidad, 50, 'necesidad')}
-            ${crearBarraHTML('Deseos (Límite 30%)', gastos.deseo, 30, 'deseo')}
-            ${crearBarraHTML('Ahorro e Inversión (Meta 20%)', gastos.ahorro, 20, 'ahorro')}
-            ${crearBarraHTML('Otros / Por Clasificar', gastos.gasto, 100, 'gasto')}
-            <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center"><span class="text-xs text-gray-400 uppercase tracking-wide font-bold">Base de cálculo (Ingresos)</span><span class="font-extrabold text-gray-700">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span></div>`;
+        container.innerHTML = ''; // Limpiamos
+        container.appendChild(crearBarraElemento('Necesidades (Límite 50%)', gastos.necesidad, 50, 'necesidad'));
+        container.appendChild(crearBarraElemento('Deseos (Límite 30%)', gastos.deseo, 30, 'deseo'));
+        container.appendChild(crearBarraElemento('Ahorro e Inversión (Meta 20%)', gastos.ahorro, 20, 'ahorro'));
+        container.appendChild(crearBarraElemento('Otros / Por Clasificar', gastos.gasto, 100, 'gasto'));
+        
+        const summaryEl = document.createElement('div');
+        summaryEl.className = "mt-4 pt-4 border-t border-gray-100 flex justify-between items-center";
+        summaryEl.innerHTML = `<span class="text-xs text-gray-400 uppercase tracking-wide font-bold">Base de cálculo (Ingresos)</span><span class="font-extrabold text-gray-700">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span>`;
+        container.appendChild(summaryEl);
+
     } catch(e) { console.error("Error en Barras:", e); }
 }
 
