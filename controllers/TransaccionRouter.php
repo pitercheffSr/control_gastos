@@ -1,33 +1,35 @@
 <?php
-require_once '../config.php';
-require_once '../models/TransaccionModel.php';
+// Ponemos el servidor en "modo seguro" atrapando todo lo que salga
+ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
 
-// Limpiamos cualquier espacio en blanco para no romper el JSON
-ob_clean();
 header('Content-Type: application/json');
 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { 
-    echo json_encode(['success' => false, 'error' => 'No autorizado']);
-    exit; 
-}
-
-$uid = $_SESSION['usuario_id'];
-$action = $_GET['action'] ?? '';
-$model = new TransaccionModel($pdo);
-
 try {
+    require_once '../config.php';
+    require_once '../models/TransaccionModel.php';
+
+    if (session_status() === PHP_SESSION_NONE) { session_start(); }
+    
+    if (!isset($_SESSION['usuario_id'])) { 
+        throw new Exception('No autorizado. Tu sesión puede haber caducado.');
+    }
+
+    $uid = $_SESSION['usuario_id'];
+    $action = $_GET['action'] ?? '';
+    $model = new TransaccionModel($pdo);
+
     if ($action === 'save') {
         $data = json_decode(file_get_contents("php://input"), true);
         
-        // Extraemos y saneamos los datos
         $id = !empty($data['id']) ? $data['id'] : null;
         $fecha = $data['fecha'] ?? '';
         $desc = $data['descripcion'] ?? '';
-        $importe = $data['monto'] ?? 0; // Tu JS manda 'monto', la BD usa 'importe'
-        $cat = !empty($data['categoria_id']) ? $data['categoria_id'] : null;
+        $importe = isset($data['monto']) ? (float)$data['monto'] : 0; 
+        
+        $cat = (!empty($data['categoria_id']) && $data['categoria_id'] !== 'null') ? $data['categoria_id'] : null;
 
-        // Mandamos los datos al modelo en el orden exacto
         if ($id) { 
             $model->update($id, $uid, $cat, $fecha, $desc, $importe); 
         } else { 
@@ -35,46 +37,45 @@ try {
         }
         
         echo json_encode(['success' => true]);
-        exit;
     }
-
-    if ($action === 'delete') {
+    elseif ($action === 'delete') {
         $data = json_decode(file_get_contents("php://input"), true);
         $id = $data['id'] ?? null;
         if ($id) { $model->delete($id, $uid); }
         echo json_encode(['success' => true]);
-        exit;
     }
-
-    if ($action === 'deleteMasivo') {
+    elseif ($action === 'getAllLimit') {
+        $datos = $model->getAll($uid);
+        echo json_encode(array_slice($datos, 0, 5));
+    }
+    elseif ($action === 'deleteMasivo') {
         $data = json_decode(file_get_contents("php://input"), true);
-        
-        // Comprobamos si nos mandan la orden nuclear
         $borrar_todo = $data['borrar_todo'] ?? false;
         $fecha_inicio = $data['fecha_inicio'] ?? null;
         $fecha_fin = $data['fecha_fin'] ?? null;
 
         if ($borrar_todo) {
-            // Modo Nuclear: Borramos TODO el historial del usuario
             $stmt = $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ?");
             $stmt->execute([$uid]);
-            $eliminados = $stmt->rowCount(); 
-            echo json_encode(['success' => true, 'eliminados' => $eliminados]);
+            echo json_encode(['success' => true, 'eliminados' => $stmt->rowCount()]);
         } elseif ($fecha_inicio && $fecha_fin) {
-            // Modo Rango: Borramos solo entre dos fechas
             $stmt = $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ? AND fecha >= ? AND fecha <= ?");
             $stmt->execute([$uid, $fecha_inicio, $fecha_fin]);
-            $eliminados = $stmt->rowCount(); 
-            echo json_encode(['success' => true, 'eliminados' => $eliminados]);
+            echo json_encode(['success' => true, 'eliminados' => $stmt->rowCount()]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Fechas o parámetros no válidos']);
+            throw new Exception('Fechas no válidas');
         }
-        exit;
+    } else {
+        throw new Exception('Acción no reconocida');
     }
 
-    echo json_encode(['success' => false, 'error' => 'Acción no reconocida']);
-
-} catch (Exception $e) {
+} catch (\Throwable $e) {
+    // Limpiamos cualquier basura y enviamos el error real en formato JSON limpio
+    ob_end_clean();
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    exit;
 }
+
+ob_end_flush();
 ?>

@@ -1,14 +1,39 @@
 <?php 
 require_once 'config.php';
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { header('Location: index.php'); exit; }
+// La sesión ya se inicia y se comprueba en config.php
+if (!isset($_SESSION['usuario_id'])) { redirect('login.php'); }
 
 $uid = $_SESSION['usuario_id'];
 
-$stmtUser = $pdo->prepare("SELECT dia_inicio_mes FROM usuarios WHERE id = ?");
+$stmtUser = $pdo->prepare("SELECT dia_inicio_mes, fecha_borrado FROM usuarios WHERE id = ?");
 $stmtUser->execute([$uid]);
 $uData = $stmtUser->fetch();
 $dia_inicio = $uData ? (int)$uData['dia_inicio_mes'] : 1;
+
+$fecha_borrado_str = '...';
+if ($uData && !empty($uData['fecha_borrado'])) {
+    $fecha_borrado_str = date('d/m/Y', strtotime($uData['fecha_borrado']));
+}
+
+$stmtMeses = $pdo->prepare("
+    SELECT DISTINCT DATE_FORMAT(fecha, '%Y-%m') as mes_val 
+    FROM transacciones 
+    WHERE usuario_id = ? 
+    ORDER BY mes_val DESC
+");
+$stmtMeses->execute([$uid]);
+$mesesDisponibles = $stmtMeses->fetchAll(PDO::FETCH_ASSOC);
+
+// NUEVO: Extraemos el árbol completo de categorías para dárselo a los gráficos
+$stmtCats = $pdo->prepare("SELECT id, nombre, parent_id FROM categorias WHERE usuario_id = ?");
+$stmtCats->execute([$uid]);
+$categoriasArbol = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
+
+$nombresMeses = [
+    '01' => 'Enero', '02' => 'Febrero', '03' => 'Marzo', '04' => 'Abril',
+    '05' => 'Mayo', '06' => 'Junio', '07' => 'Julio', '08' => 'Agosto',
+    '09' => 'Septiembre', '10' => 'Octubre', '11' => 'Noviembre', '12' => 'Diciembre'
+];
 
 include 'includes/header.php'; 
 ?>
@@ -29,7 +54,15 @@ include 'includes/header.php';
             <div class="bg-white p-2 rounded-xl border shadow-sm flex flex-wrap items-center gap-3 w-full md:w-auto">
                 <div class="flex items-center gap-2 border-r border-gray-200 pr-3">
                     <span class="text-sm font-bold text-gray-600 pl-2">Mes Contable:</span>
-                    <input type="month" id="dashboardMesContable" onchange="aplicarMesContable()" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
+                    <select id="dashboardMesContable" onchange="aplicarMesContable()" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
+                        <option value="">Seleccionar...</option>
+                        <?php foreach($mesesDisponibles as $m): 
+                            $partes = explode('-', $m['mes_val']);
+                            $nombreMostrar = $nombresMeses[$partes[1]] . ' ' . $partes[0];
+                        ?>
+                            <option value="<?= $m['mes_val'] ?>"><?= $nombreMostrar ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 
                 <div class="flex items-center gap-2 pl-1">
@@ -47,19 +80,12 @@ include 'includes/header.php';
             </div>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl flex items-start gap-4">
-                <div class="bg-blue-100 p-2.5 rounded-xl text-blue-600 mt-0.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg></div>
-                <div>
-                    <h3 class="text-blue-800 font-bold">Importación desde Excel</h3>
-                    <p class="text-blue-600/80 text-sm mt-1 leading-relaxed">Próximamente podrás importar tu historial bancario directamente. <strong class="text-blue-700">Admitirá un máximo de 3 meses de antigüedad</strong>.</p>
-                </div>
-            </div>
+        <div class="mb-8">
             <div class="bg-orange-50/50 border border-orange-100 p-5 rounded-2xl flex items-start gap-4 relative overflow-hidden">
                 <div class="bg-orange-100 p-2.5 rounded-xl text-orange-600 mt-0.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
                 <div>
                     <h3 class="text-orange-800 font-bold">Privacidad Temporal</h3>
-                    <p class="text-orange-600/80 text-sm mt-1 leading-relaxed">Tu cuenta y tus datos se eliminarán de forma irreversible el <strong><?= $fecha_borrado_str ?? '...'; ?></strong> (4 meses de retención máxima).</p>
+                    <p class="text-orange-600/80 text-sm mt-1 leading-relaxed">Tu cuenta y tus datos se eliminarán de forma irreversible el <strong><?= $fecha_borrado_str ?></strong> (4 meses de retención máxima).</p>
                 </div>
             </div>
         </div>
@@ -89,7 +115,34 @@ include 'includes/header.php';
 </div>
 
 <script>
+// Helper para escapar HTML y prevenir XSS al renderizar desde JS
+function escapeHTML(str) {
+    const p = document.createElement('p');
+    p.textContent = str;
+    return p.innerHTML;
+}
+
 const DIA_INICIO = <?= $dia_inicio ?>;
+// Inyectamos el mapa de categorías de PHP a JavaScript
+const categoriasArbol = <?= json_encode($categoriasArbol) ?>;
+
+// MAGIA: Esta función trepa por el árbol hasta decirnos si es Necesidad, Deseo o Ahorro
+function getRootCategoryName(catId) {
+    if (!catId) return '';
+    let currentId = catId;
+    let rootName = '';
+    let loop = 0; // Seguridad anti-cuelgues
+    
+    while(loop < 20) {
+        const cat = categoriasArbol.find(c => c.id == currentId);
+        if (!cat) break;
+        rootName = cat.nombre; 
+        if (!cat.parent_id) break; // Hemos llegado a la categoría reina (la raíz)
+        currentId = cat.parent_id; 
+        loop++;
+    }
+    return rootName.toLowerCase();
+}
 
 function alCambiarFechaManualDashboard() {
     document.getElementById('dashboardMesContable').value = '';
@@ -98,53 +151,56 @@ function alCambiarFechaManualDashboard() {
 
 function limpiarFiltrosDashboard() {
     document.getElementById('dashboardMesContable').value = '';
-    
     const hoy = new Date();
-    const year = hoy.getFullYear();
-    const month = (hoy.getMonth() + 1).toString().padStart(2, '0');
-    const lastDay = new Date(year, hoy.getMonth() + 1, 0).getDate().toString().padStart(2, '0');
-    
-    document.getElementById('dashboardFechaInicio').value = `${year}-${month}-01`;
-    document.getElementById('dashboardFechaFin').value = `${year}-${month}-${lastDay}`;
-    
+    let y = hoy.getFullYear(); let m = hoy.getMonth() + 1; let d = hoy.getDate();
+    let fInicio, fFin;
+
+    if (DIA_INICIO === 1) {
+        fInicio = `${y}-${m.toString().padStart(2, '0')}-01`;
+        let lastDay = new Date(y, m, 0).getDate();
+        fFin = `${y}-${m.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+    } else {
+        let currentPeriodMonth = m; let currentPeriodYear = y;
+        if (d < DIA_INICIO) {
+            currentPeriodMonth--;
+            if (currentPeriodMonth === 0) { currentPeriodMonth = 12; currentPeriodYear--; }
+        }
+        fInicio = `${currentPeriodYear}-${currentPeriodMonth.toString().padStart(2, '0')}-${DIA_INICIO.toString().padStart(2, '0')}`;
+        let nextMonth = currentPeriodMonth + 1; let nextYear = currentPeriodYear;
+        if (nextMonth === 13) { nextMonth = 1; nextYear++; }
+        let dFin = new Date(nextYear, nextMonth - 1, DIA_INICIO - 1);
+        fFin = `${dFin.getFullYear()}-${(dFin.getMonth() + 1).toString().padStart(2, '0')}-${dFin.getDate().toString().padStart(2, '0')}`;
+    }
+    document.getElementById('dashboardFechaInicio').value = fInicio; document.getElementById('dashboardFechaFin').value = fFin;
     cargarDashboard();
 }
 
 function aplicarMesContable() {
     const mesVal = document.getElementById('dashboardMesContable').value;
     if (!mesVal) return;
-    
     const [yearStr, monthStr] = mesVal.split('-');
-    let year = parseInt(yearStr);
-    let month = parseInt(monthStr);
-
+    let year = parseInt(yearStr); let month = parseInt(monthStr);
     let fInicio, fFin;
+
     if (DIA_INICIO === 1) {
         fInicio = `${year}-${monthStr}-01`;
         let lastDay = new Date(year, month, 0).getDate();
         fFin = `${year}-${monthStr}-${lastDay.toString().padStart(2, '0')}`;
     } else {
-        let prevMonth = month - 1;
-        let prevYear = year;
+        let prevMonth = month - 1; let prevYear = year;
         if (prevMonth === 0) { prevMonth = 12; prevYear--; }
-        
         fInicio = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${DIA_INICIO.toString().padStart(2, '0')}`;
-        
         let dFin = new Date(year, month - 1, DIA_INICIO - 1);
-        let finM = (dFin.getMonth() + 1).toString().padStart(2, '0');
-        let finD = dFin.getDate().toString().padStart(2, '0');
+        let finM = (dFin.getMonth() + 1).toString().padStart(2, '0'); let finD = dFin.getDate().toString().padStart(2, '0');
         fFin = `${dFin.getFullYear()}-${finM}-${finD}`;
     }
-
-    document.getElementById('dashboardFechaInicio').value = fInicio;
-    document.getElementById('dashboardFechaFin').value = fFin;
+    document.getElementById('dashboardFechaInicio').value = fInicio; document.getElementById('dashboardFechaFin').value = fFin;
     cargarDashboard();
 }
 
 async function cargarDashboard() {
     const fInicio = document.getElementById('dashboardFechaInicio').value;
     const fFin = document.getElementById('dashboardFechaFin').value;
-    
     if(!fInicio || !fFin) return;
     if(fInicio > fFin) { alert("La fecha 'Desde' no puede ser mayor que 'Hasta'."); return; }
 
@@ -170,7 +226,7 @@ async function cargarDashboard() {
             </div>
         `;
         
-        await renderizarBarras(fInicio, fFin, ingresos);
+        await renderizarBarras(fInicio, fFin, ingresos, gastos);
     } catch (e) { console.error("Error en KPIs:", e); }
 
     try {
@@ -192,9 +248,9 @@ async function cargarDashboard() {
                 <li class="py-4 flex justify-between items-center hover:bg-gray-50 px-2 rounded transition">
                     <div class="flex items-center gap-4">
                         <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${isGasto ? 'bg-red-400' : 'bg-green-400'}">${isGasto ? '▼' : '▲'}</div>
-                        <div><p class="font-bold text-gray-800 text-sm md:text-base">${m.descripcion}</p><p class="text-xs text-gray-500 mt-0.5">${fechaFormato} • <span class="bg-gray-100 px-1.5 py-0.5 rounded border">${m.categoria_nombre || 'Sin categoría'}</span></p></div>
+                        <div><p class="font-bold text-gray-800 text-sm md:text-base">${escapeHTML(m.descripcion)}</p><p class="text-xs text-gray-500 mt-0.5">${fechaFormato} • <span class="bg-gray-100 px-1.5 py-0.5 rounded border">${escapeHTML(m.categoria_nombre || 'Por clasificar')}</span></p></div>
                     </div>
-                    <span class="font-extrabold text-sm md:text-base ${isGasto ? 'text-red-500' : 'text-green-500'}">${importeValue.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span>
+                    <span class="font-extrabold text-sm md:text-base ${isGasto ? 'text-red-500' : 'text-green-500'}">${Math.abs(importeValue).toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
                 </li>`;
         });
         html += '</ul>';
@@ -202,20 +258,33 @@ async function cargarDashboard() {
     } catch(e) { console.error("Error en Movimientos:", e); }
 }
 
-async function renderizarBarras(fInicio, fFin, ingresos) {
+async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
     const container = document.getElementById('progress-503020-container');
     
     try {
         const resDist = await fetch(`controllers/DashboardRouter.php?action=getDistribucionGastos&fecha_inicio=${fInicio}&fecha_fin=${fFin}`);
         const distribucion = await resDist.json();
         
-        // Obtenemos los gastos estricta y puramente de la base de datos
-        let gastos = { necesidad: 0, deseo: 0, ahorro: 0 };
+        let gastos = { necesidad: 0, deseo: 0, ahorro: 0, gasto: 0 };
+        
         if (Array.isArray(distribucion)) { 
             distribucion.forEach(d => { 
-                if(gastos[d.tipo] !== undefined) gastos[d.tipo] = parseFloat(d.total) || 0; 
+                // Ahora usamos la magia de trepar por el árbol
+                const rootName = getRootCategoryName(d.categoria_id);
+                
+                if (rootName.includes('necesidad') || rootName === 'necesidades') {
+                    gastos.necesidad += parseFloat(d.total) || 0;
+                } else if (rootName.includes('deseo') || rootName === 'deseos') {
+                    gastos.deseo += parseFloat(d.total) || 0;
+                } else if (rootName.includes('ahorro') || rootName.includes('inversion') || rootName.includes('inversión')) {
+                    gastos.ahorro += parseFloat(d.total) || 0;
+                }
             }); 
         }
+
+        // Restamos lo que ya sabemos al Gasto Total
+        let totalAsignado = gastos.necesidad + gastos.deseo + gastos.ahorro;
+        gastos.gasto = Math.max(0, gastosTotalesKpi - totalAsignado);
 
         const crearBarraHTML = (titulo, gastado, limitePct, tipo) => {
             const porcentaje = ingresos > 0 ? (gastado / ingresos) * 100 : 0;
@@ -230,6 +299,9 @@ async function renderizarBarras(fInicio, fFin, ingresos) {
                 if (porcentaje >= limitePct && ingresos > 0) { colorBarra = 'bg-indigo-500'; mensaje = '¡Meta alcanzada!'; txtColor = 'text-indigo-600 font-bold'; } 
                 else if (ingresos > 0) { colorBarra = 'bg-yellow-400'; mensaje = `Aún falta para el ${limitePct}%.`; txtColor = 'text-yellow-600 font-semibold'; }
                 else { colorBarra = 'bg-gray-300'; mensaje = 'Sin ingresos registrados.'; txtColor = 'text-gray-400'; }
+            } else if (tipo === 'gasto') {
+                if (gastado > 0) { colorBarra = 'bg-gray-400'; bgFondo = 'bg-gray-100'; mensaje = 'Gastos pendientes de asignar a una categoría correcta.'; txtColor = 'text-gray-600 font-bold'; }
+                else { colorBarra = 'bg-gray-200'; mensaje = '¡Todo clasificado perfectamente!'; txtColor = 'text-gray-400'; }
             }
 
             return `
@@ -244,7 +316,8 @@ async function renderizarBarras(fInicio, fFin, ingresos) {
             ${crearBarraHTML('Necesidades (Límite 50%)', gastos.necesidad, 50, 'necesidad')}
             ${crearBarraHTML('Deseos (Límite 30%)', gastos.deseo, 30, 'deseo')}
             ${crearBarraHTML('Ahorro e Inversión (Meta 20%)', gastos.ahorro, 20, 'ahorro')}
-            <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center"><span class="text-xs text-gray-400 uppercase tracking-wide font-bold">Base de cálculo</span><span class="font-extrabold text-gray-700">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span></div>`;
+            ${crearBarraHTML('Otros / Por Clasificar', gastos.gasto, 100, 'gasto')}
+            <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center"><span class="text-xs text-gray-400 uppercase tracking-wide font-bold">Base de cálculo (Ingresos)</span><span class="font-extrabold text-gray-700">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span></div>`;
     } catch(e) { console.error("Error en Barras:", e); }
 }
 

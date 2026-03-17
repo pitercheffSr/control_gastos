@@ -1,7 +1,7 @@
 <?php 
 require_once 'config.php';
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { header('Location: index.php'); exit; }
+// La sesión ya se inicia y se comprueba en config.php
+if (!isset($_SESSION['usuario_id'])) { redirect('index.php'); }
 
 $uid = $_SESSION['usuario_id'];
 $mensaje = '';

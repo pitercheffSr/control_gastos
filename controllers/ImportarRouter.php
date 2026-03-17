@@ -38,103 +38,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv']) && $_
         $insertados = 0;
         $omitidos = 0;
 
-        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM transacciones WHERE usuario_id = ? AND fecha = ? AND importe = ? AND descripcion = ?");
-        $stmtInsert = $pdo->prepare("INSERT INTO transacciones (usuario_id, categoria_id, fecha, descripcion, importe) VALUES (?, ?, ?, ?, ?)");
+        try {
+            $pdo->beginTransaction();
 
-        $bloqueActual = 'DESCONOCIDO';
+            $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM transacciones WHERE usuario_id = ? AND fecha = ? AND importe = ? AND descripcion = ?");
+            $stmtInsert = $pdo->prepare("INSERT INTO transacciones (usuario_id, categoria_id, fecha, descripcion, importe) VALUES (?, ?, ?, ?, ?)");
 
-        while (($datos = fgetcsv($handle, 1000, $delimitador)) !== FALSE) {
-            
-            // Detector de cabeceras
-            if (count($datos) >= 3 && $datos[0] === 'Fecha' && strpos($datos[1], 'Descripci') !== false) {
-                $bloqueActual = 'PENDIENTES';
-                continue;
-            } else if (count($datos) >= 4 && $datos[0] === 'Fecha contable' && strpos($datos[2], 'Descripci') !== false) {
-                $bloqueActual = 'CONSOLIDADOS';
-                continue;
-            }
+            $bloqueActual = 'DESCONOCIDO';
 
-            if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', trim($datos[0]))) {
-                $fecha_raw = trim($datos[0]);
+            while (($datos = fgetcsv($handle, 1000, $delimitador)) !== FALSE) {
                 
-                if ($bloqueActual === 'PENDIENTES') {
-                    $concepto = trim($datos[1]);
-                    $importe_raw = trim($datos[2]);
-                } else if ($bloqueActual === 'CONSOLIDADOS') {
-                    $concepto = trim($datos[2]);
-                    $importe_raw = trim($datos[3]);
-                } else {
-                    $concepto = trim($datos[1]);
-                    $importe_raw = trim($datos[2]);
+                // Detector de cabeceras
+                if (count($datos) >= 3 && $datos[0] === 'Fecha' && strpos($datos[1], 'Descripci') !== false) {
+                    $bloqueActual = 'PENDIENTES';
+                    continue;
+                } else if (count($datos) >= 4 && $datos[0] === 'Fecha contable' && strpos($datos[2], 'Descripci') !== false) {
+                    $bloqueActual = 'CONSOLIDADOS';
+                    continue;
                 }
 
-                if(empty($concepto)) {
-                    $concepto = "Movimiento bancario";
-                }
+                if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', trim($datos[0]))) {
+                    $fecha_raw = trim($datos[0]);
+                    
+                    if ($bloqueActual === 'PENDIENTES') {
+                        $concepto = trim($datos[1]);
+                        $importe_raw = trim($datos[2]);
+                    } else if ($bloqueActual === 'CONSOLIDADOS') {
+                        $concepto = trim($datos[2]);
+                        $importe_raw = trim($datos[3]);
+                    } else {
+                        $concepto = trim($datos[1]);
+                        $importe_raw = trim($datos[2]);
+                    }
 
-                $partes_fecha = explode('/', $fecha_raw);
-                $fecha = $partes_fecha[2] . '-' . $partes_fecha[1] . '-' . $partes_fecha[0];
+                    if(empty($concepto)) {
+                        $concepto = "Movimiento bancario";
+                    }
 
-                $importe_str = str_replace('.', '', $importe_raw);
-                $importe_str = str_replace(',', '.', $importe_str);
-                $importe = (float) $importe_str;
-                
-                $stmtCheck->execute([$uid, $fecha, $importe, $concepto]);
-                if ($stmtCheck->fetchColumn() > 0) {
-                    $omitidos++;
-                    continue; 
-                }
+                    $partes_fecha = explode('/', $fecha_raw);
+                    $fecha = $partes_fecha[2] . '-' . $partes_fecha[1] . '-' . $partes_fecha[0];
 
-                // --- LA NUEVA MAGIA: BÚSQUEDA POR PALABRAS EXACTAS ---
-                $categoria_final = $categoria_defecto; 
-                $conceptoLimpio = limpiarTexto($concepto);
+                    $importe_str = str_replace('.', '', $importe_raw);
+                    $importe_str = str_replace(',', '.', $importe_str);
+                    $importe = (float) $importe_str;
+                    
+                    $stmtCheck->execute([$uid, $fecha, $importe, $concepto]);
+                    if ($stmtCheck->fetchColumn() > 0) {
+                        $omitidos++;
+                        continue; 
+                    }
 
-                foreach ($categoriasUsuario as $cat) {
-                    $nombreCat = $cat['nombre'];
-                    $encontrado = false;
+                    // --- LA NUEVA MAGIA: BÚSQUEDA POR PALABRAS EXACTAS ---
+                    $categoria_final = $categoria_defecto; 
+                    $conceptoLimpio = limpiarTexto($concepto);
 
-                    if (preg_match('/\((.*?)\)/', $nombreCat, $coincidencias)) {
-                        $palabrasClave = explode(',', $coincidencias[1]);
-                        
-                        foreach ($palabrasClave as $palabra) {
-                            $palabraLimpia = limpiarTexto($palabra);
-                            if (!empty($palabraLimpia)) {
-                                // Expresión regular: busca la palabra EXACTA aislada por espacios o símbolos
-                                $patron = '/(^|[^a-z0-9])' . preg_quote($palabraLimpia, '/') . '([^a-z0-9]|$)/i';
-                                if (preg_match($patron, $conceptoLimpio)) {
-                                    $encontrado = true;
-                                    break; 
+                    foreach ($categoriasUsuario as $cat) {
+                        $nombreCat = $cat['nombre'];
+                        $encontrado = false;
+
+                        if (preg_match('/\((.*?)\)/', $nombreCat, $coincidencias)) {
+                            $palabrasClave = explode(',', $coincidencias[1]);
+                            
+                            foreach ($palabrasClave as $palabra) {
+                                $palabraLimpia = limpiarTexto($palabra);
+                                if (!empty($palabraLimpia)) {
+                                    $patron = '/(^|[^a-z0-9])' . preg_quote($palabraLimpia, '/') . '([^a-z0-9]|$)/i';
+                                    if (preg_match($patron, $conceptoLimpio)) {
+                                        $encontrado = true;
+                                        break; 
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    if (!$encontrado) {
-                        $nombreBase = trim(preg_replace('/\((.*?)\)/', '', $nombreCat));
-                        $nombreBaseLimpio = limpiarTexto($nombreBase);
-                        
-                        if (!empty($nombreBaseLimpio)) {
-                            // Expresión regular: busca la palabra EXACTA aislada por espacios o símbolos
-                            $patron = '/(^|[^a-z0-9])' . preg_quote($nombreBaseLimpio, '/') . '([^a-z0-9]|$)/i';
-                            if (preg_match($patron, $conceptoLimpio)) {
-                                $encontrado = true;
+                        if (!$encontrado) {
+                            $nombreBase = trim(preg_replace('/\((.*?)\)/', '', $nombreCat));
+                            $nombreBaseLimpio = limpiarTexto($nombreBase);
+                            if (!empty($nombreBaseLimpio)) {
+                                $patron = '/(^|[^a-z0-9])' . preg_quote($nombreBaseLimpio, '/') . '([^a-z0-9]|$)/i';
+                                if (preg_match($patron, $conceptoLimpio)) {
+                                    $encontrado = true;
+                                }
                             }
+                        }
+
+                        if ($encontrado) {
+                            $categoria_final = $cat['id'];
+                            break;
                         }
                     }
 
-                    if ($encontrado) {
-                        $categoria_final = $cat['id'];
-                        break;
-                    }
+                    $stmtInsert->execute([$uid, $categoria_final, $fecha, $concepto, $importe]);
+                    $insertados++;
                 }
-
-                $stmtInsert->execute([$uid, $categoria_final, $fecha, $concepto, $importe]);
-                $insertados++;
             }
+            $pdo->commit();
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            // Podrías redirigir a una página de error o registrar el error
+            // error_log("Error en importación CSV: " . $e->getMessage());
+            header('Location: ../transacciones.php?mensaje=ErrorImportacion');
+            exit;
         }
         
         fclose($handle);
-        
         header('Location: ../transacciones.php?importados=' . $insertados . '&omitidos=' . $omitidos);
         exit;
     } else {

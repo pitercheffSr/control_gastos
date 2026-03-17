@@ -1,9 +1,7 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once 'config.php';
 
-// Destruimos todas las variables de sesión
+// Destruimos todas las variables de sesión.
 $_SESSION = array();
 
 // Si se desea destruir la sesión completamente, borramos también la cookie de sesión
@@ -15,9 +13,8 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-// Destruimos la sesión en el servidor
+// Finalmente, destruimos la sesión.
 session_destroy();
 
 // Redirigimos de vuelta a la pantalla de login
-header("Location: index.php");
-exit;
+redirect("index.php");

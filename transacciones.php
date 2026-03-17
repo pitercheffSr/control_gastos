@@ -3,8 +3,8 @@ require_once 'config.php';
 require_once 'models/TransaccionModel.php';
 require_once 'models/CategoriaModel.php';
 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { header('Location: index.php'); exit; }
+// La sesión ya se inicia y se comprueba en config.php
+if (!isset($_SESSION['usuario_id'])) { redirect('login.php'); }
 
 $uid = $_SESSION['usuario_id'];
 $model = new TransaccionModel($pdo);
@@ -21,6 +21,22 @@ $stmtUser = $pdo->prepare("SELECT dia_inicio_mes FROM usuarios WHERE id = ?");
 $stmtUser->execute([$uid]);
 $uData = $stmtUser->fetch();
 $dia_inicio = $uData ? (int)$uData['dia_inicio_mes'] : 1;
+
+// NUEVO: Buscamos los meses en los que hay movimientos para el selector inteligente
+$stmtMeses = $pdo->prepare("
+    SELECT DISTINCT DATE_FORMAT(fecha, '%Y-%m') as mes_val 
+    FROM transacciones 
+    WHERE usuario_id = ? 
+    ORDER BY mes_val DESC
+");
+$stmtMeses->execute([$uid]);
+$mesesDisponibles = $stmtMeses->fetchAll(PDO::FETCH_ASSOC);
+
+$nombresMeses = [
+    '01' => 'Enero', '02' => 'Febrero', '03' => 'Marzo', '04' => 'Abril',
+    '05' => 'Mayo', '06' => 'Junio', '07' => 'Julio', '08' => 'Agosto',
+    '09' => 'Septiembre', '10' => 'Octubre', '11' => 'Noviembre', '12' => 'Diciembre'
+];
 
 function getFamiliaCategorias($id, $jerarquia) {
     if (!$id) return '';
@@ -64,7 +80,15 @@ include 'includes/header.php';
     <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 mb-6 flex flex-wrap gap-4 items-end">
         <div>
             <label class="block text-sm font-bold mb-1 text-gray-700">Mes Contable</label>
-            <input type="month" id="filterMesContable" onchange="aplicarMesContable()" class="border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-200 outline-none transition font-bold text-indigo-600 cursor-pointer">
+            <select id="filterMesContable" onchange="aplicarMesContable()" class="w-full min-w-[160px] border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-200 outline-none transition font-bold text-indigo-600 cursor-pointer bg-white">
+                <option value="">Seleccionar...</option>
+                <?php foreach($mesesDisponibles as $m): 
+                    $partes = explode('-', $m['mes_val']);
+                    $nombreMostrar = $nombresMeses[$partes[1]] . ' ' . $partes[0];
+                ?>
+                    <option value="<?= $m['mes_val'] ?>"><?= $nombreMostrar ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
 
         <div>
@@ -110,10 +134,14 @@ include 'includes/header.php';
                     <tr class="transaccion-row" data-fecha="<?= $t['fecha'] ?>" data-familia="<?= $familiaStr ?>">
                         <td class="p-4 text-gray-600 text-sm font-medium"><?= date('d/m/Y', strtotime($t['fecha'])) ?></td>
                         <td class="p-4 font-bold text-gray-800"><?= htmlspecialchars($t['descripcion']) ?></td>
-                        <td class="p-4"><span class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-bold border border-gray-200"><?= htmlspecialchars($t['categoria_nombre'] ?? 'Sin categoría') ?></span></td>
-                        <td class="p-4 text-right font-extrabold <?= $importe < 0 ? 'text-red-500' : 'text-green-500' ?>"><?= number_format($importe, 2, ',', '.') ?>€</td>
+                        <td class="p-4"><span class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-bold border border-gray-200"><?= htmlspecialchars($t['categoria_nombre'] ?? 'Por clasificar') ?></span></td>
+                        <td class="p-4 text-right font-extrabold <?= $importe < 0 ? 'text-red-500' : 'text-green-500' ?>"><?= number_format($importe, 2, ',', '.') ?> €</td>
                         <td class="p-4 text-center">
-                            <button onclick="abrirModalTransaccion(<?= $t['id'] ?>, '<?= $t['fecha'] ?>', '<?= htmlspecialchars(addslashes($t['descripcion'])) ?>', <?= $importe ?>, <?= $t['categoria_id'] ?? 'null' ?>)" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
+                            <?php
+                                $descripcionEscapada = htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8');
+                                $categoriaId = $t['categoria_id'] ?? '';
+                            ?>
+                            <button onclick="abrirModalTransaccion(<?= $t['id'] ?>, '<?= $t['fecha'] ?>', '<?= $descripcionEscapada ?>', <?= $importe ?>, '<?= $categoriaId ?>')" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
                             <button onclick="eliminarTransaccion(<?= $t['id'] ?>)" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                         </td>
                     </tr>
@@ -208,8 +236,45 @@ function limpiarFiltrosTransacciones() {
     document.getElementById('filterMesContable').value = '';
     document.getElementById('inputFilterCategory').value = '';
     document.getElementById('filterCategory').value = '';
-    document.getElementById('filterFechaInicio').value = '';
-    document.getElementById('filterFechaFin').value = '';
+    
+    // Cálculo automático del periodo en curso según DIA_INICIO (como en el Dashboard)
+    const hoy = new Date();
+    let y = hoy.getFullYear();
+    let m = hoy.getMonth() + 1; 
+    let d = hoy.getDate();
+
+    let fInicio, fFin;
+
+    if (DIA_INICIO === 1) {
+        fInicio = `${y}-${m.toString().padStart(2, '0')}-01`;
+        let lastDay = new Date(y, m, 0).getDate();
+        fFin = `${y}-${m.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+    } else {
+        let currentPeriodMonth = m;
+        let currentPeriodYear = y;
+
+        if (d < DIA_INICIO) {
+            currentPeriodMonth--;
+            if (currentPeriodMonth === 0) {
+                currentPeriodMonth = 12;
+                currentPeriodYear--;
+            }
+        }
+
+        fInicio = `${currentPeriodYear}-${currentPeriodMonth.toString().padStart(2, '0')}-${DIA_INICIO.toString().padStart(2, '0')}`;
+
+        let nextMonth = currentPeriodMonth + 1;
+        let nextYear = currentPeriodYear;
+        if (nextMonth === 13) {
+            nextMonth = 1;
+            nextYear++;
+        }
+        let dFin = new Date(nextYear, nextMonth - 1, DIA_INICIO - 1);
+        fFin = `${dFin.getFullYear()}-${(dFin.getMonth() + 1).toString().padStart(2, '0')}-${dFin.getDate().toString().padStart(2, '0')}`;
+    }
+
+    document.getElementById('filterFechaInicio').value = fInicio;
+    document.getElementById('filterFechaFin').value = fFin;
     resetPaginaYFiltrar();
 }
 
@@ -230,7 +295,9 @@ function aplicarMesContable() {
         let prevMonth = month - 1;
         let prevYear = year;
         if (prevMonth === 0) { prevMonth = 12; prevYear--; }
+        
         fInicio = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${DIA_INICIO.toString().padStart(2, '0')}`;
+        
         let dFin = new Date(year, month - 1, DIA_INICIO - 1);
         let finM = (dFin.getMonth() + 1).toString().padStart(2, '0');
         let finD = dFin.getDate().toString().padStart(2, '0');
@@ -347,7 +414,10 @@ function vincularDatalist(inputId, hiddenId) {
         const hiddenInput = document.getElementById(hiddenId);
         hiddenInput.value = "";
         Array.from(list.options).forEach(opt => {
-            if (opt.value === this.value) { hiddenInput.value = opt.getAttribute('data-id'); hiddenInput.setAttribute('data-tipo', opt.getAttribute('data-tipo')); }
+            if (opt.value === this.value) { 
+                hiddenInput.value = opt.getAttribute('data-id'); 
+                hiddenInput.setAttribute('data-tipo', opt.getAttribute('data-tipo')); 
+            }
         });
         if(inputId === 'inputFilterCategory') resetPaginaYFiltrar();
     });
@@ -355,18 +425,31 @@ function vincularDatalist(inputId, hiddenId) {
 setTimeout(() => { vincularDatalist('input_cat_form', 'hidden_cat_id'); vincularDatalist('input_cat_excel', 'hidden_cat_excel'); vincularDatalist('inputFilterCategory', 'filterCategory'); }, 50);
 
 // --- FUNCIONES DEL MODAL "NUEVO/EDITAR" ---
-function abrirModalTransaccion(id = null, fecha = '', descripcion = '', monto = '', categoria_id = null) {
+function abrirModalTransaccion(id = null, fecha = '', descripcion = '', monto = '', categoria_id = '') {
     document.getElementById('formTransaccion').reset();
     document.getElementById('transaccion_id').value = id || '';
+    
+    document.getElementById('hidden_cat_id').value = '';
+    document.getElementById('input_cat_form').value = '';
+    
     if (id) {
         document.getElementById('fecha').value = fecha;
         document.getElementById('descripcion').value = descripcion;
         document.getElementById('monto').value = Math.abs(parseFloat(monto));
-        document.getElementById('hidden_cat_id').value = categoria_id;
-        Array.from(document.getElementById('listaSugerencias').options).forEach(opt => {
-            if(opt.getAttribute('data-id') == categoria_id) document.getElementById('input_cat_form').value = opt.value;
-        });
-    } else { document.getElementById('fecha').value = new Date().toISOString().split('T')[0]; }
+        
+        if (categoria_id && categoria_id !== 'null') {
+            document.getElementById('hidden_cat_id').value = categoria_id;
+            Array.from(document.getElementById('listaSugerencias').options).forEach(opt => {
+                if(opt.getAttribute('data-id') == categoria_id) {
+                    document.getElementById('input_cat_form').value = opt.value;
+                    document.getElementById('hidden_cat_id').setAttribute('data-tipo', opt.getAttribute('data-tipo'));
+                }
+            });
+        }
+    } else { 
+        document.getElementById('fecha').value = new Date().toISOString().split('T')[0]; 
+    }
+    
     document.getElementById('modalTransaccion').classList.remove('hidden');
     setTimeout(() => { document.getElementById('modalTransaccionContent').classList.add('scale-100', 'opacity-100'); }, 10);
 }
@@ -421,21 +504,50 @@ function guardarMemoriaFiltros() {
 // --- ENVÍO DE FORMULARIOS AL BACKEND ---
 document.getElementById('formTransaccion').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const catId = document.getElementById('hidden_cat_id').value;
-    if(!catId) return alert("Selecciona una categoría válida.");
+    
+    let catId = document.getElementById('hidden_cat_id').value;
+    const inputText = document.getElementById('input_cat_form').value.toLowerCase().trim();
+    
+    if ((!catId || catId === 'null') && inputText !== '') {
+        const list = document.getElementById('listaSugerencias');
+        const matchedOption = Array.from(list.options).find(opt => opt.value.toLowerCase().includes(inputText));
+        if (matchedOption) {
+            catId = matchedOption.getAttribute('data-id');
+            document.getElementById('hidden_cat_id').value = catId;
+            document.getElementById('hidden_cat_id').setAttribute('data-tipo', matchedOption.getAttribute('data-tipo'));
+        }
+    }
+
+    if(!catId || catId === 'null') {
+        alert("Por favor, selecciona una categoría válida de la lista desplegable.");
+        return;
+    }
+
     const tipo = document.getElementById('hidden_cat_id').getAttribute('data-tipo') || 'gasto';
     let val = Math.abs(parseFloat(document.getElementById('monto').value));
-    const data = { id: document.getElementById('transaccion_id').value, fecha: document.getElementById('fecha').value, descripcion: document.getElementById('descripcion').value, monto: tipo === 'ingreso' ? val : -val, categoria_id: catId };
+    
+    const data = { 
+        id: document.getElementById('transaccion_id').value, 
+        fecha: document.getElementById('fecha').value, 
+        descripcion: document.getElementById('descripcion').value, 
+        monto: tipo === 'ingreso' ? val : -val, 
+        categoria_id: catId 
+    };
     
     try {
         const res = await fetch('controllers/TransaccionRouter.php?action=save', { method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json'} });
-        if((await res.json()).success) { 
+        const result = await res.json();
+        
+        if(result.success) { 
             guardarMemoriaFiltros(); 
             location.reload(); 
         } else {
-            alert("Error al guardar.");
+            alert("Error del servidor al guardar: " + (result.error || "Desconocido"));
         }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error(err); 
+        alert("Hubo un error de comunicación. Revisa tu conexión a internet.");
+    }
 });
 
 function eliminarTransaccion(id) {
@@ -473,7 +585,6 @@ document.getElementById('formBorradoMasivo').addEventListener('submit', async (e
     } catch (err) { console.error(err); }
 });
 
-// --- NUEVA FUNCIÓN: BOTÓN NUCLEAR ---
 async function borrarTodoElHistorial() {
     if (!confirm("⚠️ ¡ADVERTENCIA EXTREMA! ⚠️\n\nEstás a punto de borrar ABSOLUTAMENTE TODOS tus movimientos. Tu historial quedará a cero.\n\n¿Estás completamente seguro?")) return;
     
@@ -519,23 +630,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('filterMesContable').value = defMes;
-    document.getElementById('filterFechaInicio').value = defInicio;
-    document.getElementById('filterFechaFin').value = defFin;
-    document.getElementById('inputFilterCategory').value = '';
-    document.getElementById('filterCategory').value = '';
-
-    try {
-        const paginaGuardada = sessionStorage.getItem('memoriaPaginaTransacciones');
-        if (paginaGuardada !== null) {
-            const num = parseInt(paginaGuardada);
-            if (!isNaN(num) && num > 0) paginaActual = num;
-            sessionStorage.removeItem('memoriaPaginaTransacciones'); 
-        } else {
-            paginaActual = 1;
-        }
-    } catch (e) { paginaActual = 1; }
     
-    actualizarVista();
+    // Si no hay fechas guardadas en memoria, cargamos por defecto el periodo contable actual
+    if (!defInicio || !defFin) {
+        limpiarFiltrosTransacciones();
+    } else {
+        document.getElementById('filterFechaInicio').value = defInicio;
+        document.getElementById('filterFechaFin').value = defFin;
+        document.getElementById('inputFilterCategory').value = '';
+        document.getElementById('filterCategory').value = '';
+        
+        try {
+            const paginaGuardada = sessionStorage.getItem('memoriaPaginaTransacciones');
+            if (paginaGuardada !== null) {
+                const num = parseInt(paginaGuardada);
+                if (!isNaN(num) && num > 0) paginaActual = num;
+                sessionStorage.removeItem('memoriaPaginaTransacciones'); 
+            } else {
+                paginaActual = 1;
+            }
+        } catch (e) { paginaActual = 1; }
+        
+        actualizarVista();
+    }
 });
 </script>
 
