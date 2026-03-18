@@ -9,10 +9,9 @@ if (!isset($_SESSION['usuario_id'])) { redirect('login.php'); }
 $uid = $_SESSION['usuario_id'];
 $model = new TransaccionModel($pdo);
 $catModel = new CategoriaModel($pdo);
-
-$transacciones = $model->getAll($uid);
 $categoriasLista = $catModel->getAll($uid);
 
+// La jerarquía se sigue necesitando para el filtro de categorías
 $stmtJerarquia = $pdo->prepare("SELECT id, parent_id FROM categorias WHERE usuario_id = ?");
 $stmtJerarquia->execute([$uid]);
 $jerarquiaCats = $stmtJerarquia->fetchAll(PDO::FETCH_ASSOC);
@@ -127,25 +126,7 @@ include 'includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="tablaCuerpo" class="divide-y divide-gray-100">
-                    <?php foreach($transacciones as $t): 
-                        $familiaStr = getFamiliaCategorias($t['categoria_id'], $jerarquiaCats);
-                        $importe = isset($t['importe']) ? (float)$t['importe'] : 0;
-                    ?>
-                    <tr class="transaccion-row" data-fecha="<?= $t['fecha'] ?>" data-familia="<?= $familiaStr ?>">
-                        <td class="p-4 text-gray-600 text-sm font-medium"><?= date('d/m/Y', strtotime($t['fecha'])) ?></td>
-                        <td class="p-4 font-bold text-gray-800"><?= htmlspecialchars($t['descripcion']) ?></td>
-                        <td class="p-4"><span class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-bold border border-gray-200"><?= htmlspecialchars($t['categoria_nombre'] ?? 'Por clasificar') ?></span></td>
-                        <td class="p-4 text-right font-extrabold <?= $importe < 0 ? 'text-red-500' : 'text-green-500' ?>"><?= number_format($importe, 2, ',', '.') ?> €</td>
-                        <td class="p-4 text-center">
-                            <?php
-                                $descripcionEscapada = htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8');
-                                $categoriaId = $t['categoria_id'] ?? '';
-                            ?>
-                            <button onclick="abrirModalTransaccion(<?= $t['id'] ?>, '<?= $t['fecha'] ?>', '<?= $descripcionEscapada ?>', <?= $importe ?>, '<?= $categoriaId ?>')" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
-                            <button onclick="eliminarTransaccion(<?= $t['id'] ?>)" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
+                    <!-- Las filas se insertarán aquí dinámicamente con JavaScript -->
                 </tbody>
             </table>
         </div>
@@ -224,8 +205,7 @@ include 'includes/header.php';
 <script>
 const DIA_INICIO = <?= $dia_inicio ?>;
 let paginaActual = 1;
-const filasPorPagina = 6;
-let filasFiltradas = [];
+const filasPorPagina = 6; // Puedes mantener esto o pasarlo a la API
 
 function alCambiarFechaManualTransacciones() {
     document.getElementById('filterMesContable').value = '';
@@ -311,51 +291,71 @@ function aplicarMesContable() {
 
 function resetPaginaYFiltrar() { paginaActual = 1; actualizarVista(); }
 
-function actualizarVista() {
+async function actualizarVista() {
+    const tablaCuerpo = document.getElementById('tablaCuerpo');
+    const pInfo = document.getElementById('infoPaginacion');
+    tablaCuerpo.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-500">Cargando...</td></tr>`;
+    pInfo.textContent = 'Cargando movimientos...';
+
     try {
         if (isNaN(paginaActual) || paginaActual < 1) paginaActual = 1;
 
         const fInicio = document.getElementById('filterFechaInicio').value;
         const fFin = document.getElementById('filterFechaFin').value;
-        
-        const catFiltroId = document.getElementById('filterCategory').value;
-        const textoBusqueda = document.getElementById('inputFilterCategory').value.toLowerCase().trim();
-        
-        const rows = Array.from(document.querySelectorAll('.transaccion-row'));
+        const catId = document.getElementById('filterCategory').value;
+        const searchText = document.getElementById('inputFilterCategory').value.trim();
 
-        filasFiltradas = rows.filter(row => {
-            const rowFecha = row.getAttribute('data-fecha') || '';
-            const rowFamilia = (row.getAttribute('data-familia') || '').split(',');
-            
-            const textoDesc = row.cells[1].textContent.toLowerCase();
-            const textoCat = row.cells[2].textContent.toLowerCase();
-
-            let matchFecha = true;
-            if (fInicio !== '' && rowFecha < fInicio) matchFecha = false;
-            if (fFin !== '' && rowFecha > fFin) matchFecha = false;
-
-            let matchBusqueda = true;
-            if (catFiltroId !== '') {
-                matchBusqueda = rowFamilia.includes(catFiltroId);
-            } else if (textoBusqueda !== '') {
-                matchBusqueda = textoDesc.includes(textoBusqueda) || textoCat.includes(textoBusqueda);
-            }
-
-            return matchFecha && matchBusqueda;
+        const params = new URLSearchParams({
+            action: 'getPaginated',
+            page: paginaActual,
+            limit: filasPorPagina,
+            startDate: fInicio,
+            endDate: fFin,
+            categoryId: catId,
+            searchText: searchText
         });
 
-        const total = filasFiltradas.length;
+        const res = await fetch(`controllers/TransaccionRouter.php?${params.toString()}`);
+        const result = await res.json();
+
+        if (result.error) throw new Error(result.error);
+
+        const { data, total } = result;
         const totalPaginas = Math.ceil(total / filasPorPagina);
-        if (paginaActual > totalPaginas && totalPaginas > 0) paginaActual = totalPaginas;
 
-        rows.forEach(r => r.style.display = 'none');
+        tablaCuerpo.innerHTML = ''; // Limpiar la tabla
+        if (data.length === 0) {
+            tablaCuerpo.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-500">No se encontraron movimientos con los filtros aplicados.</td></tr>`;
+        } else {
+            data.forEach(t => {
+                const importe = parseFloat(t.importe || 0);
+                const descripcionEscapada = t.descripcion.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const categoriaId = t.categoria_id || '';
+                const fechaFormato = new Date(t.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                const rowHTML = `
+                    <tr>
+                        <td class="p-4 text-gray-600 text-sm font-medium">${fechaFormato}</td>
+                        <td class="p-4 font-bold text-gray-800">${t.descripcion}</td>
+                        <td class="p-4"><span class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-bold border border-gray-200">${t.categoria_nombre || 'Por clasificar'}</span></td>
+                        <td class="p-4 text-right font-extrabold ${importe < 0 ? 'text-red-500' : 'text-green-500'}">${importe.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</td>
+                        <td class="p-4 text-center">
+                            <button onclick="abrirModalTransaccion(${t.id}, '${t.fecha}', '${descripcionEscapada}', ${importe}, '${categoriaId}')" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
+                            <button onclick="eliminarTransaccion(${t.id})" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                        </td>
+                    </tr>
+                `;
+                tablaCuerpo.insertAdjacentHTML('beforeend', rowHTML);
+            });
+        }
+
         const inicio = (paginaActual - 1) * filasPorPagina;
-        filasFiltradas.slice(inicio, inicio + filasPorPagina).forEach(row => row.style.display = '');
-
-        const pInfo = document.getElementById('infoPaginacion');
         if (pInfo) pInfo.textContent = total > 0 ? `Mostrando ${inicio + 1} a ${Math.min(inicio + filasPorPagina, total)} de ${total} registros` : 'Sin resultados';
         renderizarBotones(totalPaginas);
-    } catch (error) { console.error("Error en paginación:", error); }
+    } catch (error) { 
+        console.error("Error al actualizar la vista:", error);
+        tablaCuerpo.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-red-500">Error al cargar los datos. Revisa la consola para más detalles.</td></tr>`;
+    }
 }
 
 function renderizarBotones(total) {

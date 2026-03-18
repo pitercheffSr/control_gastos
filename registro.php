@@ -1,5 +1,7 @@
 <?php
 require_once 'config.php';
+require_once 'controllers/AuthController.php'; // Incluimos el controlador
+
 // La sesión ya se inicia en config.php
 if (isset($_SESSION['usuario_id'])) {
     header('Location: transacciones.php');
@@ -30,44 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (strlen($password) < 6) {
              $error = 'La contraseña debe tener al menos 6 caracteres.';
         } else {
-            $stmt = $pdo->prepare('SELECT id FROM usuarios WHERE email = ?');
-            $stmt->execute([$email]);
-            
-            if ($stmt->fetch()) {
-                $error = 'Este nombre de usuario ya está en uso. ¡Prueba con otro!';
+            $auth = new AuthController($pdo);
+            $nuevo_id = $auth->register($usuario, $email, $password);
+
+            if ($nuevo_id) {
+                // Iniciar sesión y redirigir
+                $_SESSION['usuario_id'] = $nuevo_id;
+                $_SESSION['usuario_nombre'] = $usuario; // Guardamos el nombre también
+                $_SESSION['last_activity'] = time();
+                redirect('transacciones.php');
             } else {
-                try {
-                    $pdo->beginTransaction();
-
-                    // 1. Insertar el nuevo usuario
-                    $hash = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare('INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)');
-                    $stmt->execute([$usuario, $email, $hash]);
-                    $nuevo_id = $pdo->lastInsertId();
-                    
-                    // 2. Establecer valores por defecto (día de inicio y fecha de borrado)
-                    $fechaRegistro = new DateTime();
-                    $fechaBorrado = (clone $fechaRegistro)->modify('+4 months');
-                    $fechaBorradoStr = $fechaBorrado->format('Y-m-d H:i:s');
-                    $stmtUpdate = $pdo->prepare("UPDATE usuarios SET dia_inicio_mes = 1, fecha_borrado = ? WHERE id = ?");
-                    $stmtUpdate->execute([$fechaBorradoStr, $nuevo_id]);
-                    
-                    // 3. Crear las categorías por defecto para el usuario
-                    require_once 'models/CategoriaModel.php';
-                    $catModel = new CategoriaModel($pdo);
-                    $catModel->crearCategoriasPorDefecto($nuevo_id);
-
-                    $pdo->commit();
-
-                    // 4. Iniciar sesión y redirigir
-                    $_SESSION['usuario_id'] = $nuevo_id;
-                    redirect('transacciones.php');
-
-                } catch (Exception $e) {
-                    $pdo->rollBack();
-                    $error = 'Error al registrar el usuario.';
-                    // error_log('Error en registro: ' . $e->getMessage()); // Para depuración
-                }
+                // El controlador ya manejó el error (ej. usuario duplicado), solo mostramos un mensaje genérico.
+                // Podrías hacer que el método register devuelva mensajes de error específicos si quisieras.
+                $error = 'Este nombre de usuario ya está en uso o hubo un error en el registro.';
             }
         }
     }

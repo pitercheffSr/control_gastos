@@ -63,6 +63,19 @@ try {
         $datos = $model->getAll($uid, 5); // Asumiendo que getAll ahora es `getAll($uid, $limit = null)`
         echo json_encode($datos);
     }
+    elseif ($action === 'getPaginated') {
+        // NUEVA ACCIÓN PARA PAGINACIÓN Y FILTRADO EFICIENTE
+        $page = (int)($_GET['page'] ?? 1);
+        $limit = (int)($_GET['limit'] ?? 6);
+        $startDate = $_GET['startDate'] ?? null;
+        $endDate = $_GET['endDate'] ?? null;
+        $categoryId = $_GET['categoryId'] ?? null;
+        $searchText = $_GET['searchText'] ?? null;
+
+        // Necesitarás crear un nuevo método en TransaccionModel.php, por ejemplo `getPaginated(...)`
+        $result = $model->getPaginated($uid, $page, $limit, $startDate, $endDate, $categoryId, $searchText);
+        echo json_encode($result);
+    }
     elseif ($action === 'deleteMasivo') {
         $data = json_decode(file_get_contents("php://input"), true);
         $borrar_todo = $data['borrar_todo'] ?? false;

@@ -33,15 +33,16 @@ error_reporting(0);
 // (en este caso, InfinityFree) para conectar con la base de datos.
 // NO son los mismos que usas en tu computadora local (localhost).
 
-$host    = 'sql108.infinityfree.com';       // El servidor de la base de datos de tu hosting.
-$db_name = 'epiz_34303348_control_gastos';  // El nombre de la base de datos en el hosting.
-$user    = 'epiz_34303348';                 // El nombre de usuario de la base de datos del hosting.
-$pass    = '4lQL2gC4MJAV1';                 // La contraseña para ese usuario.
 // ADVERTENCIA DE SEGURIDAD: Almacenar contraseñas y otros secretos directamente
 // en el código fuente es una mala práctica, especialmente si el código está
 // en un repositorio (ej. GitHub). Un atacante podría encontrarlo.
 // La solución recomendada es usar "variables de entorno" que se configuran
 // directamente en el servidor de hosting y se leen en PHP con `getenv('DB_PASSWORD')`.
+$host    = getenv('DB_HOST') ?: 'sql108.infinityfree.com';
+$db_name = getenv('DB_NAME') ?: 'epiz_34303348_control_gastos';
+$user    = getenv('DB_USER') ?: 'epiz_34303348';
+$pass    = getenv('DB_PASS') ?: null; // Es mejor que falle si no está la variable de entorno.
+
 $charset = 'utf8mb4';                       // El formato de texto. Esencial para 'ñ', tildes y emojis.
 
 // -----------------------------------------------------------------
