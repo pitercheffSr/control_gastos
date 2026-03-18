@@ -10,6 +10,7 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+<<<<<<< HEAD
 // 2. Parámetros de conexión a la base de datos
 $host    = 'localhost';
 $db_name = 'control_gastos';    // Nombre de tu base de datos
@@ -18,6 +19,15 @@ $pass    = 'Password123!';      // Tu contraseña de MySQL
 $charset = 'utf8mb4';           // Formato de texto (vital para que funcionen bien las ñ y los acentos)
 
 // 3. Opciones de seguridad y formato para PDO
+=======
+// 2. Parámetros de conexión
+$host    = 'localhost'; // Cambia esto si tu base de datos no está en el mismo servidor
+$db_name = 'control_gastos'; // <-- ASEGÚRATE DE QUE ESTE NOMBRE SEA CORRECTO
+$user    = 'admin_gastos';               // Tu usuario de MySQL
+$pass    = 'Password123!';               // Tu contraseña de MySQL
+$charset = 'utf8mb4';
+// 3. Opciones de PDO
+>>>>>>> d212475b210a81035c62b4da7115053514e222ad
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION, // Obliga a mostrar los errores de la BD
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,       // Nos devuelve los datos organizados por el nombre de la columna
@@ -29,9 +39,15 @@ $dsn = "mysql:host=$host;dbname=$db_name;charset=$charset";
 try {
     // Creamos la conexión global $pdo con la base de datos
     $pdo = new PDO($dsn, $user, $pass, $options);
+<<<<<<< HEAD
     
     // También creamos una copia llamada $db por si algún archivo antiguo busca ese nombre
     $db = $pdo; 
+=======
+
+    // También creamos $db por si algunos de tus controladores viejos usan ese nombre
+    $db = $pdo;
+>>>>>>> d212475b210a81035c62b4da7115053514e222ad
 
 } catch (\PDOException $e) {
     // Si la contraseña o el usuario fallan, paraliza la web y muestra este mensaje
@@ -52,6 +68,7 @@ if (!function_exists('redirect')) {
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+<<<<<<< HEAD
 
 // Generamos un token CSRF si no existe en la sesión para proteger contra ataques
 if (empty($_SESSION['csrf_token'])) {
@@ -83,3 +100,5 @@ if (isset($_SESSION['usuario_id'])) {
     $_SESSION['last_activity'] = time();
 }
 ?>
+=======
+>>>>>>> d212475b210a81035c62b4da7115053514e222ad
