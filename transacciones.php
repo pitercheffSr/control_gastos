@@ -141,12 +141,18 @@ include 'includes/header.php';
 <div id="modalTransaccion" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm">
     <div id="modalTransaccionContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300">
         <h2 id="modalTitle" class="text-2xl font-extrabold mb-6 text-gray-800">Movimiento</h2>
-        <form id="formTransaccion" class="space-y-5">
+        <form id="formTransaccion" class="space-y-5" autocomplete="off">
             <input type="hidden" name="id" id="transaccion_id">
             <div><label class="block text-sm font-bold mb-1.5 text-gray-700">Fecha</label><input type="date" name="fecha" id="fecha" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required></div>
             <div><label class="block text-sm font-bold mb-1.5 text-gray-700">Descripción</label><input type="text" name="descripcion" id="descripcion" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required autocomplete="off"></div>
-            <div><label class="block text-sm font-bold mb-1.5 text-gray-700">Categoría (Buscar)</label><input list="listaSugerencias" id="input_cat_form" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" placeholder="Escribe..." required autocomplete="off"><input type="hidden" name="categoria_id" id="hidden_cat_id">
-                <datalist id="listaSugerencias"><?php foreach($categoriasLista as $c): ?><option data-id="<?= $c['id'] ?>" data-tipo="<?= htmlspecialchars($c['tipo_fijo'] ?? 'gasto') ?>" value="<?= htmlspecialchars($c['nombre']) ?>"></option><?php endforeach; ?></datalist>
+            <div>
+                <label class="block text-sm font-bold mb-1.5 text-gray-700">Categoría (Buscar)</label>
+                <div class="relative">
+                    <input list="listaSugerencias" id="input_cat_form" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" placeholder="Escribe..." required autocomplete="off">
+                    <input type="hidden" name="categoria_id" id="hidden_cat_id">
+                    <datalist id="listaSugerencias"><?php foreach($categoriasLista as $c): ?><option data-id="<?= $c['id'] ?>" data-tipo="<?= htmlspecialchars($c['tipo_fijo'] ?? 'gasto') ?>" value="<?= htmlspecialchars($c['nombre']) ?>"></option><?php endforeach; ?></datalist>
+                    <button type="button" id="btnCrearSubcategoria" onclick="abrirModalCrearSubcategoria()" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded hover:bg-green-200 transition">Crear</button>
+                </div>
             </div>
             <div><label class="block text-sm font-bold mb-1.5 text-gray-700">Importe (€)</label><input type="number" step="0.01" name="monto" id="monto" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required></div>
             <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100"><button type="button" onclick="cerrarModalTransaccion()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button><button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md">Guardar</button></div>
@@ -199,6 +205,28 @@ include 'includes/header.php';
                 ¡PELIGRO! Borrar ABSOLUTAMENTE TODO
             </button>
         </div>
+    </div>
+</div>
+
+<!-- MODAL PARA CREAR SUBCATEGORÍA RÁPIDAMENTE -->
+<div id="modalCrearSubcategoria" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-70 backdrop-blur-sm">
+    <div id="modalCrearSubcategoriaContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300">
+        <h2 class="text-2xl font-extrabold mb-6 text-gray-800">Crear Subcategoría</h2>
+        <form id="formCrearSubcategoria" class="space-y-5" autocomplete="off">
+            <div>
+                <label class="block text-sm font-bold mb-1.5 text-gray-700">Nombre de la nueva subcategoría</label>
+                <input type="text" id="nuevo_subcat_nombre" class="w-full border bg-gray-100 border-gray-300 rounded-lg p-3" readonly>
+            </div>
+            <div>
+                <label class="block text-sm font-bold mb-1.5 text-gray-700">¿De qué categoría principal depende?</label>
+                <input list="listaFiltroCategorias" id="nuevo_subcat_padre_input" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" placeholder="Selecciona la categoría padre..." required autocomplete="off">
+                <input type="hidden" id="nuevo_subcat_padre_id">
+            </div>
+            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                <button type="button" onclick="cerrarModalCrearSubcategoria()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button>
+                <button type="submit" class="px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md">Crear y Asignar</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -406,23 +434,49 @@ function renderizarBotones(total) {
     container.appendChild(btnNext);
 }
 
-function vincularDatalist(inputId, hiddenId) {
+function vincularDatalist(inputId, hiddenId, datalistId) {
     const input = document.getElementById(inputId);
+    const datalist = document.getElementById(datalistId);
+    const hiddenInput = document.getElementById(hiddenId);
+
     if (!input) return;
+
     input.addEventListener('input', function() {
-        const list = document.getElementById('listaSugerencias');
-        const hiddenInput = document.getElementById(hiddenId);
         hiddenInput.value = "";
-        Array.from(list.options).forEach(opt => {
-            if (opt.value === this.value) { 
-                hiddenInput.value = opt.getAttribute('data-id'); 
-                hiddenInput.setAttribute('data-tipo', opt.getAttribute('data-tipo')); 
+        let matchFound = false;
+
+        for (const opt of datalist.options) {
+            if (opt.value === this.value) {
+                hiddenInput.value = opt.getAttribute('data-id');
+                if (hiddenId === 'hidden_cat_id') {
+                    hiddenInput.setAttribute('data-tipo', opt.getAttribute('data-tipo'));
+                }
+                matchFound = true;
+                break;
             }
-        });
-        if(inputId === 'inputFilterCategory') resetPaginaYFiltrar();
+        }
+
+        // Lógica para mostrar/ocultar el botón "Crear"
+        if (inputId === 'input_cat_form') {
+            const btn = document.getElementById('btnCrearSubcategoria');
+            if (this.value.trim() !== '' && !matchFound) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+        
+        if(inputId === 'inputFilterCategory') {
+            resetPaginaYFiltrar();
+        }
     });
 }
-setTimeout(() => { vincularDatalist('input_cat_form', 'hidden_cat_id'); vincularDatalist('input_cat_excel', 'hidden_cat_excel'); vincularDatalist('inputFilterCategory', 'filterCategory'); }, 50);
+setTimeout(() => { 
+    vincularDatalist('input_cat_form', 'hidden_cat_id', 'listaSugerencias'); 
+    vincularDatalist('input_cat_excel', 'hidden_cat_excel', 'listaSugerencias'); 
+    vincularDatalist('inputFilterCategory', 'filterCategory', 'listaFiltroCategorias');
+    vincularDatalist('nuevo_subcat_padre_input', 'nuevo_subcat_padre_id', 'listaFiltroCategorias');
+}, 50);
 
 // --- FUNCIONES DEL MODAL "NUEVO/EDITAR" ---
 function abrirModalTransaccion(id = null, fecha = '', descripcion = '', monto = '', categoria_id = '') {
@@ -485,12 +539,29 @@ function cerrarModalBorradoMasivo() {
     setTimeout(() => { const modal = document.getElementById('modalBorradoMasivo'); if(modal) modal.classList.add('hidden'); }, 300);
 }
 
+// --- FUNCIONES DEL MODAL "CREAR SUBCATEGORÍA" ---
+function abrirModalCrearSubcategoria() {
+    const nombre = document.getElementById('input_cat_form').value.trim();
+    if (!nombre) return;
+    document.getElementById('formCrearSubcategoria').reset();
+    document.getElementById('nuevo_subcat_nombre').value = nombre;
+    document.getElementById('modalCrearSubcategoria').classList.remove('hidden');
+    setTimeout(() => { document.getElementById('modalCrearSubcategoriaContent').classList.add('scale-100', 'opacity-100'); }, 10);
+}
+
+function cerrarModalCrearSubcategoria() {
+    const content = document.getElementById('modalCrearSubcategoriaContent');
+    if(content) content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { const modal = document.getElementById('modalCrearSubcategoria'); if(modal) modal.classList.add('hidden'); }, 300);
+}
+
 // --- CIERRE DE TODOS LOS MODALES CON ESCAPE ---
 document.addEventListener('keydown', (e) => { 
     if(e.key === "Escape") { 
         cerrarModalTransaccion(); 
         cerrarModalImportar();
         cerrarModalBorradoMasivo();
+        cerrarModalCrearSubcategoria();
     } 
 });
 
@@ -535,7 +606,14 @@ document.getElementById('formTransaccion').addEventListener('submit', async (e) 
     };
     
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=save', { method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json'} });
+        const res = await fetch('controllers/TransaccionRouter.php?action=save', { 
+            method: 'POST', 
+            body: JSON.stringify(data), 
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?= $_SESSION['csrf_token'] ?? '' ?>'
+            } 
+        });
         const result = await res.json();
         
         if(result.success) { 
@@ -551,7 +629,14 @@ document.getElementById('formTransaccion').addEventListener('submit', async (e) 
 });
 
 function eliminarTransaccion(id) {
-    if(confirm('¿Borrar este movimiento?')) fetch('controllers/TransaccionRouter.php?action=delete', { method: 'POST', body: JSON.stringify({id}), headers: {'Content-Type': 'application/json'} }).then(() => { 
+    if(confirm('¿Borrar este movimiento?')) fetch('controllers/TransaccionRouter.php?action=delete', { 
+        method: 'POST', 
+        body: JSON.stringify({id}), 
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '<?= $_SESSION['csrf_token'] ?? '' ?>'
+        } 
+    }).then(() => { 
         guardarMemoriaFiltros(); 
         location.reload(); 
     });
@@ -571,7 +656,10 @@ document.getElementById('formBorradoMasivo').addEventListener('submit', async (e
         const res = await fetch('controllers/TransaccionRouter.php?action=deleteMasivo', {
             method: 'POST',
             body: JSON.stringify({ fecha_inicio: fInicio, fecha_fin: fFin }),
-            headers: {'Content-Type': 'application/json'}
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?= $_SESSION['csrf_token'] ?? '' ?>'
+            }
         });
         const data = await res.json();
         
@@ -597,7 +685,10 @@ async function borrarTodoElHistorial() {
         const res = await fetch('controllers/TransaccionRouter.php?action=deleteMasivo', {
             method: 'POST',
             body: JSON.stringify({ borrar_todo: true }),
-            headers: {'Content-Type': 'application/json'}
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?= $_SESSION['csrf_token'] ?? '' ?>'
+            }
         });
         const data = await res.json();
         
@@ -610,6 +701,52 @@ async function borrarTodoElHistorial() {
         }
     } catch (err) { console.error(err); }
 }
+
+document.getElementById('formCrearSubcategoria').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nombre = document.getElementById('nuevo_subcat_nombre').value;
+    const parentId = document.getElementById('nuevo_subcat_padre_id').value;
+
+    if (!parentId) {
+        alert('Debes seleccionar una categoría padre válida de la lista.');
+        return;
+    }
+
+    const data = { nombre, parent_id: parentId };
+    
+    try {
+        const res = await fetch('controllers/CategoriaRouter.php?action=createFromTransaction', {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?= $_SESSION['csrf_token'] ?? '' ?>'
+            }
+        });
+        const result = await res.json();
+
+        if (result.success && result.categoria) {
+            const newCat = result.categoria;
+
+            const newOptionHTML = `<option data-id="${newCat.id}" data-tipo="${newCat.tipo_fijo || 'gasto'}" value="${newCat.nombre}"></option>`;
+            document.getElementById('listaSugerencias').insertAdjacentHTML('beforeend', newOptionHTML);
+            document.getElementById('listaFiltroCategorias').insertAdjacentHTML('beforeend', `<option data-id="${newCat.id}" value="${newCat.nombre}"></option>`);
+
+            document.getElementById('input_cat_form').value = newCat.nombre;
+            document.getElementById('hidden_cat_id').value = newCat.id;
+            document.getElementById('hidden_cat_id').setAttribute('data-tipo', newCat.tipo_fijo || 'gasto');
+            
+            document.getElementById('btnCrearSubcategoria').classList.add('hidden');
+
+            cerrarModalCrearSubcategoria();
+        } else {
+            alert("Error al crear la subcategoría: " + (result.error || "Error desconocido."));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Hubo un error de comunicación al crear la subcategoría.");
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     let defInicio = '';
