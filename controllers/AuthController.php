@@ -9,7 +9,7 @@ class AuthController {
     }
 
     public function login($email, $password) {
-        $stmt = $this->db->prepare("SELECT id, password FROM usuarios WHERE email = ?");
+        $stmt = $this->db->prepare("SELECT id, nombre, password FROM usuarios WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 

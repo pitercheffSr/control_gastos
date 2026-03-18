@@ -5,15 +5,15 @@
  * =============================================================
  */
 
-// 1. Incluir el archivo de configuración.
-// Esto conectará a la BD. Si hay un error, se mostrará aquí.
+// 1. Incluir archivos necesarios
 require_once 'config.php';
+require_once 'controllers/AuthController.php'; // Incluimos el controlador
 
 $error_message = '';
 
 // 2. Redirigir si el usuario ya ha iniciado sesión
 if (isset($_SESSION['usuario_id'])) {
-    redirect('transacciones.php'); // O tu página principal después del login
+    redirect('transacciones.php');
 }
 
 // 3. Procesar el formulario cuando se envía
@@ -24,27 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error_message = 'Por favor, introduce tu email y contraseña.';
     } else {
-        try {
-            // Buscar al usuario por su email
-            $stmt = $pdo->prepare("SELECT id, nombre, password FROM usuarios WHERE email = ?");
-            $stmt->execute([$email]);
-            $usuario = $stmt->fetch();
+        $auth = new AuthController($pdo);
+        $user = $auth->login($email, $password);
 
-            // Verificar si el usuario existe y la contraseña es correcta
-            if ($usuario && password_verify($password, $usuario['password'])) {
-                // ¡Credenciales correctas! Iniciar la sesión.
-                $_SESSION['usuario_id'] = $usuario['id'];
-                $_SESSION['usuario_nombre'] = $usuario['nombre'];
-                $_SESSION['last_activity'] = time();
-                
-                redirect('transacciones.php'); // Redirigir al panel principal
-            } else {
-                $error_message = 'El email o la contraseña son incorrectos.';
-            }
-        } catch (PDOException $e) {
-            // Esto captura errores de la consulta, como que la tabla 'usuarios' no exista.
-            $error_message = 'Error del sistema. Por favor, contacta al administrador.';
-            // Para depurar, podrías registrar el error: error_log($e->getMessage());
+        if ($user) {
+            // ¡Credenciales correctas! Iniciar la sesión.
+            $_SESSION['usuario_id'] = $user['id'];
+            $_SESSION['usuario_nombre'] = $user['nombre'];
+            $_SESSION['last_activity'] = time();
+            
+            redirect('transacciones.php'); // Redirigir al panel principal
+        } else {
+            $error_message = 'El email o la contraseña son incorrectos.';
         }
     }
 }
