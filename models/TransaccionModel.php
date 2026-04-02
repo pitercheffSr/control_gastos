@@ -12,16 +12,24 @@ class TransaccionModel {
         return ($stmt->rowCount() > 0) ? 'importe' : 'monto';
     }
 
-    public function getAll($usuario_id) {
+    public function getAll($usuario_id, $limit = null) {
         $col = $this->getNombreColumnaImporte();
-        $stmt = $this->pdo->prepare("
+        $sql = "
             SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre 
             FROM transacciones t 
             LEFT JOIN categorias c ON t.categoria_id = c.id 
             WHERE t.usuario_id = ? 
             ORDER BY t.fecha DESC, t.id DESC
-        ");
-        $stmt->execute([$usuario_id]);
+        ";
+
+        $params = [$usuario_id];
+        if ($limit !== null) {
+            $sql .= " LIMIT ?";
+            $params[] = (int)$limit;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
