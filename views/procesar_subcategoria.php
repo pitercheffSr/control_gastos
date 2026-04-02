@@ -69,4 +69,3 @@ try {
                AND id_usuario = :id_usuario'
         );
         $stmt->execute([
-            'parent_id'    => $parent_
