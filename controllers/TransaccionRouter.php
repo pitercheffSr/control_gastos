@@ -1,9 +1,7 @@
 <?php
-// Ponemos el servidor en "modo seguro" atrapando todo lo que salga
 ob_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
-
 header('Content-Type: application/json');
 
 try {
@@ -11,100 +9,59 @@ try {
     require_once '../models/TransaccionModel.php';
 
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
-    
-    if (!isset($_SESSION['usuario_id'])) { 
-        throw new Exception('No autorizado. Tu sesión puede haber caducado.');
-    }
+    if (!isset($_SESSION['usuario_id'])) { throw new Exception('No autorizado'); }
 
     $uid = $_SESSION['usuario_id'];
     $action = $_GET['action'] ?? '';
     $model = new TransaccionModel($pdo);
 
-    // Helper para la validación de CSRF en acciones que modifican datos.
-    // El frontend debe enviar el token en la cabecera 'X-CSRF-TOKEN'.
-    function check_csrf() {
-        if (empty($_SESSION['csrf_token']) || empty($_SERVER['HTTP_X_CSRF_TOKEN']) || !hash_equals($_SESSION['csrf_token'], $_SERVER['HTTP_X_CSRF_TOKEN'])) {
-            throw new Exception('Error de validación de seguridad (CSRF). Por favor, recargue la página.');
-        }
+    if ($action === 'getAllLimit') {
+        echo json_encode($model->getAllLimit($uid, 10));
     }
-
-    if ($action === 'save') {
+    elseif ($action === 'getAll') {
+        echo json_encode($model->getAll($uid));
+    }
+    elseif ($action === 'save') {
         $data = json_decode(file_get_contents("php://input"), true);
         
         $id = !empty($data['id']) ? $data['id'] : null;
-        $fecha = $data['fecha'] ?? '';
-        $desc = $data['descripcion'] ?? '';
-        $importe = isset($data['monto']) ? (float)$data['monto'] : 0; 
-        
-        $cat = (!empty($data['categoria_id']) && $data['categoria_id'] !== 'null') ? $data['categoria_id'] : null;
+        $descripcion = $data['descripcion'] ?? '';
+        $importe = $data['importe'] ?? 0;
+        $fecha = $data['fecha'] ?? date('Y-m-d');
+        $categoria_id = !empty($data['categoria_id']) ? $data['categoria_id'] : null;
 
-        check_csrf();
-
-        if ($id) { 
-            $model->update($id, $uid, $cat, $fecha, $desc, $importe); 
-        } else { 
-            $model->create($uid, $cat, $fecha, $desc, $importe); 
+        if ($id) {
+            // Si hay ID, actualizamos
+            $model->update($id, $uid, $descripcion, $importe, $fecha, $categoria_id);
+        } else {
+            // Si no hay ID, creamos uno nuevo
+            $model->create($uid, $descripcion, $importe, $fecha, $categoria_id);
         }
         
+        // Limpiamos a la fuerza cualquier basura oculta en el buffer antes de responder
+        ob_clean(); 
         echo json_encode(['success' => true]);
+        exit;
     }
     elseif ($action === 'delete') {
         $data = json_decode(file_get_contents("php://input"), true);
         $id = $data['id'] ?? null;
-        check_csrf();
-        if ($id) { $model->delete($id, $uid); }
-        echo json_encode(['success' => true]);
-    }
-    elseif ($action === 'getAllLimit') {
-        // MEJORA DE RENDIMIENTO: Se pasa el límite directamente al modelo
-        // para que la base de datos haga el trabajo, en lugar de traer todos los
-        // registros a PHP y luego cortarlos.
-        // Es necesario modificar el método `getAll` en `TransaccionModel.php` para que acepte un segundo parámetro (límite).
-        $datos = $model->getAll($uid, 5); // Asumiendo que getAll ahora es `getAll($uid, $limit = null)`
-        echo json_encode($datos);
-    }
-    elseif ($action === 'getPaginated') {
-        // NUEVA ACCIÓN PARA PAGINACIÓN Y FILTRADO EFICIENTE
-        $page = (int)($_GET['page'] ?? 1);
-        $limit = (int)($_GET['limit'] ?? 6);
-        $startDate = $_GET['startDate'] ?? null;
-        $endDate = $_GET['endDate'] ?? null;
-        $categoryId = $_GET['categoryId'] ?? null;
-        $searchText = $_GET['searchText'] ?? null;
-
-        // Necesitarás crear un nuevo método en TransaccionModel.php, por ejemplo `getPaginated(...)`
-        $result = $model->getPaginated($uid, $page, $limit, $startDate, $endDate, $categoryId, $searchText);
-        echo json_encode($result);
-    }
-    elseif ($action === 'deleteMasivo') {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $borrar_todo = $data['borrar_todo'] ?? false;
-        $fecha_inicio = $data['fecha_inicio'] ?? null;
-        $fecha_fin = $data['fecha_fin'] ?? null;
-        check_csrf();
-
-        if ($borrar_todo) {
-            $stmt = $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ?");
-            $stmt->execute([$uid]);
-            echo json_encode(['success' => true, 'eliminados' => $stmt->rowCount()]);
-        } elseif ($fecha_inicio && $fecha_fin) {
-            $stmt = $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ? AND fecha >= ? AND fecha <= ?");
-            $stmt->execute([$uid, $fecha_inicio, $fecha_fin]);
-            echo json_encode(['success' => true, 'eliminados' => $stmt->rowCount()]);
+        if ($id) {
+            $model->delete($id, $uid);
+            echo json_encode(['success' => true]);
         } else {
-            throw new Exception('Fechas no válidas');
+            throw new Exception('ID inválido');
         }
-    } else {
+    }
+    else {
         throw new Exception('Acción no reconocida');
     }
 
 } catch (\Throwable $e) {
-    // Limpiamos cualquier basura y enviamos el error real en formato JSON limpio
     ob_end_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     exit;
 }
-
 ob_end_flush();
 ?>

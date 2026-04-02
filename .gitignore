@@ -42,3 +42,7 @@ test_endpoints.php
 /.config/composer/
 
 .vscode/settings.json
+# Archivos de configuración con contraseñas
+config.php
+.vscode/
+.env

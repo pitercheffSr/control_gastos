@@ -41,7 +41,7 @@ error_reporting(0);
 $host    = getenv('DB_HOST') ?: 'sql108.infinityfree.com';
 $db_name = getenv('DB_NAME') ?: 'epiz_34303348_control_gastos';
 $user    = getenv('DB_USER') ?: 'epiz_34303348';
-$pass    = getenv('DB_PASS') ?: null; // Es mejor que falle si no está la variable de entorno.
+$pass    = getenv('DB_PASS') ?: '4lQL2gC4MJAV1'; // Es mejor que falle si no está la variable de entorno.
 
 $charset = 'utf8mb4';                       // El formato de texto. Esencial para 'ñ', tildes y emojis.
 

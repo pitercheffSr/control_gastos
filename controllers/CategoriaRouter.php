@@ -1,8 +1,7 @@
 <?php
 ob_start();
-error_reporting(0);
+error_reporting(E_ALL);
 ini_set('display_errors', 0);
-
 header('Content-Type: application/json');
 
 try {
@@ -10,50 +9,48 @@ try {
     require_once '../models/CategoriaModel.php';
 
     if (session_status() === PHP_SESSION_NONE) { session_start(); }
-    
-    if (!isset($_SESSION['usuario_id'])) { 
-        throw new Exception('No autorizado. Tu sesión puede haber caducado.');
-    }
+    if (!isset($_SESSION['usuario_id'])) { throw new Exception('No autorizado'); }
 
     $uid = $_SESSION['usuario_id'];
     $action = $_GET['action'] ?? '';
     $model = new CategoriaModel($pdo);
 
-    if (empty($_SESSION['csrf_token']) || empty($_SERVER['HTTP_X_CSRF_TOKEN']) || !hash_equals($_SESSION['csrf_token'], $_SERVER['HTTP_X_CSRF_TOKEN'])) {
-        throw new Exception('Error de validación de seguridad (CSRF). Por favor, recargue la página.');
-    }
-
-    if ($action === 'createFromTransaction') {
+    if ($action === 'getAll') {
+        echo json_encode($model->getAll($uid));
+    } 
+    elseif ($action === 'save') {
         $data = json_decode(file_get_contents("php://input"), true);
-        
-        $nombre = $data['nombre'] ?? null;
-        $parentId = $data['parent_id'] ?? null;
+        $id = !empty($data['id']) ? $data['id'] : null;
+        $nombre = $data['nombre'] ?? '';
+        $tipo = $data['tipo_fijo'] ?? 'gasto';
+        $parent = !empty($data['parent_id']) ? $data['parent_id'] : null;
 
-        if (!$nombre || !$parentId) {
-            throw new Exception('Faltan el nombre o la categoría padre.');
+        if ($id) {
+            $model->update($id, $uid, $nombre, $tipo, $parent);
+        } else {
+            $model->create($uid, $nombre, $tipo, $parent);
         }
-
-        $parentCat = $model->getById($parentId, $uid);
-        if (!$parentCat) {
-            throw new Exception('La categoría padre no existe o no te pertenece.');
-        }
-        $tipo_fijo = $parentCat['tipo_fijo'] ?? 'gasto';
-
-        $model->create($uid, $nombre, $tipo_fijo, $parentId);
-        
-        $newCatId = $pdo->lastInsertId();
-        $newCat = $model->getById($newCatId, $uid);
-
-        echo json_encode(['success' => true, 'categoria' => $newCat]);
-    } else {
-        throw new Exception('Acción no reconocida en CategoriaRouter.');
+        echo json_encode(['success' => true]);
     }
+    elseif ($action === 'delete') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $id = $data['id'] ?? null;
+        
+        if ($id) { 
+            $model->delete($id, $uid); 
+            echo json_encode(['success' => true]);
+        } else {
+            throw new Exception('ID de categoría no válido');
+        }
+    } else {
+        throw new Exception('Acción no reconocida');
+    }
+
 } catch (\Throwable $e) {
     ob_end_clean();
-    http_response_code(400);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     exit;
 }
-
 ob_end_flush();
 ?>
