@@ -46,3 +46,6 @@ test_endpoints.php
 config.php
 .vscode/
 .env
+config(server).php
+config(database).php
+config(app).php
