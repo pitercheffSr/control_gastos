@@ -1,102 +1,86 @@
 /**
- * transacciones_form.js - Lógica para el formulario de nueva transacción
+ * transacciones_form.js
+ * 
+ * Lógica para un formulario de creación de transacciones dedicado (no el panel lateral).
+ * Este código está refactorizado para usar el endpoint unificado `action=save`.
+ * 
+ * ASUME que en tu HTML tienes un formulario con id="formNuevaTransaccion" y campos
+ * con los IDs: t_fecha, t_desc, t_monto, t_tipo, t_cat, t_subcat, t_subsub.
  */
 
-console.log('transacciones_form.js cargado correctamente');
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('formNuevaTransaccion');
+    if (!form) {
+        // Si no se encuentra el formulario, no hacemos nada.
+        // Esto evita errores si el script se carga en páginas que no lo tienen.
+        return;
+    }
 
-// === 1. Cargar categorías raíz (Nivel 1) ===
-fetch('load_categorias.php?nivel=nivel1')
-	.then((r) => r.json())
-	.then((cats) => {
-		let sel = document.getElementById('f_categoria');
-		sel.innerHTML = "<option value=''>--- Seleccione Categoría ---</option>";
-		cats.forEach((c) => {
-			sel.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-		});
-	});
+    // --- Referencias a los campos del formulario ---
+    // Usamos prefijo 't_' para evitar colisiones con el panel de edición ('e_')
+    const fFecha = document.getElementById('t_fecha');
+    const fDesc = document.getElementById('t_desc');
+    const fMonto = document.getElementById('t_monto');
+    const fTipo = document.getElementById('t_tipo');
+    const fCat = document.getElementById('t_cat');
+    const fSubcat = document.getElementById('t_subcat');
+    const fSubsub = document.getElementById('t_subsub');
 
-// === 2. Cargar subcategorías (Nivel 2) ===
-document.getElementById('f_categoria').addEventListener('change', () => {
-	let cid = document.getElementById('f_categoria').value;
+    // Usamos la nueva función reutilizable para cargar las categorías en cascada.
+    // La función `initializeCascadingCategories` debe estar disponible globalmente.
+    if (fCat && fSubcat && fSubsub) {
+        initializeCascadingCategories({
+            cat: fCat,
+            subcat: fSubcat,
+            subsubcat: fSubsub
+        });
+    }
 
-	// Limpiamos los selectores inferiores
-	document.getElementById('f_subcategoria').innerHTML = "<option value=''>---</option>";
-	document.getElementById('f_subsub').innerHTML = "<option value=''>---</option>";
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-	if (!cid) return;
+        // 1. Determinar la categoría final (la más específica seleccionada)
+        // Si no se selecciona ninguna, el valor será `null`, que es lo que la BD espera.
+        const categoriaFinalId = fSubsub.value || fSubcat.value || fCat.value || null;
 
-	fetch('load_categorias.php?nivel=nivel2&padre=' + cid)
-		.then((r) => r.json())
-		.then((subs) => {
-			let sel = document.getElementById('f_subcategoria');
-			sel.innerHTML = "<option value=''>--- Seleccione Subcategoría ---</option>";
-			subs.forEach((s) => {
-				sel.innerHTML += `<option value="${s.id}">${s.nombre}</option>`;
-			});
-		});
-});
+        // 2. Construir el payload unificado
+        const payload = {
+            id: null, // Siempre null porque este formulario es para crear
+            fecha: fFecha.value,
+            descripcion: fDesc.value,
+            monto: fMonto.value,
+            tipo: fTipo.value,
+            categoria_id: categoriaFinalId,
+        };
 
-// === 3. Cargar sub-subcategorías (Nivel 3) ===
-document.getElementById('f_subcategoria').addEventListener('change', () => {
-	let sid = document.getElementById('f_subcategoria').value;
+        // Validación básica
+        if (!payload.fecha || !payload.monto) {
+            alert("La fecha y el importe son campos obligatorios.");
+            return;
+        }
 
-	if (!sid) {
-		document.getElementById('f_subsub').innerHTML = "<option value=''>---</option>";
-		return;
-	}
+        try {
+            // 3. Enviar los datos al endpoint unificado 'save'
+            const resp = await fetch(`controllers/TransaccionRouter.php?action=save`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': window.csrf_token // Asegúrate de que el token CSRF esté disponible
+                },
+                body: JSON.stringify(payload)
+            });
 
-	fetch('load_categorias.php?nivel=nivel3&padre=' + sid)
-		.then((r) => r.json())
-		.then((subs) => {
-			let sel = document.getElementById('f_subsub');
-			sel.innerHTML = "<option value=''>--- Seleccione Sub-subcategoría ---</option>";
-			subs.forEach((s) => {
-				sel.innerHTML += `<option value="${s.id}">${s.nombre}</option>`;
-			});
-		});
-});
+            const json = await resp.json();
 
-// === 4. EVENTO GUARDAR ===
-document.getElementById('btnGuardarFull').addEventListener('click', async () => {
-	const datos = {
-		fecha: document.getElementById('f_fecha').value,
-		descripcion: document.getElementById('f_descripcion').value,
-		monto: document.getElementById('f_monto').value,
-		tipo: document.getElementById('f_tipo').value,
-		id_categoria: document.getElementById('f_categoria').value || null,
-		id_subcategoria: document.getElementById('f_subcategoria').value || null,
-		id_subsubcategoria: document.getElementById('f_subsub').value || null,
-	};
-
-	// Validaciones básicas
-	if (!datos.fecha || !datos.monto || !datos.tipo) {
-		alert('Por favor, rellene Fecha, Importe y Tipo.');
-		return;
-	}
-
-	console.log('Enviando datos corregidos:', datos);
-
-	try {
-		// RUTA RELATIVA para Fedora
-		let resp = await fetch('controllers/TransaccionRouter.php?action=crear', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-CSRF-TOKEN': window.csrf_token
-			},
-			body: JSON.stringify(datos),
-		});
-
-		let json = await resp.json();
-
-		if (json.ok) {
-			alert('Transacción guardada con éxito');
-			window.location.href = 'transacciones.php';
-		} else {
-			alert('Error al guardar: ' + json.error);
-		}
-	} catch (err) {
-		console.error('Error en la petición:', err);
-		alert('Error de conexión con el servidor.');
-	}
+            if (json.success) {
+                alert('Transacción guardada con éxito.');
+                window.location.href = 'transacciones.php'; // Redirigir a la lista
+            } else {
+                alert('Error al guardar: ' + (json.error || 'Ocurrió un problema.'));
+            }
+        } catch (err) {
+            console.error('Error en la petición de guardado:', err);
+            alert('Error de conexión. No se pudo guardar la transacción.');
+        }
+    });
 });

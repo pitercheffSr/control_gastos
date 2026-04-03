@@ -25,12 +25,35 @@ $nombresMeses = [
     '09' => 'Septiembre', '10' => 'Octubre', '11' => 'Noviembre', '12' => 'Diciembre'
 ];
 
-// Cargamos movimientos y categorías
-$transModel = new TransaccionModel($pdo);
-$movimientos = $transModel->getAll($uid);
-
 $catModel = new CategoriaModel($pdo);
 $categoriasRaw = $catModel->getAll($uid);
+
+// --- INICIO: Lógica para el filtro de categorías ---
+// Organizamos la lista plana en un "Árbol Genealógico" para el <select>
+$categoriasPorPadre = [];
+foreach ($categoriasRaw as $c) {
+    $pid = $c['parent_id'] ?: 0;
+    $categoriasPorPadre[$pid][] = $c;
+}
+
+// Función que se llama a sí misma para dibujar las opciones del select con anidación
+function renderizarOpcionesCategoria($categoriasPorPadre, $parentId = 0, $nivel = 0) {
+    if (!isset($categoriasPorPadre[$parentId])) {
+        return '';
+    }
+
+    $html = '';
+    foreach ($categoriasPorPadre[$parentId] as $categoria) {
+        $prefijo = str_repeat('&nbsp;&nbsp;&nbsp;', $nivel);
+        if ($nivel > 0) $prefijo .= '↳ ';
+        $html .= "<option value=\"{$categoria['id']}\">{$prefijo}" . htmlspecialchars($categoria['nombre']) . "</option>";
+        $html .= renderizarOpcionesCategoria($categoriasPorPadre, $categoria['id'], $nivel + 1);
+    }
+    return $html;
+}
+$opcionesCategoriaParaFiltroHtml = '<option value="">Todas</option>' . renderizarOpcionesCategoria($categoriasPorPadre);
+$opcionesCategoriaParaEdicionHtml = '<option value="">-- Por clasificar --</option>' . renderizarOpcionesCategoria($categoriasPorPadre);
+// --- FIN: Lógica para el filtro de categorías ---
 
 $catIngresos = [];
 $catGastos = [];
@@ -52,7 +75,8 @@ include 'includes/header.php';
             <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Movimientos</h1>
             <p class="text-sm text-gray-500 mt-1">Historial completo de tus finanzas.</p>
         </div>
-        <button onclick="abrirModalTransaccion()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
+        <!-- Este botón es detectado por transacciones_editar.js para abrir el panel lateral -->
+        <button id="btnNuevaTransaccion" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Nuevo Movimiento
         </button>
     </div>
@@ -60,7 +84,7 @@ include 'includes/header.php';
     <div class="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-4 mb-8">
         <div class="flex items-center gap-2 border-r border-gray-100 pr-4">
             <span class="text-sm font-bold text-gray-600 pl-2">Mes:</span>
-            <select id="filtroMes" onchange="aplicarFiltroMes()" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
+            <select id="filtroMes" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
                 <option value="">Todos los meses</option>
                 <?php foreach($mesesDisponibles as $m): 
                     $partes = explode('-', $m['mes_val']);
@@ -73,15 +97,33 @@ include 'includes/header.php';
         
         <div class="flex items-center gap-2">
             <span class="text-sm font-bold text-gray-600">Desde:</span>
-            <input type="date" id="filtroInicio" onchange="filtrarTablaManual()" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+            <input type="date" id="filtroInicio" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
         </div>
         <div class="flex items-center gap-2">
             <span class="text-sm font-bold text-gray-600">Hasta:</span>
-            <input type="date" id="filtroFin" onchange="filtrarTablaManual()" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+            <input type="date" id="filtroFin" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+        </div>
+
+        <div class="flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
+            <span class="text-sm font-bold text-gray-600">Categoría:</span>
+            <select id="filtroCategoria" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none w-48">
+                <?php echo $opcionesCategoriaParaFiltroHtml; ?>
+            </select>
+        </div>
+
+        <div class="flex-grow flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            </svg>
+            <input type="text" id="filtroTexto" placeholder="Buscar por descripción..." class="w-full border-none focus:ring-0 bg-transparent outline-none text-sm p-0">
         </div>
 
         <button onclick="limpiarFiltros()" class="text-gray-500 hover:text-indigo-600 font-bold px-4 py-1.5 bg-gray-50 hover:bg-indigo-50 rounded-lg transition border border-gray-100 ml-auto md:ml-0">
             Limpiar Filtros
+        </button>
+        <button id="btnExportarCSV" class="text-green-600 hover:text-white font-bold px-4 py-1.5 bg-green-50 hover:bg-green-600 rounded-lg transition border border-green-100 hover:border-green-600 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+            Exportar
         </button>
     </div>
 
@@ -90,114 +132,84 @@ include 'includes/header.php';
             <table class="w-full text-left border-collapse min-w-[700px]">
                 <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
-                        <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Fecha</th>
-                        <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Descripción</th>
+                        <th class="p-4 w-4">
+                            <input type="checkbox" id="selectAllCheckbox" title="Seleccionar todo" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer">
+                        </th>
+                        <th data-sort="fecha" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Fecha</th>
+                        <th data-sort="descripcion" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Descripción</th>
                         <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Categoría</th>
-                        <th class="p-4 text-right text-gray-500 font-bold tracking-wider uppercase text-xs">Importe</th>
+                        <th data-sort="importe" class="p-4 text-right text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Importe</th>
                         <th class="p-4 text-center text-gray-500 font-bold tracking-wider uppercase text-xs">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tablaMovimientos" class="divide-y divide-gray-100">
-                    <?php if(empty($movimientos)): ?>
-                        <tr id="filaVacia"><td colspan="5" class="p-8 text-center text-gray-400">No hay movimientos registrados.</td></tr>
-                    <?php else: ?>
-                        <?php foreach($movimientos as $m): 
-                            $isGasto = $m['importe'] < 0;
-                            $fechaF = date('d/m/Y', strtotime($m['fecha']));
-                        ?>
-                        <tr class="fila-movimiento hover:bg-gray-50 transition" data-fecha="<?= $m['fecha'] ?>">
-                            <td class="p-4 text-sm text-gray-500 font-medium"><?= $fechaF ?></td>
-                            <td class="p-4 font-bold text-gray-800"><?= htmlspecialchars($m['descripcion']) ?></td>
-                            <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-bold"><?= htmlspecialchars($m['categoria_nombre'] ?: 'Por clasificar') ?></span></td>
-                            <td class="p-4 text-right font-extrabold <?= $isGasto ? 'text-red-500' : 'text-green-500' ?>">
-                                <?= number_format(abs($m['importe']), 2, ',', '.') ?>€
-                            </td>
-                            <td class="p-4 text-center">
-                                <button onclick="abrirModalTransaccion(<?= $m['id'] ?>, '<?= htmlspecialchars(addslashes($m['descripcion'])) ?>', <?= abs($m['importe']) ?>, '<?= $m['fecha'] ?>', '<?= $m['categoria_id'] ?>', <?= $isGasto ? 'true' : 'false' ?>)" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition" title="Editar">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                </button>
-                                <button onclick="eliminarTransaccion(<?= $m['id'] ?>)" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition" title="Eliminar">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                        <tr id="filaSinResultados" class="hidden"><td colspan="5" class="p-8 text-center text-gray-500 font-medium italic">No hay movimientos en estas fechas.</td></tr>
-                    <?php endif; ?>
+                    <!-- REFACTOR: El contenido de la tabla ahora se carga dinámicamente con JavaScript -->
+                    <tr id="filaCargando">
+                        <td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td>
+                    </tr>
+                    <tr id="filaVacia" class="hidden"><td colspan="6" class="p-8 text-center text-gray-400">No hay movimientos registrados.</td></tr>
+                    <tr id="filaSinResultados" class="hidden"><td colspan="6" class="p-8 text-center text-gray-500 font-medium italic">No se encontraron movimientos para los filtros aplicados.</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
+
+    <!-- Contenedor para la paginación -->
+    <div id="paginacionContenedor" class="flex justify-between items-center mt-6 px-4 py-2"></div>
 </div>
 
-<div id="modalTransaccion" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm">
-    <div id="modalTransContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300">
-        <h2 id="modalTransTitle" class="text-2xl font-extrabold mb-6 text-gray-800">Movimiento</h2>
-        <form id="formTransaccion" class="space-y-5">
-            <input type="hidden" id="trans_id">
-            
-            <div class="flex gap-4 mb-4 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
-                <button type="button" id="btnTipoGasto" onclick="setTipoTransaccion('gasto')" class="flex-1 py-2 rounded-md font-bold text-sm transition shadow-sm bg-white text-red-600 border border-gray-200">Gasto</button>
-                <button type="button" id="btnTipoIngreso" onclick="setTipoTransaccion('ingreso')" class="flex-1 py-2 rounded-md font-bold text-sm transition text-gray-500 hover:text-green-600">Ingreso</button>
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold mb-1.5 text-gray-700">Descripción</label>
-                <input type="text" id="trans_desc" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required autocomplete="off" placeholder="Ej: Compra supermercado">
-            </div>
-
-            <div class="flex gap-4">
-                <div class="flex-1">
-                    <label class="block text-sm font-bold mb-1.5 text-gray-700">Importe (€)</label>
-                    <input type="number" id="trans_importe" step="0.01" min="0.01" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required placeholder="0.00">
-                </div>
-                <div class="flex-1">
-                    <label class="block text-sm font-bold mb-1.5 text-gray-700">Fecha</label>
-                    <input type="date" id="trans_fecha" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required>
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold mb-1.5 text-gray-700">Categoría</label>
-                <select id="trans_cat" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition bg-white cursor-pointer">
-                    <option value="">-- Por clasificar --</option>
-                    <optgroup label="Gastos" id="optgroup-gastos">
-                        <?php foreach($catGastos as $c): ?>
-                            <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
-                        <?php endforeach; ?>
-                    </optgroup>
-                    <optgroup label="Ingresos" id="optgroup-ingresos" class="hidden">
-                        <?php foreach($catIngresos as $c): ?>
-                            <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
-                        <?php endforeach; ?>
-                    </optgroup>
+<!-- Barra de acciones masivas -->
+<div id="bulk-actions-bar" class="hidden fixed bottom-0 left-0 right-0 bg-gray-800/95 backdrop-blur-sm text-white p-4 shadow-lg transform translate-y-full transition-transform duration-300 ease-in-out z-30">
+    <div class="container mx-auto max-w-6xl flex justify-between items-center gap-6">
+        <div class="font-bold">
+            <span id="selection-count">0</span> seleccionados
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+                <label for="bulk-category-select" class="text-sm font-medium">Cambiar categoría a:</label>
+                <select id="bulk-category-select" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
+                    <?php echo $opcionesCategoriaParaEdicionHtml; ?>
                 </select>
+                <button id="btnAplicarCategoria" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-lg font-bold text-sm transition">Aplicar</button>
             </div>
-            
-            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onclick="cerrarModalTransaccion()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button>
-                <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md">Guardar</button>
-            </div>
-        </form>
+            <button id="btnEliminarSeleccionados" class="bg-red-600 hover:bg-red-700 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition shadow-md">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Eliminar Seleccionados
+            </button>
+        </div>
     </div>
 </div>
 
 <script>
+const opcionesCategoriaHTML = <?= json_encode($opcionesCategoriaParaEdicionHtml) ?>;
 const DIA_INICIO = <?= $dia_inicio ?>;
 
 // ============================================
-// LÓGICA DE FILTRADO EN TIEMPO REAL
+// LÓGICA DE LA TABLA (FILTRADO, PAGINACIÓN, EDICIÓN)
 // ============================================
+const escapeHtml = (unsafe) => unsafe ? unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : '';
+
+const estadoPaginacion = {
+    paginaActual: 1,
+    limite: 25, // Número de items por página
+    totalItems: 0
+};
+const estadoOrdenacion = {
+    sortBy: 'fecha',
+    sortOrder: 'DESC'
+};
+
+let seleccionados = new Set(); // Almacena los IDs de las filas seleccionadas
+let filaEnEdicion = null; // Para evitar editar múltiples filas a la vez
+
 function limpiarFiltros() {
     document.getElementById('filtroMes').value = '';
     document.getElementById('filtroInicio').value = '';
     document.getElementById('filtroFin').value = '';
-    ejecutarFiltro();
-}
-
-function filtrarTablaManual() {
-    document.getElementById('filtroMes').value = '';
-    ejecutarFiltro();
+    document.getElementById('filtroCategoria').value = '';
+    document.getElementById('filtroTexto').value = '';
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
 }
 
 function aplicarFiltroMes() {
@@ -227,161 +239,406 @@ function aplicarFiltroMes() {
 
     document.getElementById('filtroInicio').value = fInicio;
     document.getElementById('filtroFin').value = fFin;
-    ejecutarFiltro();
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
 }
 
-function ejecutarFiltro() {
+async function cargarTransacciones() {
+    seleccionados.clear();
+    updateBulkActionsBar();
+
+    const tbody = document.getElementById('tablaMovimientos');
     const fInicio = document.getElementById('filtroInicio').value;
     const fFin = document.getElementById('filtroFin').value;
-    const filas = document.querySelectorAll('.fila-movimiento');
-    let visibles = 0;
+    const fCategoria = document.getElementById('filtroCategoria').value;
+    const fTexto = document.getElementById('filtroTexto').value;
 
-    filas.forEach(fila => {
-        const fecha = fila.dataset.fecha;
-        let mostrar = true;
+    const params = new URLSearchParams({
+        page: estadoPaginacion.paginaActual,
+        limit: estadoPaginacion.limite,
+        startDate: fInicio,
+        endDate: fFin,
+        categoryId: fCategoria,
+        searchText: fTexto,
+        sortBy: estadoOrdenacion.sortBy,
+        sortOrder: estadoOrdenacion.sortOrder,
+    });
 
-        if (fInicio && fecha < fInicio) mostrar = false;
-        if (fFin && fecha > fFin) mostrar = false;
+    tbody.innerHTML = document.getElementById('filaCargando').outerHTML;
+    
+    try {
+        const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}`);
+        const json = await resp.json();
 
-        if (mostrar) {
-            fila.classList.remove('hidden');
-            visibles++;
-        } else {
-            fila.classList.add('hidden');
+        tbody.innerHTML = ''; // Limpiar "Cargando..."
+
+        if (!json.success) throw new Error(json.error || 'Error en la respuesta del servidor.');
+
+        estadoPaginacion.totalItems = json.total;
+        renderPaginacion();
+        actualizarIndicadoresOrden();
+
+        if (json.data.length === 0) {
+            const hayFiltros = fInicio || fFin || fTexto || fCategoria;
+            tbody.innerHTML = hayFiltros 
+                ? document.getElementById('filaSinResultados').outerHTML 
+                : document.getElementById('filaVacia').outerHTML;
+            return;
+        }
+
+        renderTabla(json.data, tbody);
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500">Error al cargar: ${err.message}</td></tr>`;
+    }
+}
+
+async function actualizarTotales() {
+    // Obtiene los filtros actuales
+    const fInicio = document.getElementById('filtroInicio').value;
+    const fFin = document.getElementById('filtroFin').value;
+    const fCategoria = document.getElementById('filtroCategoria').value;
+    const fTexto = document.getElementById('filtroTexto').value;
+
+    // Pide al backend los totales para los filtros actuales (limit=1 para una respuesta rápida)
+    const params = new URLSearchParams({
+        page: 1, limit: 1, startDate: fInicio, endDate: fFin,
+        categoryId: fCategoria, searchText: fTexto,
+    });
+
+    try {
+        const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}`);
+        const json = await resp.json();
+        if (json.success && json.totals) {
+            actualizarResumenTotales(json.totals);
+        }
+    } catch (err) {
+        console.error("Error actualizando totales:", err);
+    }
+}
+
+function updateBulkActionsBar() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const countSpan = document.getElementById('selection-count');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+    if (seleccionados.size > 0) {
+        bar.classList.remove('hidden', 'translate-y-full');
+        countSpan.textContent = seleccionados.size;
+    } else {
+        bar.classList.add('translate-y-full');
+        // Esperar a que termine la animación para ocultarlo
+        setTimeout(() => { if (seleccionados.size === 0) bar.classList.add('hidden'); }, 300);
+    }
+    
+    const totalVisibleCheckboxes = document.querySelectorAll('#tablaMovimientos .row-checkbox').length;
+    if (totalVisibleCheckboxes > 0 && seleccionados.size === totalVisibleCheckboxes) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+    } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = seleccionados.size > 0;
+    }
+}
+
+function actualizarIndicadoresOrden() {
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+        // Limpiar indicadores previos
+        const icon = th.querySelector('.sort-icon');
+        if (icon) icon.remove();
+
+        // Añadir indicador si es la columna activa
+        if (th.dataset.sort === estadoOrdenacion.sortBy) {
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'sort-icon ml-1';
+            // Usamos innerText para seguridad, aunque aquí no es crítico
+            iconSpan.innerText = estadoOrdenacion.sortOrder === 'ASC' ? '▲' : '▼';
+            th.appendChild(iconSpan);
+        }
+    });
+}
+
+function renderPaginacion() {
+    const contenedor = document.getElementById('paginacionContenedor');
+    const totalPaginas = Math.ceil(estadoPaginacion.totalItems / estadoPaginacion.limite);
+    const paginaActual = estadoPaginacion.paginaActual;
+
+    if (totalPaginas <= 1) {
+        contenedor.innerHTML = '';
+        return;
+    }
+
+    const primerItem = (paginaActual - 1) * estadoPaginacion.limite + 1;
+    const ultimoItem = Math.min(paginaActual * estadoPaginacion.limite, estadoPaginacion.totalItems);
+
+    let html = `
+        <div class="flex-1 flex justify-between sm:hidden">
+            <p class="text-sm text-gray-700">
+                Mostrando
+                <span class="font-medium">${primerItem}</span>
+                a
+                <span class="font-medium">${ultimoItem}</span>
+                de
+                <span class="font-medium">${estadoPaginacion.totalItems}</span>
+                resultados
+            </p>
+            <div class="flex">
+                <button id="btnPrevMobile" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 ${paginaActual <= 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${paginaActual <= 1 ? 'disabled' : ''}>
+                    Anterior
+                </button>
+                <button id="btnNextMobile" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 ${paginaActual >= totalPaginas ? 'opacity-50 cursor-not-allowed' : ''}" ${paginaActual >= totalPaginas ? 'disabled' : ''}>
+                    Siguiente
+                </button>
+            </div>
+        </div>
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+                <p class="text-sm text-gray-700">
+                    Mostrando
+                    <span class="font-medium">${primerItem}</span>
+                    a
+                    <span class="font-medium">${ultimoItem}</span>
+                    de
+                    <span class="font-medium">${estadoPaginacion.totalItems}</span>
+                    resultados
+                </p>
+            </div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button id="btnPrev" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${paginaActual <= 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${paginaActual <= 1 ? 'disabled' : ''}>
+                    <span class="sr-only">Anterior</span>
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+    `;
+
+    // Lógica para los números de página
+    const maxPagesToShow = 5; // Cuántos números de página mostrar (sin contar los extremos y los '...')
+    let startPage = Math.max(1, paginaActual - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPaginas, startPage + maxPagesToShow - 1);
+
+    // Ajustar startPage si endPage está al final pero no se muestran suficientes páginas
+    if (endPage - startPage + 1 < maxPagesToShow) {
+        startPage = Math.max(1, totalPaginas - maxPagesToShow + 1);
+    }
+
+    // Mostrar la primera página y '...' si es necesario
+    if (startPage > 1) {
+        html += `
+            <button data-page="1" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                1
+            </button>
+        `;
+        if (startPage > 2) {
+            html += `
+                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    ...
+                </span>
+            `;
+        }
+    }
+
+    // Mostrar los números de página intermedios
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <button data-page="${i}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${i === paginaActual ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+                ${i}
+            </button>
+        `;
+    }
+
+    // Mostrar '...' y la última página si es necesario
+    if (endPage < totalPaginas) {
+        if (endPage < totalPaginas - 1) {
+            html += `
+                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    ...
+                </span>
+            `;
+        }
+        html += `
+            <button data-page="${totalPaginas}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                ${totalPaginas}
+            </button>
+        `;
+    }
+
+    html += `
+                    <button id="btnNext" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${paginaActual >= totalPaginas ? 'opacity-50 cursor-not-allowed' : ''}" ${paginaActual >= totalPaginas ? 'disabled' : ''}>
+                        <span class="sr-only">Siguiente</span>
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    `;
+
+    contenedor.innerHTML = html;
+
+    document.getElementById('btnPrev')?.addEventListener('click', () => {
+        if (estadoPaginacion.paginaActual > 1) {
+            estadoPaginacion.paginaActual--;
+            cargarTransacciones();
+        }
+    });
+    document.getElementById('btnNext')?.addEventListener('click', () => {
+        if (estadoPaginacion.paginaActual < totalPaginas) {
+            estadoPaginacion.paginaActual++;
+            cargarTransacciones();
+        }
+    });
+    document.getElementById('btnPrevMobile')?.addEventListener('click', () => {
+        if (estadoPaginacion.paginaActual > 1) {
+            estadoPaginacion.paginaActual--;
+            cargarTransacciones();
+        }
+    });
+    document.getElementById('btnNextMobile')?.addEventListener('click', () => {
+        if (estadoPaginacion.paginaActual < totalPaginas) {
+            estadoPaginacion.paginaActual++;
+            cargarTransacciones();
         }
     });
 
-    const msjVacio = document.getElementById('filaSinResultados');
-    if (msjVacio) {
-        if (visibles === 0 && filas.length > 0) {
-            msjVacio.classList.remove('hidden');
-        } else {
-            msjVacio.classList.add('hidden');
-        }
+    // Añadir listeners a los botones de número de página
+    contenedor.querySelectorAll('button[data-page]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const page = parseInt(this.dataset.page, 10);
+            if (page !== estadoPaginacion.paginaActual) {
+                estadoPaginacion.paginaActual = page;
+                cargarTransacciones();
+            }
+        });
+    });
+}
+
+function activarEdicionEnFila(tr) {
+    if (filaEnEdicion && filaEnEdicion !== tr) {
+        // Si hay otra fila en edición, la recargamos para cancelar.
+        // El usuario tendrá que volver a hacer clic. Es la forma más simple y segura.
+        cargarTransacciones();
+        return;
     }
+
+    filaEnEdicion = tr;
+    tr.classList.add('edit-mode', 'bg-indigo-50');
+
+    const data = JSON.parse(tr.dataset.transaction);
+    const cells = tr.querySelectorAll('td');
+
+    // Clases para los inputs
+    const inputClasses = "w-full p-2 border border-indigo-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none text-sm";
+
+    // 0: Fecha
+    cells[0].innerHTML = `<input type="date" class="edit-fecha ${inputClasses}" value="${data.fecha}">`;
+    
+    // 1: Descripción
+    cells[1].innerHTML = `<input type="text" class="edit-descripcion ${inputClasses}" value="${escapeHtml(data.descripcion)}">`;
+
+    // 2: Categoría
+    cells[2].innerHTML = `<select class="edit-categoria ${inputClasses}">${opcionesCategoriaHTML}</select>`;
+    cells[2].querySelector('select').value = data.categoria_id || "";
+
+    // 3: Importe (con signo)
+    cells[3].innerHTML = `<input type="number" step="0.01" class="edit-importe ${inputClasses} text-right" value="${data.importe}">`;
+    cells[3].classList.remove('text-red-500', 'text-green-500');
+
+    // 4: Acciones
+    cells[4].innerHTML = `
+        <div class="flex justify-center gap-1">
+            <button onclick="guardarEdicionEnFila(this.closest('tr'))" class="text-green-600 p-1.5 rounded hover:bg-green-100" title="Guardar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            </button>
+            <button onclick="cancelarEdicionEnFila()" class="text-red-500 p-1.5 rounded hover:bg-red-100" title="Cancelar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.607a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+            </button>
+        </div>
+    `;
 }
 
-// ============================================
-// LÓGICA DEL MODAL Y GUARDADO
-// ============================================
-let tipoActual = 'gasto';
-
-function setTipoTransaccion(tipo) {
-    tipoActual = tipo;
-    const btnGasto = document.getElementById('btnTipoGasto');
-    const btnIngreso = document.getElementById('btnTipoIngreso');
-    const optGastos = document.getElementById('optgroup-gastos');
-    const optIngresos = document.getElementById('optgroup-ingresos');
-
-    if(tipo === 'gasto') {
-        btnGasto.classList.add('bg-white', 'text-red-600', 'shadow-sm', 'border', 'border-gray-200');
-        btnGasto.classList.remove('text-gray-500', 'hover:text-red-600');
-        btnIngreso.classList.remove('bg-white', 'text-green-600', 'shadow-sm', 'border', 'border-gray-200');
-        btnIngreso.classList.add('text-gray-500', 'hover:text-green-600');
-        optGastos.classList.remove('hidden');
-        optIngresos.classList.add('hidden');
-    } else {
-        btnIngreso.classList.add('bg-white', 'text-green-600', 'shadow-sm', 'border', 'border-gray-200');
-        btnIngreso.classList.remove('text-gray-500', 'hover:text-green-600');
-        btnGasto.classList.remove('bg-white', 'text-red-600', 'shadow-sm', 'border', 'border-gray-200');
-        btnGasto.classList.add('text-gray-500', 'hover:text-red-600');
-        optIngresos.classList.remove('hidden');
-        optGastos.classList.add('hidden');
-    }
-    document.getElementById('trans_cat').value = "";
+function cancelarEdicionEnFila() {
+    filaEnEdicion = null;
+    cargarTransacciones();
 }
 
-function abrirModalTransaccion(id = null, desc = '', importe = '', fecha = '', catId = '', isGasto = true) {
-    document.getElementById('formTransaccion').reset();
-    document.getElementById('trans_id').value = id || '';
-    
-    if(id) {
-        document.getElementById('trans_desc').value = desc;
-        document.getElementById('trans_importe').value = importe;
-        document.getElementById('trans_fecha').value = fecha;
-        setTipoTransaccion(isGasto ? 'gasto' : 'ingreso');
-        document.getElementById('trans_cat').value = catId || '';
-    } else {
-        document.getElementById('trans_fecha').value = new Date().toISOString().split('T')[0];
-        setTipoTransaccion('gasto');
-    }
-    
-    document.getElementById('modalTransaccion').classList.remove('hidden');
-    setTimeout(() => { document.getElementById('modalTransContent').classList.add('scale-100', 'opacity-100'); }, 10);
-}
+async function guardarEdicionEnFila(tr) {
+    const originalData = JSON.parse(tr.dataset.transaction);
 
-function cerrarModalTransaccion() {
-    const content = document.getElementById('modalTransContent');
-    if(content) content.classList.remove('scale-100', 'opacity-100');
-    setTimeout(() => { const modal = document.getElementById('modalTransaccion'); if(modal) modal.classList.add('hidden'); }, 300);
-}
-
-// Cierre centralizado con Escape [cite: 2026-01-17]
-document.addEventListener('keydown', (e) => { 
-    if(e.key === "Escape") { 
-        cerrarModalTransaccion(); 
-        
-        const mobileMenu = document.getElementById('mobile-menu');
-        if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
-            mobileMenu.classList.add('hidden');
-        }
-    } 
-});
-
-document.getElementById('formTransaccion').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const btnGuardar = e.target.querySelector('button[type="submit"]');
-    const textoOriginal = btnGuardar.innerText;
-    btnGuardar.innerText = 'Guardando...';
-    btnGuardar.disabled = true;
-    btnGuardar.classList.add('opacity-75', 'cursor-not-allowed');
-    
-    let importeVal = parseFloat(document.getElementById('trans_importe').value);
-    if(tipoActual === 'gasto' && importeVal > 0) importeVal = -importeVal;
-
-    const data = {
-        id: document.getElementById('trans_id').value,
-        descripcion: document.getElementById('trans_desc').value,
-        importe: importeVal,
-        fecha: document.getElementById('trans_fecha').value,
-        categoria_id: document.getElementById('trans_cat').value || null
+    const payload = {
+        id: originalData.id,
+        fecha: tr.querySelector('.edit-fecha').value,
+        descripcion: tr.querySelector('.edit-descripcion').value,
+        importe: tr.querySelector('.edit-importe').value, // El backend espera 'importe' o 'monto'
+        categoria_id: tr.querySelector('.edit-categoria').value || null
     };
 
+    if (!payload.fecha || !payload.importe || !payload.descripcion) {
+        alert('Fecha, Descripción e Importe no pueden estar vacíos.');
+        return;
+    }
+
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=save', {
+        const resp = await fetch(`controllers/TransaccionRouter.php?action=save`, {
             method: 'POST',
-            body: JSON.stringify(data),
-            headers: {'Content-Type': 'application/json'}
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token },
+            body: JSON.stringify(payload)
         });
-        
-        const textoRespuesta = await res.text(); 
-        
-        try {
-            const result = JSON.parse(textoRespuesta);
-            if(result.success) {
-                cerrarModalTransaccion();
-                location.reload();
-            } else {
-                alert("Error al guardar: " + (result.error || "Desconocido"));
-                restaurarBoton(btnGuardar, textoOriginal);
-            }
-        } catch (jsonErr) {
-            console.warn("Se guardó, pero la respuesta no era JSON puro:", textoRespuesta);
-            cerrarModalTransaccion();
-            location.reload();
+        const json = await resp.json();
+        if (json.success) {
+            // ¡Éxito! Actualizamos la fila y los totales sin recargar toda la tabla.
+            reemplazarContenidoFila(tr, json.data);
+            filaEnEdicion = null;
+            actualizarTotales();
+        } else {
+            alert('Error al guardar: ' + (json.error || 'Error desconocido'));
         }
     } catch (err) {
-        console.error(err);
-        alert("Error de comunicación. Revisa tu conexión.");
-        restaurarBoton(btnGuardar, textoOriginal);
+        console.error('Error al guardar en línea:', err);
+        alert('Error de conexión al guardar.');
     }
-});
+}
 
-function restaurarBoton(btn, texto) {
-    btn.innerText = texto;
-    btn.disabled = false;
-    btn.classList.remove('opacity-75', 'cursor-not-allowed');
+function generarContenidoHtmlFila(m) {
+    const formatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+    const isGasto = m.importe < 0;
+    const fechaF = new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    return `
+        <td class="p-4 w-4">
+            <input type="checkbox" class="row-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer" data-id="${m.id}">
+        </td>
+        <td class="p-4 text-sm text-gray-500 font-medium">${fechaF}</td>
+        <td class="p-4 font-bold text-gray-800">${escapeHtml(m.descripcion)}</td>
+        <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-bold">${escapeHtml(m.categoria_nombre || 'Por clasificar')}</span></td>
+        <td class="p-4 text-right font-extrabold ${isGasto ? 'text-red-500' : 'text-green-500'}">
+            ${formatter.format(Math.abs(m.importe))}
+        </td>
+        <td class="p-4 text-center">
+            <button onclick="activarEdicionEnFila(this.closest('tr'))" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition" title="Editar">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            </button>
+            <button onclick="eliminarTransaccion(${m.id})" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition" title="Eliminar">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+        </td>
+    `;
+}
+
+function reemplazarContenidoFila(tr, m) {
+    tr.classList.remove('edit-mode', 'bg-indigo-50');
+    tr.dataset.transaction = JSON.stringify(m);
+    tr.innerHTML = generarContenidoHtmlFila(m);
+}
+
+function renderTabla(movimientos, tbody) {
+    movimientos.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.className = 'fila-movimiento hover:bg-gray-50 transition';
+        reemplazarContenidoFila(tr, m);
+        tbody.appendChild(tr);
+    });
 }
 
 async function eliminarTransaccion(id) {
@@ -390,15 +647,176 @@ async function eliminarTransaccion(id) {
         const res = await fetch('controllers/TransaccionRouter.php?action=delete', {
             method: 'POST',
             body: JSON.stringify({ id }),
-            headers: {'Content-Type': 'application/json'}
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': window.csrf_token // Importante para la seguridad
+            }
         });
         const data = await res.json();
-        if (data.success) location.reload();
-        else alert("Error al borrar: " + (data.error || "Desconocido"));
+        if (data.success) {
+            cargarTransacciones(); // ¡Actualización dinámica!
+        } else {
+            alert("Error al borrar: " + (data.error || "Desconocido"));
+        }
     } catch (err) {
         alert("Error de comunicación.");
     }
 }
+
+async function eliminarSeleccionados() {
+    const ids = Array.from(seleccionados);
+    if (ids.length === 0) return;
+
+    if (!confirm(`¿Seguro que quieres borrar ${ids.length} movimiento(s)? Esta acción no se puede deshacer.`)) return;
+
+    try {
+        const res = await fetch('controllers/TransaccionRouter.php?action=deleteMultiple', {
+            method: 'POST',
+            body: JSON.stringify({ ids }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
+        });
+        const data = await res.json();
+        if (data.success) {
+            cargarTransacciones(); // Recarga la tabla para ver los cambios
+        } else {
+            alert("Error al borrar: " + (data.error || "Desconocido"));
+        }
+    } catch (err) {
+        alert("Error de comunicación al intentar borrar.");
+    }
+}
+
+async function cambiarCategoriaSeleccionados() {
+    const ids = Array.from(seleccionados);
+    const categoriaId = document.getElementById('bulk-category-select').value;
+
+    if (ids.length === 0) {
+        alert("No hay transacciones seleccionadas.");
+        return;
+    }
+
+    if (!confirm(`¿Seguro que quieres cambiar la categoría de ${ids.length} movimiento(s)?`)) return;
+
+    try {
+        const res = await fetch('controllers/TransaccionRouter.php?action=updateCategoryMultiple', {
+            method: 'POST',
+            body: JSON.stringify({ ids: ids, categoria_id: categoriaId || null }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
+        });
+        const data = await res.json();
+        if (data.success) {
+            cargarTransacciones(); // Recarga la tabla para ver los cambios
+        } else {
+            alert("Error al actualizar categorías: " + (data.error || "Desconocido"));
+        }
+    } catch (err) {
+        alert("Error de comunicación al intentar actualizar.");
+    }
+}
+
+// Event Listeners para los filtros
+document.getElementById('filtroMes').addEventListener('change', aplicarFiltroMes);
+document.getElementById('filtroInicio').addEventListener('change', () => {
+    document.getElementById('filtroMes').value = '';
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
+});
+document.getElementById('filtroFin').addEventListener('change', () => {
+    document.getElementById('filtroMes').value = '';
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
+});
+
+document.getElementById('filtroCategoria').addEventListener('change', () => {
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
+});
+
+let debounceTimer;
+document.getElementById('filtroTexto').addEventListener('keyup', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        estadoPaginacion.paginaActual = 1;
+        cargarTransacciones();
+    }, 400); // Espera 400ms después de que el usuario deje de escribir
+});
+
+// Carga inicial de datos al entrar en la página
+document.addEventListener('DOMContentLoaded', () => {
+    // Carga inicial de la tabla
+    cargarTransacciones();
+
+    // Añadimos los listeners para la ordenación
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const newSortBy = th.dataset.sort;
+            if (estadoOrdenacion.sortBy === newSortBy) {
+                estadoOrdenacion.sortOrder = estadoOrdenacion.sortOrder === 'ASC' ? 'DESC' : 'ASC';
+            } else {
+                estadoOrdenacion.sortBy = newSortBy;
+                estadoOrdenacion.sortOrder = (newSortBy === 'descripcion') ? 'ASC' : 'DESC';
+            }
+            estadoPaginacion.paginaActual = 1;
+            cargarTransacciones();
+        });
+    });
+
+    // Listener para el botón de eliminar seleccionados
+    document.getElementById('btnEliminarSeleccionados').addEventListener('click', eliminarSeleccionados);
+
+    // Listener para el botón de aplicar categoría masiva
+    document.getElementById('btnAplicarCategoria').addEventListener('click', cambiarCategoriaSeleccionados);
+
+    // Listener para el checkbox "seleccionar todo"
+    document.getElementById('selectAllCheckbox').addEventListener('change', (e) => {
+        const checkboxes = document.querySelectorAll('#tablaMovimientos .row-checkbox');
+        checkboxes.forEach(checkbox => {
+            const id = checkbox.dataset.id;
+            if (e.target.checked) {
+                checkbox.checked = true;
+                seleccionados.add(id);
+            } else {
+                checkbox.checked = false;
+                seleccionados.delete(id);
+            }
+        });
+        updateBulkActionsBar();
+    });
+
+    // Delegación de eventos para los checkboxes de cada fila
+    document.getElementById('tablaMovimientos').addEventListener('change', (e) => {
+        if (!e.target.classList.contains('row-checkbox')) return;
+        e.target.checked ? seleccionados.add(e.target.dataset.id) : seleccionados.delete(e.target.dataset.id);
+        updateBulkActionsBar();
+    });
+});
+
+// Listener para cuando se guarda desde el panel lateral
+window.addEventListener('tx:saved', (e) => {
+    // Cuando se crea o edita una transacción desde el panel, la forma más
+    // robusta de asegurar que se vea es recargar la tabla.
+    // Opcionalmente, podríamos ir a la página 1 para ver los nuevos registros.
+    cargarTransacciones();
+});
+
+// Listener para el botón de exportar
+document.getElementById('btnExportarCSV').addEventListener('click', () => {
+    const fInicio = document.getElementById('filtroInicio').value;
+    const fFin = document.getElementById('filtroFin').value;
+    const fCategoria = document.getElementById('filtroCategoria').value;
+    const fTexto = document.getElementById('filtroTexto').value;
+
+    const params = new URLSearchParams({
+        startDate: fInicio,
+        endDate: fFin,
+        categoryId: fCategoria,
+        searchText: fTexto,
+        sortBy: estadoOrdenacion.sortBy,
+        sortOrder: estadoOrdenacion.sortOrder,
+    });
+
+    window.location.href = `controllers/ExportRouter.php?${params.toString()}`;
+});
 </script>
 
 <?php include 'includes/footer.php'; ?>

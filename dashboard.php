@@ -38,6 +38,9 @@ $nombresMeses = [
 include 'includes/header.php'; 
 ?>
 
+<!-- 1. Incluir la librería de gráficos (Chart.js) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
     html, body { overflow-y: auto !important; height: auto !important; }
 </style>
@@ -94,7 +97,7 @@ include 'includes/header.php';
             <p class="text-gray-400 italic col-span-3">Calculando métricas...</p>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
             <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
                 <div class="flex justify-between items-center mb-2">
                     <h2 class="text-xl font-bold text-gray-800">Regla 50/30/20</h2>
@@ -102,6 +105,16 @@ include 'includes/header.php';
                 </div>
                 <p class="text-sm text-gray-500 mb-6 border-b border-gray-100 pb-4">Progreso sobre tus ingresos actuales.</p>
                 <div id="progress-503020-container" class="flex-grow flex flex-col justify-center gap-2"><p class="text-gray-400 italic text-center">Generando gráficos...</p></div>
+            </div>
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-bold text-gray-800">Distribución de Gastos</h2>
+                    <span class="bg-purple-50 text-purple-600 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide">Por Categoría</span>
+                </div>
+                <p class="text-sm text-gray-500 mb-6 border-b border-gray-100 pb-4">Top 6 gastos en el periodo seleccionado.</p>
+                <div id="donut-chart-container" class="relative flex-grow flex items-center justify-center" style="min-height: 250px;">
+                    <canvas id="gastosDonutChart"></canvas>
+                </div>
             </div>
             <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
@@ -118,6 +131,8 @@ include 'includes/header.php';
 const DIA_INICIO = <?= $dia_inicio ?>;
 // Inyectamos el mapa de categorías de PHP a JavaScript
 const categoriasArbol = <?= json_encode($categoriasArbol) ?>;
+// Creamos un mapa para búsquedas rápidas de ID a Nombre
+const categoriasMap = new Map(categoriasArbol.map(c => [c.id.toString(), c.nombre]));
 
 // MAGIA: Esta función trepa por el árbol hasta decirnos si es Necesidad, Deseo o Ahorro
 function getRootCategoryName(catId) {
@@ -220,6 +235,8 @@ async function cargarDashboard() {
         `;
         
         await renderizarBarras(fInicio, fFin, ingresos, gastos);
+        // El renderizado del gráfico de donut se llama desde dentro de renderizarBarras
+        // para reutilizar la misma llamada a la API.
     } catch (e) { console.error("Error en KPIs:", e); }
 
     try {
@@ -251,12 +268,99 @@ async function cargarDashboard() {
     } catch(e) { console.error("Error en Movimientos:", e); }
 }
 
+let donutChartInstance = null; // Para mantener la referencia al gráfico y poder destruirlo
+
+function renderDonutChart(distribucion) {
+    const container = document.getElementById('donut-chart-container');
+    const canvas = document.getElementById('gastosDonutChart');
+
+    if (!canvas || typeof Chart === 'undefined') {
+        container.innerHTML = '<p class="text-center text-red-500">Error: Chart.js no está cargado.</p>';
+        return;
+    }
+    
+    if (donutChartInstance) donutChartInstance.destroy();
+    
+    if (!distribucion || !Array.isArray(distribucion) || distribucion.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 italic text-center py-10">No hay datos de gastos para mostrar.</p>';
+        return;
+    }
+
+    // 1. Procesar datos: obtener nombres y totales, y filtrar gastos nulos/cero.
+    let dataWithNames = distribucion.map(d => ({
+        nombre: categoriasMap.get(d.categoria_id) || 'Sin Categoría',
+        total: parseFloat(d.total) || 0
+    })).filter(d => d.total > 0);
+
+    // 2. Ordenar y agrupar los más pequeños en "Otros"
+    dataWithNames.sort((a, b) => b.total - a.total);
+    const topN = 6; // Mostramos los 6 más grandes
+    let chartData = dataWithNames.slice(0, topN);
+    const othersTotal = dataWithNames.slice(topN).reduce((sum, item) => sum + item.total, 0);
+
+    if (othersTotal > 0) {
+        chartData.push({ nombre: 'Otros', total: othersTotal });
+    }
+    
+    if (chartData.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 italic text-center py-10">No hay gastos categorizados en este periodo.</p>';
+        return;
+    }
+
+    const labels = chartData.map(d => d.nombre);
+    const data = chartData.map(d => d.total);
+
+    // 3. Colores para el gráfico
+    const colors = ['#4f46e5', '#7c3aed', '#db2777', '#f97316', '#eab308', '#22c55e', '#64748b'];
+    const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+
+    // 4. Crear el nuevo gráfico
+    const ctx = canvas.getContext('2d');
+    donutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Gastos',
+                data: data,
+                backgroundColor: backgroundColors,
+                borderColor: '#ffffff',
+                borderWidth: 3,
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { boxWidth: 12, font: { size: 12 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const totalSum = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = totalSum > 0 ? (context.parsed / totalSum * 100).toFixed(1) : 0;
+                            return `${context.label}: ${context.parsed.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
 async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
     const container = document.getElementById('progress-503020-container');
     
     try {
         const resDist = await fetch(`controllers/DashboardRouter.php?action=getDistribucionGastos&fecha_inicio=${fInicio}&fecha_fin=${fFin}`);
         const distribucion = await resDist.json();
+
+        // Llamamos a la función que renderiza el gráfico de donut con los mismos datos
+        renderDonutChart(distribucion);
         
         let gastos = { necesidad: 0, deseo: 0, ahorro: 0, gasto: 0 };
         

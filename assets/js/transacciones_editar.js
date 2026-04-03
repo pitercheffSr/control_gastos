@@ -100,68 +100,69 @@ document.getElementById('btnNuevaTransaccion')?.addEventListener('click', () => 
 // CARGAR CATEGORÍAS (3 niveles)
 // -----------------------------------------------------
 async function loadCategorias() {
-	try {
-		const resp = await fetch("load_categorias.php?nivel=nivel1");
-		const cats = await resp.json();
-
-		fCat.innerHTML = "<option value=''>— Seleccione —</option>";
-		cats.forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
-
-		fCat.onchange = async () => {
-			const idCat = fCat.value;
-			fSubcat.innerHTML = "<option value=''>—</option>";
-			fSubsub.innerHTML = "<option value=''>—</option>";
-			if (!idCat) return;
-
-			const r2 = await fetch(`load_categorias.php?nivel=nivel2&padre=${idCat}`);
-			const subs = await r2.json();
-			fSubcat.innerHTML = "<option value=''>— Seleccione —</option>";
-			subs.forEach(c => fSubcat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
-		};
-
-		fSubcat.onchange = async () => {
-			const idSub = fSubcat.value;
-			fSubsub.innerHTML = "<option value=''>—</option>";
-			if (!idSub) return;
-
-			const r3 = await fetch(`load_categorias.php?nivel=nivel3&padre=${idSub}`);
-			const subsubs = await r3.json();
-			fSubsub.innerHTML = "<option value=''>— Seleccione —</option>";
-			subsubs.forEach(c => fSubsub.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
-		};
-	} catch (err) { console.error('Error categorías:', err); }
+    // La lógica ahora está centralizada en la función reutilizable.
+    // Pasamos los elementos <select> específicos de este panel.
+    // La función `initializeCascadingCategories` debe estar disponible globalmente.
+    await initializeCascadingCategories({
+        cat: fCat,
+        subcat: fSubcat,
+        subsubcat: fSubsub
+    });
 }
 
 // -----------------------------------------------------
 // CARGAR DATOS PARA EDITAR
 // -----------------------------------------------------
 async function loadTransaccion(id) {
-	try {
-		const resp = await fetch(`controllers/TransaccionRouter.php?action=obtener&id=${id}`);
-		const json = await resp.json();
-		if (!json.ok) return;
+    try {
+        // 1. Llamar al nuevo endpoint 'getById' que devuelve la transacción y la ruta de categorías.
+        const resp = await fetch(`controllers/TransaccionRouter.php?action=getById&id=${id}`);
+        const json = await resp.json();
 
-		const data = json.data;
-		fFecha.value = data.fecha;
-		fDesc.value = data.descripcion ?? '';
-		fMonto.value = data.monto;
-		fTipo.value = data.tipo;
+        if (!json.success) {
+            alert('Error al cargar la transacción: ' + (json.error || 'Desconocido'));
+            cerrarPanel();
+            return;
+        }
 
-		fCat.value = data.id_categoria ?? '';
-		await fCat.onchange();
+        const data = json.data;
 
-		fSubcat.value = data.id_subcategoria ?? '';
-		await fSubcat.onchange();
+        // 2. Rellenar los campos básicos del formulario.
+        fFecha.value = data.fecha;
+        fDesc.value = data.descripcion ?? '';
+        fMonto.value = data.importe; // El backend devuelve el importe en positivo.
+        fTipo.value = data.tipo;     // El backend determina si es 'ingreso' o 'gasto'.
 
-		fSubsub.value = data.id_subsubcategoria ?? '';
-	} catch (err) { console.error(err); }
+        // 3. Rellenar las categorías en cascada de forma inteligente.
+        // El backend nos da un array 'categoria_path' con los IDs desde la raíz. Ej: [2, 7, 15]
+        const path = data.categoria_path || [];
+
+        if (path.length > 0) {
+            fCat.value = path[0];
+            // Disparamos el 'onchange' para cargar las subcategorías y esperamos a que termine.
+            if (fCat.onchange) await fCat.onchange();
+        }
+
+        if (path.length > 1) {
+            fSubcat.value = path[1];
+            // Hacemos lo mismo para el siguiente nivel.
+            if (fSubcat.onchange) await fSubcat.onchange();
+        }
+
+        if (path.length > 2) {
+            fSubsub.value = path[2];
+        }
+
+    } catch (err) { console.error('Error al cargar datos de transacción:', err); }
 }
 
 // -----------------------------------------------------
 // GUARDAR CAMBIOS (CREAR O EDITAR)
 // -----------------------------------------------------
 btnGuardar.addEventListener('click', async () => {
-	const action = window.transaccionActual ? 'editar' : 'crear';
+	// Determinar la categoría más específica seleccionada.
+	// Si no se selecciona ninguna, el valor será null, lo que es correcto para la BD.
+	const categoriaFinalId = fSubsub.value || fSubcat.value || fCat.value || null;
 
 	const payload = {
 		id: window.transaccionActual,
@@ -169,9 +170,9 @@ btnGuardar.addEventListener('click', async () => {
 		descripcion: fDesc.value,
 		monto: fMonto.value,
 		tipo: fTipo.value,
-		id_categoria: fCat.value,
-		id_subcategoria: fSubcat.value,
-		id_subsubcategoria: fSubsub.value,
+		// Se envía una única ID de categoría, la más específica.
+		// Esto simplifica el backend y evita errores con strings vacíos.
+		categoria_id: categoriaFinalId,
 	};
 
 	if (!payload.fecha || !payload.monto) {
@@ -180,7 +181,7 @@ btnGuardar.addEventListener('click', async () => {
 	}
 
 	try {
-		const resp = await fetch(`controllers/TransaccionRouter.php?action=${action}`, {
+		const resp = await fetch(`controllers/TransaccionRouter.php?action=save`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -190,9 +191,13 @@ btnGuardar.addEventListener('click', async () => {
 		});
 
 		const json = await resp.json();
-		if (json.ok) {
-			cerrarPanel();
-			if (typeof cargarTransacciones === 'function') cargarTransacciones();
+		// CORRECCIÓN: El backend (TransaccionRouter.php) devuelve 'success', no 'ok'.
+		// Ajustamos la condición para que coincida con la respuesta del servidor.
+		if (json.success) {
+			cerrarPanel(); // 1. Cierra el panel.
+			// 2. Dispara un evento global para que la página principal (transacciones.php)
+			// sepa que debe recargar los datos, sin acoplar este script a esa página.
+			window.dispatchEvent(new CustomEvent('tx:saved', { detail: { transaction: json.data } }));
 		} else {
 			alert('Error: ' + json.error);
 		}

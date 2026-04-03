@@ -43,6 +43,7 @@ test_endpoints.php
 
 .vscode/settings.json
 # Archivos de configuración con contraseñas
-config.php
+config.php  
+config(server).php
 .vscode/
 .env
