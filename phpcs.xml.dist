@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<ruleset name="control_gastos">
+  <description>Reglas del proyecto: PSR-12 con longitud de línea ampliada a 200 caracteres.</description>
+
+  <!-- Partimos de PSR-12 -->
+  <rule ref="PSR12" />
+
+  <!-- Ajuste: permitir líneas más largas (200) para evitar errores en vistas con HTML embebido -->
+  <rule ref="Generic.Files.LineLength">
+    <properties>
+      <property name="lineLimit" value="200" />
+      <!-- absoluteLineLimit a 0 desactiva la comprobación estricta de línea límite absoluta -->
+      <property name="absoluteLineLimit" value="0" />
+    </properties>
+  </rule>
+
+  <!-- Excluir vendor y node_modules por ser dependencias externas -->
+  <exclude-pattern>vendor/*</exclude-pattern>
+  <exclude-pattern>node_modules/*</exclude-pattern>
+</ruleset>

@@ -47,3 +47,6 @@ config.php
 config(server).php
 .vscode/
 .env
+config(server).php
+config(database).php
+config(app).php
