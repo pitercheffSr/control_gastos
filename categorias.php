@@ -9,75 +9,68 @@ $uid = $_SESSION['usuario_id'];
 $model = new CategoriaModel($pdo);
 $categorias = $model->getAll($uid);
 
+// Función que se llama a sí misma para dibujar infinitas subcategorías
+function renderCategoriaSortable($c, $categoriasPorPadre) {
+    $esSistema = is_null($c['usuario_id']);
+    $id = $c['id'];
+    $tieneHijos = isset($categoriasPorPadre[$id]);
+    ?>
+    <li data-id="<?= $id ?>" class="list-group-item bg-white rounded-lg shadow-sm border">
+        <div class="p-3 flex items-center justify-between group">
+            <div class="flex items-center gap-3">
+                <span class="drag-handle cursor-move text-gray-400 hover:text-gray-800" title="Arrastrar para reordenar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </span>
+                <!-- Wrapper for alignment and toggle button -->
+                <div class="w-7 h-7 flex items-center justify-center">
+                    <?php if ($tieneHijos): ?>
+                    <button type="button" class="category-toggle-btn text-gray-400 hover:text-indigo-600 p-1 rounded-full">
+                        <svg class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                    <?php endif; ?>
+                </div>
+                <span class="font-bold text-gray-800"><?= htmlspecialchars($c['nombre']) ?></span>
+                <span class="px-2 py-0.5 <?= $c['tipo_fijo'] === 'ingreso' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?> rounded-md text-xs font-bold uppercase"><?= htmlspecialchars($c['tipo_fijo']) ?></span>
+                <?php if($esSistema): ?>
+                    <span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">Sistema</span>
+                <?php endif; ?>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="category-total text-base font-bold text-gray-700 w-28 text-right"></span>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="abrirModalCategoria(null, '', '<?= $c['tipo_fijo'] ?>', <?= $id ?>)" class="text-gray-400 hover:text-green-600 p-1.5 rounded-full hover:bg-green-50 transition" title="Añadir Subcategoría">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                    <?php if(!$esSistema): ?>
+                        <button onclick="abrirModalCategoria(<?= $id ?>, '<?= htmlspecialchars(addslashes($c['nombre'])) ?>', '<?= $c['tipo_fijo'] ?>', '<?= $c['parent_id'] ?: '' ?>')" class="text-gray-400 hover:text-indigo-600 p-1.5 rounded-full hover:bg-indigo-50 transition" title="Editar">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        </button>
+                        <button onclick="eliminarCategoria(<?= $id ?>)" class="text-gray-400 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition" title="Eliminar">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php if ($tieneHijos): ?>
+            <ul class="list-group pl-10 pt-2 space-y-2 hidden" data-parent-id="<?= $id ?>">
+                <?php foreach ($categoriasPorPadre[$id] as $hijo) {
+                    renderCategoriaSortable($hijo, $categoriasPorPadre);
+                } ?>
+            </ul>
+        <?php endif; ?>
+    </li>
+    <?php
+}
+
 // Magia: Organizamos la lista plana en un "Árbol Genealógico"
 $categoriasPorPadre = [];
 $todasLasCategorias = []; 
-foreach ($categorias as $c) {
-    $pid = $c['parent_id'] ?: 0;
-    $categoriasPorPadre[$pid][] = $c;
-    $todasLasCategorias[] = $c; 
-}
-
-// Función que se llama a sí misma para dibujar infinitas subcategorías
-function renderizarCategoria($c, $nivel, $categoriasPorPadre) {
-    $esSistema = is_null($c['usuario_id']);
-    $id = $c['id'];
-    $pid = $c['parent_id'] ?: 0;
-    $tieneHijos = isset($categoriasPorPadre[$id]);
-    
-    // Configuración visual matemática según la profundidad
-    $paddingLeft = $nivel > 0 ? ($nivel * 2.5 + 1) . 'rem' : '1rem';
-    $rowClass = $nivel > 0 ? "hijo-de-{$pid} hidden bg-gray-50/50 border-l-4 border-l-indigo-200" : "hover:bg-gray-50 border-b border-gray-100";
-    ?>
-    <tr class="transition-all duration-200 <?= $rowClass ?>" id="row-<?= $id ?>">
-        <td class="p-4 flex items-center" style="padding-left: <?= $paddingLeft ?>;">
-            <?php if($tieneHijos): ?>
-                <button onclick="toggleHijos(<?= $id ?>)" id="btn-toggle-<?= $id ?>" class="text-gray-500 hover:text-indigo-600 transition p-1 bg-white rounded shadow-sm border border-gray-200 mr-3">
-                    <svg class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                </button>
-            <?php else: ?>
-                <span class="w-6 h-6 inline-block mr-3"></span>
-            <?php endif; ?>
-            
-            <?php if($nivel > 0): ?>
-                <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5v7a2 2 0 002 2h7m-3-3l3 3-3 3"></path></svg>
-            <?php endif; ?>
-            
-            <span class="<?= $nivel === 0 ? 'font-extrabold text-gray-800' : 'font-medium text-gray-600' ?>"><?= htmlspecialchars($c['nombre']) ?></span>
-        </td>
-        <td class="p-4">
-            <span class="px-2.5 py-1 <?= $c['tipo_fijo'] === 'ingreso' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?> rounded-md text-xs font-bold uppercase"><?= htmlspecialchars($c['tipo_fijo']) ?></span>
-        </td>
-        <td class="p-4">
-            <?php if($esSistema): ?>
-                <span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">Sistema</span>
-            <?php else: ?>
-                <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Personalizada</span>
-            <?php endif; ?>
-        </td>
-        <td class="p-4 text-center">
-            <button onclick="abrirModalCategoria(null, '', '<?= $c['tipo_fijo'] ?>', <?= $id ?>)" class="text-gray-400 hover:text-green-600 mx-1 p-1.5 rounded hover:bg-green-50 transition" title="Añadir Subcategoría">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            </button>
-
-            <?php if(!$esSistema): ?>
-                <button onclick="abrirModalCategoria(<?= $id ?>, '<?= htmlspecialchars(addslashes($c['nombre'])) ?>', '<?= $c['tipo_fijo'] ?>', '<?= $pid ?>')" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition" title="Editar">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                </button>
-                <button onclick="eliminarCategoria(<?= $id ?>)" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition" title="Eliminar">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                </button>
-            <?php else: ?>
-                <span class="text-xs text-gray-300 italic px-2">No editable</span>
-            <?php endif; ?>
-        </td>
-    </tr>
-    <?php
-    // Si la categoría tiene hijos, la función se vuelve a llamar a sí misma para dibujarlos debajo
-    if ($tieneHijos) {
-        foreach ($categoriasPorPadre[$id] as $hijo) {
-            renderizarCategoria($hijo, $nivel + 1, $categoriasPorPadre);
-        }
+if (is_array($categorias)) {
+    foreach ($categorias as $c) {
+        $pid = $c['parent_id'] ?: 0;
+        $categoriasPorPadre[$pid][] = $c;
+        $todasLasCategorias[] = $c; 
     }
 }
 
@@ -97,31 +90,30 @@ include 'includes/header.php';
         </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[700px]">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                        <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Nombre</th>
-                        <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Tipo</th>
-                        <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Origen</th>
-                        <th class="p-4 text-center text-gray-500 font-bold tracking-wider uppercase text-xs">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    <?php 
-                    // Disparamos la función maestra pasándole solo las categorías "Raíz" (Las que no tienen padre = 0)
-                    if (isset($categoriasPorPadre[0])) {
-                        foreach($categoriasPorPadre[0] as $raiz) {
-                            renderizarCategoria($raiz, 0, $categoriasPorPadre);
-                        }
-                    } else {
-                        echo '<tr><td colspan="4" class="p-8 text-center text-gray-400">No hay categorías.</td></tr>';
-                    }
-                    ?>
-                </tbody>
-            </table>
+    <div class="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-4 mb-8">
+        <span class="text-sm font-bold text-gray-600 pl-2">Mostrar totales de gastos para el periodo:</span>
+        <div class="flex items-center gap-2">
+            <label for="totalsStartDate" class="text-sm font-medium text-gray-600">Desde:</label>
+            <input type="date" id="totalsStartDate" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
         </div>
+        <div class="flex items-center gap-2">
+            <label for="totalsEndDate" class="text-sm font-medium text-gray-600">Hasta:</label>
+            <input type="date" id="totalsEndDate" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+        <ul id="category-list-root" class="list-group space-y-2" data-parent-id="">
+            <?php 
+            if (isset($categoriasPorPadre[0])) {
+                foreach($categoriasPorPadre[0] as $raiz) {
+                    renderCategoriaSortable($raiz, $categoriasPorPadre);
+                }
+            } else {
+                echo '<li class="p-8 text-center text-gray-400">No hay categorías. Crea una para empezar.</li>';
+            }
+            ?>
+        </ul>
     </div>
 </div>
 
@@ -162,36 +154,8 @@ include 'includes/header.php';
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script>
-// Despliega o contrae los hijos y gira la flecha
-function toggleHijos(parentId) {
-    const rows = document.querySelectorAll('.hijo-de-' + parentId);
-    const btn = document.getElementById('btn-toggle-' + parentId).querySelector('svg');
-    
-    let isHidden = false;
-    rows.forEach(row => {
-        if (row.classList.contains('hidden')) {
-            row.classList.remove('hidden');
-            isHidden = true;
-        } else {
-            row.classList.add('hidden');
-            
-            // Si ocultamos un padre, tenemos que cerrar sus sub-hijos por seguridad
-            const rowId = row.id.split('-')[1]; 
-            const childBtn = document.getElementById('btn-toggle-' + rowId);
-            if (childBtn && childBtn.querySelector('svg').classList.contains('rotate-90')) {
-                toggleHijos(rowId); 
-            }
-        }
-    });
-    
-    if (isHidden) {
-        btn.classList.add('rotate-90');
-    } else {
-        btn.classList.remove('rotate-90');
-    }
-}
-
 function abrirModalCategoria(id = null, nombre = '', tipo = 'gasto', parent_id = '') {
     document.getElementById('formCategoria').reset();
     document.getElementById('categoria_id').value = id || '';
@@ -220,15 +184,153 @@ function cerrarModalCategoria() {
     setTimeout(() => { const modal = document.getElementById('modalCategoria'); if(modal) modal.classList.add('hidden'); }, 300);
 }
 
-document.addEventListener('keydown', (e) => { 
-    if(e.key === "Escape") { 
-        cerrarModalCategoria(); 
-        
-        const mobileMenu = document.getElementById('mobile-menu');
-        if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
-            mobileMenu.classList.add('hidden');
+document.addEventListener('DOMContentLoaded', () => {
+    const STORAGE_KEY = 'expandedCategories';
+    const startDateInput = document.getElementById('totalsStartDate');
+    const endDateInput = document.getElementById('totalsEndDate');
+
+    // --- State Management ---
+    function getExpandedState() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    }
+
+    function saveExpandedState(expandedSet) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(expandedSet)));
+    }
+
+    // --- UI Functions ---
+    function toggleCategory(categoryId, shouldSave = true) {
+        const listItem = document.querySelector(`li[data-id="${categoryId}"]`);
+        if (!listItem) return;
+
+        const toggleBtn = listItem.querySelector('.category-toggle-btn');
+        const childList = listItem.querySelector('ul.list-group');
+        const expandedState = getExpandedState();
+
+        if (childList) {
+            const isHidden = childList.classList.toggle('hidden');
+            toggleBtn?.querySelector('svg').classList.toggle('rotate-90', !isHidden);
+
+            if (shouldSave) {
+                isHidden ? expandedState.delete(categoryId) : expandedState.add(categoryId);
+                saveExpandedState(expandedState);
+            }
         }
-    } 
+    }
+
+    // --- Totals Functions ---
+    function setDefaultDates() {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        startDateInput.value = firstDay.toISOString().split('T')[0];
+        endDateInput.value = lastDay.toISOString().split('T')[0];
+    }
+
+    async function loadCategoryTotals() {
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+
+        if (!startDate || !endDate) return;
+
+        document.querySelectorAll('.category-total').forEach(el => {
+            el.innerHTML = '<span class="text-xs text-gray-400 italic">...</span>';
+        });
+
+        try {
+            const res = await fetch(`controllers/CategoriaRouter.php?action=getTotals&startDate=${startDate}&endDate=${endDate}`);
+            const data = await res.json();
+
+            document.querySelectorAll('.category-total').forEach(el => el.textContent = '');
+
+            if (data.success) {
+                const formatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+                for (const categoryId in data.totals) {
+                    const total = data.totals[categoryId];
+                    if (total < 0) {
+                        const el = document.querySelector(`li[data-id="${categoryId}"] .category-total`);
+                        if (el) el.textContent = formatter.format(Math.abs(total));
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Error cargando totales de categoría:", err);
+        }
+    }
+
+    // --- Initial Load ---
+    function applyInitialState() {
+        const expandedState = getExpandedState();
+        expandedState.forEach(id => {
+            // We pass `false` to avoid re-saving the state for each item on load
+            toggleCategory(id, false); 
+        });
+    }
+
+    // Lógica de Arrastrar y Soltar con SortableJS
+    const lists = document.querySelectorAll('.list-group');
+    lists.forEach(list => {
+        new Sortable(list, {
+            group: 'nested', // Permite mover elementos entre listas del mismo grupo
+            animation: 150,
+            fallbackOnBody: true,
+            swapThreshold: 0.65,
+            handle: '.drag-handle', // Define el "agarre" para arrastrar
+            onEnd: async function (evt) {
+                const movedItemId = evt.item.dataset.id;
+                const newParentEl = evt.to;
+                const newParentId = newParentEl.dataset.parentId;
+
+                const siblingElements = Array.from(newParentEl.children);
+                const siblingIds = siblingElements.map(child => child.dataset.id);
+
+                try {
+                    const res = await fetch('controllers/CategoriaRouter.php?action=updateOrder', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            movedId: movedItemId,
+                            newParentId: newParentId,
+                            siblingIds: siblingIds
+                        }),
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    const result = await res.json();
+                    if(!result.success) {
+                        alert("Error al guardar el orden: " + (result.error || "Desconocido"));
+                        location.reload(); // Recarga para revertir el cambio visual en caso de error
+                    }
+                    // En caso de éxito, no hacemos nada. La UI ya está actualizada.
+                } catch (err) {
+                    alert("Error de comunicación al guardar el orden.");
+                    location.reload(); // Recarga para revertir
+                }
+            }
+        });
+    });
+
+    // --- Event Listeners ---
+    document.getElementById('category-list-root').addEventListener('click', (e) => {
+        const toggleBtn = e.target.closest('.category-toggle-btn');
+        if (toggleBtn) {
+            const categoryId = toggleBtn.closest('li[data-id]').dataset.id;
+            toggleCategory(categoryId);
+        }
+    });
+
+    startDateInput.addEventListener('change', loadCategoryTotals);
+    endDateInput.addEventListener('change', loadCategoryTotals);
+
+    // Listener para la tecla Escape
+    document.addEventListener('keydown', (e) => { 
+        if(e.key === "Escape") cerrarModalCategoria(); 
+    });
+
+    // --- Initial Calls ---
+    setDefaultDates();
+    loadCategoryTotals();
+    applyInitialState();
 });
 
 document.getElementById('formCategoria').addEventListener('submit', async (e) => {

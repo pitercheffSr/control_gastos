@@ -28,6 +28,12 @@ $nombresMeses = [
 $catModel = new CategoriaModel($pdo);
 $categoriasRaw = $catModel->getAll($uid);
 
+// Medida de seguridad: Si la consulta de categorías falla, nos aseguramos de que
+// $categoriasRaw sea un array vacío para evitar un error fatal en los bucles.
+if (!is_array($categoriasRaw)) {
+    $categoriasRaw = [];
+}
+
 // --- INICIO: Lógica para el filtro de categorías ---
 // Organizamos la lista plana en un "Árbol Genealógico" para el <select>
 $categoriasPorPadre = [];
@@ -38,7 +44,8 @@ foreach ($categoriasRaw as $c) {
 
 // Función que se llama a sí misma para dibujar las opciones del select con anidación
 function renderizarOpcionesCategoria($categoriasPorPadre, $parentId = 0, $nivel = 0) {
-    if (!isset($categoriasPorPadre[$parentId])) {
+    // Se añade una comprobación de profundidad para evitar bucles infinitos si hay datos corruptos.
+    if (!isset($categoriasPorPadre[$parentId]) || $nivel > 10) {
         return '';
     }
 
@@ -49,6 +56,24 @@ function renderizarOpcionesCategoria($categoriasPorPadre, $parentId = 0, $nivel 
         $html .= "<option value=\"{$categoria['id']}\">{$prefijo}" . htmlspecialchars($categoria['nombre']) . "</option>";
         $html .= renderizarOpcionesCategoria($categoriasPorPadre, $categoria['id'], $nivel + 1);
     }
+    return $html;
+}
+
+function renderCategoriaArbolDragDrop($categoriasPorPadre, $parentId = 0, $nivel = 0) {
+    // Se añade una comprobación de profundidad para evitar bucles infinitos.
+    if (!isset($categoriasPorPadre[$parentId]) || $nivel > 10) {
+        return '';
+    }
+
+    $html = '<ul class="space-y-1 ' . ($nivel > 0 ? 'pl-4' : '') . '">';
+    foreach ($categoriasPorPadre[$parentId] as $categoria) {
+        $html .= '<li class="droppable-category rounded-lg transition-colors" data-category-id="' . $categoria['id'] . '">';
+        $html .= '<div class="p-2.5 text-sm font-medium text-gray-700 hover:bg-indigo-50 rounded-lg cursor-pointer">' . htmlspecialchars($categoria['nombre']) . '</div>';
+        // Recursive call
+        $html .= renderCategoriaArbolDragDrop($categoriasPorPadre, $categoria['id'], $nivel + 1);
+        $html .= '</li>';
+    }
+    $html .= '</ul>';
     return $html;
 }
 $opcionesCategoriaParaFiltroHtml = '<option value="">Todas</option>' . renderizarOpcionesCategoria($categoriasPorPadre);
@@ -68,6 +93,12 @@ foreach($categoriasRaw as $c) {
 include 'includes/header.php'; 
 ?>
 
+<style>
+    .drag-over > div {
+        background-color: #eef2ff !important; /* bg-indigo-50 */
+        border: 2px dashed #6366f1; /* border-indigo-500 */
+    }
+</style>
 <div class="container mx-auto p-6 max-w-6xl min-h-screen pb-24">
     
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -81,81 +112,99 @@ include 'includes/header.php';
         </button>
     </div>
 
-    <div class="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-4 mb-8">
-        <div class="flex items-center gap-2 border-r border-gray-100 pr-4">
-            <span class="text-sm font-bold text-gray-600 pl-2">Mes:</span>
-            <select id="filtroMes" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
-                <option value="">Todos los meses</option>
-                <?php foreach($mesesDisponibles as $m): 
-                    $partes = explode('-', $m['mes_val']);
-                    $nombreMostrar = $nombresMeses[$partes[1]] . ' ' . $partes[0];
-                ?>
-                    <option value="<?= $m['mes_val'] ?>"><?= $nombreMostrar ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        
-        <div class="flex items-center gap-2">
-            <span class="text-sm font-bold text-gray-600">Desde:</span>
-            <input type="date" id="filtroInicio" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
-        </div>
-        <div class="flex items-center gap-2">
-            <span class="text-sm font-bold text-gray-600">Hasta:</span>
-            <input type="date" id="filtroFin" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+    <div class="lg:grid lg:grid-cols-12 lg:gap-8">
+        <!-- Panel de Categorías -->
+        <div class="lg:col-span-3 mb-8 lg:mb-0">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sticky top-24">
+                <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-3">Arrastra un movimiento aquí</h2>
+                <div id="category-drop-zone" class="max-h-[65vh] overflow-y-auto pr-2">
+                    <div class="droppable-category rounded-lg transition-colors" data-category-id="">
+                        <div class="p-2.5 text-sm font-medium text-gray-500 italic hover:bg-gray-100 rounded-lg cursor-pointer">↳ Por clasificar</div>
+                    </div>
+                    <?php echo renderCategoriaArbolDragDrop($categoriasPorPadre); ?>
+                </div>
+            </div>
         </div>
 
-        <div class="flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
-            <span class="text-sm font-bold text-gray-600">Categoría:</span>
-            <select id="filtroCategoria" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none w-48">
-                <?php echo $opcionesCategoriaParaFiltroHtml; ?>
-            </select>
-        </div>
+        <!-- Contenido Principal -->
+        <div class="lg:col-span-9">
+            <div class="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-4 mb-8">
+                <div class="flex items-center gap-2 border-r border-gray-100 pr-4">
+                    <span class="text-sm font-bold text-gray-600 pl-2">Mes:</span>
+                    <select id="filtroMes" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
+                        <option value="">Todos los meses</option>
+                        <?php foreach($mesesDisponibles as $m): 
+                            $partes = explode('-', $m['mes_val']);
+                            $nombreMostrar = $nombresMeses[$partes[1]] . ' ' . $partes[0];
+                        ?>
+                            <option value="<?= $m['mes_val'] ?>"><?= $nombreMostrar ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-gray-600">Desde:</span>
+                    <input type="date" id="filtroInicio" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-gray-600">Hasta:</span>
+                    <input type="date" id="filtroFin" class="border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 text-indigo-600 font-bold bg-gray-50 p-1.5 outline-none text-sm cursor-pointer">
+                </div>
 
-        <div class="flex-grow flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-            </svg>
-            <input type="text" id="filtroTexto" placeholder="Buscar por descripción..." class="w-full border-none focus:ring-0 bg-transparent outline-none text-sm p-0">
-        </div>
+                <div class="flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
+                    <span class="text-sm font-bold text-gray-600">Categoría:</span>
+                    <select id="filtroCategoria" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none w-48">
+                        <?php echo $opcionesCategoriaParaFiltroHtml; ?>
+                    </select>
+                </div>
 
-        <button onclick="limpiarFiltros()" class="text-gray-500 hover:text-indigo-600 font-bold px-4 py-1.5 bg-gray-50 hover:bg-indigo-50 rounded-lg transition border border-gray-100 ml-auto md:ml-0">
-            Limpiar Filtros
-        </button>
-        <button id="btnExportarCSV" class="text-green-600 hover:text-white font-bold px-4 py-1.5 bg-green-50 hover:bg-green-600 rounded-lg transition border border-green-100 hover:border-green-600 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-            Exportar
-        </button>
+                <div class="flex-grow flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                    <input type="text" id="filtroTexto" placeholder="Buscar por descripción..." class="w-full border-none focus:ring-0 bg-transparent outline-none text-sm p-0">
+                </div>
+
+                <button onclick="limpiarFiltros()" class="text-gray-500 hover:text-indigo-600 font-bold px-4 py-1.5 bg-gray-50 hover:bg-indigo-50 rounded-lg transition border border-gray-100 ml-auto md:ml-0">
+                    Limpiar Filtros
+                </button>
+                <button id="btnExportarCSV" class="text-green-600 hover:text-white font-bold px-4 py-1.5 bg-green-50 hover:bg-green-600 rounded-lg transition border border-green-100 hover:border-green-600 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    Exportar
+                </button>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[700px]">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="p-4 w-4">
+                                    <input type="checkbox" id="selectAllCheckbox" title="Seleccionar todo" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer">
+                                </th>
+                                <th data-sort="fecha" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Fecha</th>
+                                <th data-sort="descripcion" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Descripción</th>
+                                <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Categoría</th>
+                                <th data-sort="importe" class="p-4 text-right text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Importe</th>
+                                <th class="p-4 text-center text-gray-500 font-bold tracking-wider uppercase text-xs">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaMovimientos" class="divide-y divide-gray-100">
+                            <!-- REFACTOR: El contenido de la tabla ahora se carga dinámicamente con JavaScript -->
+                            <tr id="filaCargando">
+                                <td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td>
+                            </tr>
+                            <tr id="filaVacia" class="hidden"><td colspan="6" class="p-8 text-center text-gray-400">No hay movimientos registrados.</td></tr>
+                            <tr id="filaSinResultados" class="hidden"><td colspan="6" class="p-8 text-center text-gray-500 font-medium italic">No se encontraron movimientos para los filtros aplicados.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Contenedor para la paginación -->
+            <div id="paginacionContenedor" class="flex justify-between items-center mt-6 px-4 py-2"></div>
+        </div>
     </div>
-
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[700px]">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                        <th class="p-4 w-4">
-                            <input type="checkbox" id="selectAllCheckbox" title="Seleccionar todo" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer">
-                        </th>
-                        <th data-sort="fecha" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Fecha</th>
-                        <th data-sort="descripcion" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Descripción</th>
-                        <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Categoría</th>
-                        <th data-sort="importe" class="p-4 text-right text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Importe</th>
-                        <th class="p-4 text-center text-gray-500 font-bold tracking-wider uppercase text-xs">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="tablaMovimientos" class="divide-y divide-gray-100">
-                    <!-- REFACTOR: El contenido de la tabla ahora se carga dinámicamente con JavaScript -->
-                    <tr id="filaCargando">
-                        <td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td>
-                    </tr>
-                    <tr id="filaVacia" class="hidden"><td colspan="6" class="p-8 text-center text-gray-400">No hay movimientos registrados.</td></tr>
-                    <tr id="filaSinResultados" class="hidden"><td colspan="6" class="p-8 text-center text-gray-500 font-medium italic">No se encontraron movimientos para los filtros aplicados.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Contenedor para la paginación -->
-    <div id="paginacionContenedor" class="flex justify-between items-center mt-6 px-4 py-2"></div>
 </div>
 
 <!-- Barra de acciones masivas -->
@@ -200,6 +249,7 @@ const estadoOrdenacion = {
 };
 
 let seleccionados = new Set(); // Almacena los IDs de las filas seleccionadas
+// La variable `draggedTransactionId` ya no es necesaria si usamos `dataTransfer`
 let filaEnEdicion = null; // Para evitar editar múltiples filas a la vez
 
 function limpiarFiltros() {
@@ -264,16 +314,18 @@ async function cargarTransacciones() {
         sortOrder: estadoOrdenacion.sortOrder,
     });
 
-    tbody.innerHTML = document.getElementById('filaCargando').outerHTML;
+    tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td></tr>';
     
     try {
-        const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}`);
+        console.log('Fetching transactions with params:', params.toString());
+        const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}&_=${new Date().getTime()}`); // Añadir cache-buster
         const json = await resp.json();
 
         tbody.innerHTML = ''; // Limpiar "Cargando..."
 
         if (!json.success) throw new Error(json.error || 'Error en la respuesta del servidor.');
 
+        console.log('Received transactions data:', json.data);
         estadoPaginacion.totalItems = json.total;
         renderPaginacion();
         actualizarIndicadoresOrden();
@@ -286,34 +338,11 @@ async function cargarTransacciones() {
             return;
         }
 
+        console.log('Calling renderTabla...');
         renderTabla(json.data, tbody);
 
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500">Error al cargar: ${err.message}</td></tr>`;
-    }
-}
-
-async function actualizarTotales() {
-    // Obtiene los filtros actuales
-    const fInicio = document.getElementById('filtroInicio').value;
-    const fFin = document.getElementById('filtroFin').value;
-    const fCategoria = document.getElementById('filtroCategoria').value;
-    const fTexto = document.getElementById('filtroTexto').value;
-
-    // Pide al backend los totales para los filtros actuales (limit=1 para una respuesta rápida)
-    const params = new URLSearchParams({
-        page: 1, limit: 1, startDate: fInicio, endDate: fFin,
-        categoryId: fCategoria, searchText: fTexto,
-    });
-
-    try {
-        const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}`);
-        const json = await resp.json();
-        if (json.success && json.totals) {
-            actualizarResumenTotales(json.totals);
-        }
-    } catch (err) {
-        console.error("Error actualizando totales:", err);
     }
 }
 
@@ -606,6 +635,7 @@ function generarContenidoHtmlFila(m) {
     const fechaF = new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     return `
+        <!-- Transaction ID: ${m.id} -->
         <td class="p-4 w-4">
             <input type="checkbox" class="row-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer" data-id="${m.id}">
         </td>
@@ -627,6 +657,7 @@ function generarContenidoHtmlFila(m) {
 }
 
 function reemplazarContenidoFila(tr, m) {
+    console.log('Replacing content for transaction ID:', m.id);
     tr.classList.remove('edit-mode', 'bg-indigo-50');
     tr.dataset.transaction = JSON.stringify(m);
     tr.innerHTML = generarContenidoHtmlFila(m);
@@ -634,8 +665,12 @@ function reemplazarContenidoFila(tr, m) {
 
 function renderTabla(movimientos, tbody) {
     movimientos.forEach(m => {
+        console.log('Creating row for transaction ID:', m.id);
         const tr = document.createElement('tr');
         tr.className = 'fila-movimiento hover:bg-gray-50 transition';
+        // Habilitar drag and drop
+        tr.draggable = true;
+        tr.classList.add('cursor-move');
         reemplazarContenidoFila(tr, m);
         tbody.appendChild(tr);
     });
@@ -714,6 +749,31 @@ async function cambiarCategoriaSeleccionados() {
     }
 }
 
+async function reassignTransactionCategory(transactionId, categoryId) {
+    try {
+        const res = await fetch('controllers/TransaccionRouter.php?action=reassignCategory', {
+            method: 'POST',
+            body: JSON.stringify({ transactionId, categoryId: categoryId || null }), // categoryId puede ser null para "Por clasificar"
+            headers: { 'Content-Type': 'application/json' } // Eliminado X-CSRF-TOKEN si no está implementado
+        });
+        const data = await res.json();
+        if (data.success) {
+            // Recargamos la tabla y actualizamos los totales para reflejar los cambios
+            console.log(`Reassign successful for transaction ${transactionId}, refreshing table.`);
+            // Limpiamos el filtro de categoría para asegurar que la transacción reasignada sea visible.
+            document.getElementById('filtroCategoria').value = ''; 
+            cargarTransacciones();
+        } else {
+            alert("Error al reasignar categoría: " + (data.error || "Desconocido"));
+            cargarTransacciones(); // Recarga para revertir cualquier cambio visual optimista
+        }
+    } catch (err) {
+        console.error("Error de comunicación al reasignar:", err);
+        alert("Error de comunicación al reasignar.");
+    } finally {
+    }
+}
+
 // Event Listeners para los filtros
 document.getElementById('filtroMes').addEventListener('change', aplicarFiltroMes);
 document.getElementById('filtroInicio').addEventListener('change', () => {
@@ -743,7 +803,25 @@ document.getElementById('filtroTexto').addEventListener('keyup', () => {
 
 // Carga inicial de datos al entrar en la página
 document.addEventListener('DOMContentLoaded', () => {
-    // Carga inicial de la tabla
+    // --- INICIO: Leer parámetros de la URL para pre-filtrar ---
+    // Esto permite que otras páginas (como el dashboard) nos enlacen con filtros aplicados.
+    const urlParams = new URLSearchParams(window.location.search);
+    const categoryIdFromUrl = urlParams.get('categoryId');
+    const startDateFromUrl = urlParams.get('startDate');
+    const endDateFromUrl = urlParams.get('endDate');
+
+    if (categoryIdFromUrl) {
+        document.getElementById('filtroCategoria').value = categoryIdFromUrl;
+    }
+    if (startDateFromUrl) {
+        document.getElementById('filtroInicio').value = startDateFromUrl;
+    }
+    if (endDateFromUrl) {
+        document.getElementById('filtroFin').value = endDateFromUrl;
+    }
+    // --- FIN: Leer parámetros ---
+
+    // Carga inicial de la tabla (ahora usará los filtros pre-cargados si existen)
     cargarTransacciones();
 
     // Añadimos los listeners para la ordenación
@@ -788,6 +866,51 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.classList.contains('row-checkbox')) return;
         e.target.checked ? seleccionados.add(e.target.dataset.id) : seleccionados.delete(e.target.dataset.id);
         updateBulkActionsBar();
+    });
+
+    // --- Lógica de Arrastrar y Soltar (Drag and Drop) ---
+    const dropZone = document.getElementById('category-drop-zone');
+    const tablaMovimientos = document.getElementById('tablaMovimientos');
+
+    tablaMovimientos.addEventListener('dragstart', (e) => {
+        const tr = e.target.closest('.fila-movimiento');
+        if (tr) {
+            const transactionData = JSON.parse(tr.dataset.transaction);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/transaction-id', transactionData.id); // Almacenamos el ID en dataTransfer
+            // Añadimos un pequeño delay para que el navegador "capture" la imagen del elemento antes de hacerlo semitransparente
+            setTimeout(() => { tr.classList.add('opacity-40'); }, 0);
+        }
+    });
+
+    tablaMovimientos.addEventListener('dragend', (e) => {
+        const tr = e.target.closest('.fila-movimiento');
+        if (tr) {
+            tr.classList.remove('opacity-40');
+        }
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const targetCategory = e.target.closest('.droppable-category');
+        if (targetCategory) {
+            dropZone.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            targetCategory.classList.add('drag-over');
+        }
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.target.closest('.droppable-category')?.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.target.closest('.droppable-category')?.classList.remove('drag-over');
+        const categoryId = e.target.closest('.droppable-category')?.dataset.categoryId;
+        const transactionIdToReassign = e.dataTransfer.getData('text/transaction-id'); // Obtenemos el ID de dataTransfer
+        if (transactionIdToReassign && categoryId !== undefined) {
+            reassignTransactionCategory(transactionIdToReassign, categoryId);
+        }
     });
 });
 

@@ -87,6 +87,12 @@ class TransaccionModel {
         return $stmt->execute(array_merge([$categoryId], $ids, [$usuario_id]));
     }
 
+    public function reassignCategory($transactionId, $categoryId, $usuario_id) {
+        $sql = "UPDATE transacciones SET categoria_id = ? WHERE id = ? AND usuario_id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$categoryId, $transactionId, $usuario_id]);
+    }
+
     public function getById($id, $usuario_id) {
         $col = $this->getNombreColumnaImporte();
         // 1. Obtener datos básicos de la transacción, incluyendo el tipo (gasto/ingreso)
@@ -237,7 +243,7 @@ class TransaccionModel {
         $sqlAggregates = "SELECT 
                             COUNT(t.id) as total_count,
                             SUM(IF(t.{$col} > 0, t.{$col}, 0)) as total_ingresos,
-                            SUM(IF(t.{$col} < 0, t.{$col}, 0)) as total_gastos
+                            SUM(IF(t.{$col} < 0 AND COALESCE(c.tipo_fijo, 'gasto') NOT IN ('ahorro', 'puente'), t.{$col}, 0)) as total_gastos
                           FROM transacciones t 
                           LEFT JOIN categorias c ON t.categoria_id = c.id" . $whereSql;
 

@@ -13,7 +13,7 @@ $error_message = '';
 
 // 2. Redirigir si el usuario ya ha iniciado sesión
 if (isset($_SESSION['usuario_id'])) {
-    redirect('transacciones.php');
+    redirect('dashboard.php');
 }
 
 // 3. Procesar el formulario cuando se envía
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['usuario_nombre'] = $user['nombre'];
             $_SESSION['last_activity'] = time();
             
-            redirect('transacciones.php'); // Redirigir al panel principal
+            redirect('dashboard.php'); // Redirigir al panel principal
         } else {
             $error_message = 'El email o la contraseña son incorrectos.';
         }

@@ -117,6 +117,20 @@ include 'includes/header.php';
                 </div>
             </div>
             <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-bold text-gray-800">Evolución del Balance</h2>
+                    <span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide">Histórico</span>
+                </div>
+                <p class="text-sm text-gray-500 mb-6 border-b border-gray-100 pb-4">Balance neto acumulado a lo largo del tiempo.</p>
+                <div id="balance-chart-container" class="relative flex-grow flex items-center justify-center" style="min-height: 300px;">
+                    <canvas id="balanceLineChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nueva fila para el gráfico de balance, si se desea que ocupe todo el ancho -->
+        <div class="grid grid-cols-1 gap-8 mt-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
                     <h2 class="text-xl font-bold text-gray-800">Movimientos Recientes</h2>
                     <a href="transacciones.php" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition font-bold shadow-md flex items-center gap-2">Ver todo / Nuevo</a>
@@ -235,20 +249,26 @@ async function cargarDashboard() {
         `;
         
         await renderizarBarras(fInicio, fFin, ingresos, gastos);
+        await renderBalanceLineChart(fInicio, fFin); // Llamada para el nuevo gráfico de balance
         // El renderizado del gráfico de donut se llama desde dentro de renderizarBarras
         // para reutilizar la misma llamada a la API.
     } catch (e) { console.error("Error en KPIs:", e); }
 
     try {
-        const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getAllLimit`);
-        const movs = await resMovs.json();
         const containerMovs = document.getElementById('lista-movimientos-recent');
-        if (!movs || movs.length === 0 || movs.error) {
+        // Modificado para obtener los 8 últimos movimientos del periodo seleccionado
+        const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&page=1&limit=8&startDate=${fInicio}&endDate=${fFin}`);
+        const movs = await resMovs.json();
+        // El método getPaginated devuelve un objeto con 'data', 'total' y 'totals'
+        // Necesitamos acceder a 'data' para obtener las transacciones.
+        const transaccionesRecientes = movs.data;
+        // Si no hay transacciones en el periodo o la respuesta es errónea
+        if (!transaccionesRecientes || transaccionesRecientes.length === 0 || movs.error) {
             containerMovs.innerHTML = '<p class="text-gray-500 italic text-center py-6">No hay movimientos registrados recientes.</p>'; return;
         }
 
-        let html = '<ul class="divide-y divide-gray-100">';
-        movs.forEach(m => {
+        let html = '<ul class="divide-y divide-gray-100">'; // Inicia la lista HTML
+        transaccionesRecientes.forEach(m => { // Itera sobre las transacciones obtenidas
             const importeValue = parseFloat(m.importe) || 0; 
             const isGasto = importeValue < 0;
             const fechaParts = m.fecha.split('-');
@@ -269,6 +289,7 @@ async function cargarDashboard() {
 }
 
 let donutChartInstance = null; // Para mantener la referencia al gráfico y poder destruirlo
+let balanceLineChartInstance = null; // Para mantener la referencia al gráfico de líneas
 
 function renderDonutChart(distribucion) {
     const container = document.getElementById('donut-chart-container');
@@ -286,20 +307,22 @@ function renderDonutChart(distribucion) {
         return;
     }
 
-    // 1. Procesar datos: obtener nombres y totales, y filtrar gastos nulos/cero.
-    let dataWithNames = distribucion.map(d => ({
+    // 1. Procesar datos: obtener nombres, IDs y totales, y filtrar gastos nulos/cero.
+    let dataWithIdsAndNames = distribucion.map(d => ({
+        id: d.categoria_id,
         nombre: categoriasMap.get(d.categoria_id) || 'Sin Categoría',
         total: parseFloat(d.total) || 0
     })).filter(d => d.total > 0);
 
     // 2. Ordenar y agrupar los más pequeños en "Otros"
-    dataWithNames.sort((a, b) => b.total - a.total);
+    dataWithIdsAndNames.sort((a, b) => b.total - a.total);
     const topN = 6; // Mostramos los 6 más grandes
-    let chartData = dataWithNames.slice(0, topN);
-    const othersTotal = dataWithNames.slice(topN).reduce((sum, item) => sum + item.total, 0);
+    let chartData = dataWithIdsAndNames.slice(0, topN);
+    const othersTotal = dataWithIdsAndNames.slice(topN).reduce((sum, item) => sum + item.total, 0);
 
     if (othersTotal > 0) {
-        chartData.push({ nombre: 'Otros', total: othersTotal });
+        // "Otros" no tiene un ID específico, lo marcamos como null.
+        chartData.push({ id: null, nombre: 'Otros', total: othersTotal });
     }
     
     if (chartData.length === 0) {
@@ -332,6 +355,26 @@ function renderDonutChart(distribucion) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            onHover: (event, chartElement) => {
+                // Cambia el cursor a 'pointer' cuando se pasa sobre una sección del gráfico
+                const canvas = event.native.target;
+                canvas.style.cursor = chartElement[0] ? 'pointer' : 'default';
+            },
+            onClick: (evt, elements) => {
+                if (elements.length === 0) return; // No se hizo clic en una sección
+
+                const clickedElement = elements[0];
+                const clickedData = chartData[clickedElement.index];
+
+                // Solo redirigimos si la categoría tiene un ID (es decir, no es "Otros")
+                if (clickedData && clickedData.id) {
+                    const categoryId = clickedData.id;
+                    const startDate = document.getElementById('dashboardFechaInicio').value;
+                    const endDate = document.getElementById('dashboardFechaFin').value;
+
+                    window.location.href = `transacciones.php?categoryId=${categoryId}&startDate=${startDate}&endDate=${endDate}`;
+                }
+            },
             cutout: '60%',
             plugins: {
                 legend: {
@@ -414,6 +457,75 @@ async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
             ${crearBarraHTML('Otros / Por Clasificar', gastos.gasto, 100, 'gasto')}
             <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center"><span class="text-xs text-gray-400 uppercase tracking-wide font-bold">Base de cálculo (Ingresos)</span><span class="font-extrabold text-gray-700">${ingresos.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span></div>`;
     } catch(e) { console.error("Error en Barras:", e); }
+}
+
+async function renderBalanceLineChart(fInicio, fFin) {
+    const container = document.getElementById('balance-chart-container');
+    const canvas = document.getElementById('balanceLineChart');
+
+    if (!canvas || typeof Chart === 'undefined') {
+        container.innerHTML = '<p class="text-center text-red-500">Error: Chart.js no está cargado.</p>';
+        return;
+    }
+
+    if (balanceLineChartInstance) balanceLineChartInstance.destroy();
+
+    try {
+        const res = await fetch(`controllers/DashboardRouter.php?action=getHistoricalBalance&fecha_inicio=${fInicio}&fecha_fin=${fFin}`);
+        const data = await res.json();
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 italic text-center py-10">No hay datos de balance para mostrar en este periodo.</p>';
+            return;
+        }
+
+        const labels = data.map(item => {
+            const date = new Date(item.month_start + 'T00:00:00');
+            return date.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+        });
+        const balances = data.map(item => parseFloat(item.balance));
+
+        const ctx = canvas.getContext('2d');
+        balanceLineChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Balance Acumulado',
+                    data: balances,
+                    borderColor: '#4f46e5', // Color indigo-600
+                    backgroundColor: 'rgba(79, 70, 229, 0.2)', // Fondo semitransparente
+                    fill: true,
+                    tension: 0.3, // Suaviza la línea
+                    pointBackgroundColor: '#4f46e5',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#4f46e5',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: false, ticks: { callback: function(value) { return value.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }); } } }
+                }
+            }
+        });
+
+    } catch (e) {
+        console.error("Error al cargar el gráfico de balance histórico:", e);
+        container.innerHTML = '<p class="text-center text-red-500">Error al cargar el histórico de balance.</p>';
+    }
 }
 
 // Escuchador global de la tecla Escape para el menú móvil

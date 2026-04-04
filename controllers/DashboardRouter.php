@@ -29,6 +29,11 @@ try {
         exit;
     }
 
+    if ($action === 'getHistoricalBalance') {
+        echo json_encode($model->getHistoricalBalance($uid, $fInicio, $fFin));
+        exit;
+    }
+
     echo json_encode(['success' => false, 'error' => 'Acción no reconocida']);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

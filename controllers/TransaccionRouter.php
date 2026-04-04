@@ -16,7 +16,7 @@ try {
     $model = new TransaccionModel($pdo);
 
     if ($action === 'getAllLimit') {
-        echo json_encode($model->getAllLimit($uid, 10));
+        echo json_encode($model->getAll($uid, 10));
     }
     elseif ($action === 'getAll') {
         echo json_encode($model->getAll($uid));
@@ -71,6 +71,23 @@ try {
         echo json_encode(['success' => true, 'data' => $transaction]);
         exit;
     }
+    elseif ($action === 'getPaginated') {
+        $page = (int)($_GET['page'] ?? 1);
+        $limit = (int)($_GET['limit'] ?? 25); // Usar el límite por defecto de la vista
+        $startDate = $_GET['startDate'] ?? null;
+        $endDate = $_GET['endDate'] ?? null;
+        $categoryId = $_GET['categoryId'] ?? null;
+        $searchText = $_GET['searchText'] ?? null;
+
+        $result = $model->getPaginated($uid, $page, $limit, $startDate, $endDate, $categoryId, $searchText);
+        
+        ob_clean();
+        // Devolvemos un objeto que incluye tanto los datos como la información de paginación
+        echo json_encode(['success' => true, 'data' => $result['data'], 'total' => $result['total'], 'totals' => $result['totals']]);
+        exit;
+    }
+    // ... (rest of the actions)
+
     elseif ($action === 'delete') {
         $data = json_decode(file_get_contents("php://input"), true);
         $id = $data['id'] ?? null;
@@ -101,6 +118,22 @@ try {
             echo json_encode(['success' => true]);
         } else {
             throw new Exception('No se proporcionaron IDs válidos para actualizar.');
+        }
+    }
+    elseif ($action === 'reassignCategory') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $transactionId = $data['transactionId'] ?? null;
+        $categoryId = !empty($data['categoryId']) ? $data['categoryId'] : null;
+
+        if ($transactionId) {
+            $result = $model->reassignCategory($transactionId, $categoryId, $uid);
+            if ($result) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Fallo al reasignar la categoría en la base de datos.');
+            }
+        } else {
+            throw new Exception('ID de transacción no proporcionado.');
         }
     }
     else {

@@ -42,6 +42,27 @@ try {
         } else {
             throw new Exception('ID de categoría no válido');
         }
+    }
+    elseif ($action === 'updateOrder') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $movedId = $data['movedId'] ?? null;
+        $newParentId = $data['newParentId'] === '' ? null : ($data['newParentId'] ?? null);
+        $siblingIds = $data['siblingIds'] ?? [];
+
+        if ($movedId && is_array($siblingIds)) {
+            $model->updateOrder($movedId, $newParentId, $siblingIds, $uid);
+            echo json_encode(['success' => true]);
+        } else {
+            throw new Exception('Datos de ordenación inválidos.');
+        }
+    }
+    elseif ($action === 'getTotals') {
+        $startDate = $_GET['startDate'] ?? date('Y-m-01');
+        $endDate = $_GET['endDate'] ?? date('Y-m-t');
+        
+        $totals = $model->getTotalsRecursive($uid, $startDate, $endDate);
+        
+        echo json_encode(['success' => true, 'totals' => $totals]);
     } else {
         throw new Exception('Acción no reconocida');
     }
