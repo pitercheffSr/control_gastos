@@ -291,5 +291,45 @@ class TransaccionModel {
             ]
         ];
     }
+
+    public function createBulk(int $usuario_id, array $transacciones): array
+    {
+        if (empty($transacciones)) {
+            return ['inserted' => 0, 'skipped' => 0];
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            $col = $this->getNombreColumnaImporte();
+            
+            $sqlCheck = "SELECT id FROM transacciones WHERE usuario_id = ? AND fecha = ? AND descripcion = ? AND {$col} = ?";
+            $stmtCheck = $this->pdo->prepare($sqlCheck);
+
+            $sqlInsert = "INSERT INTO transacciones (usuario_id, categoria_id, fecha, descripcion, {$col}) VALUES (?, ?, ?, ?, ?)";
+            $stmtInsert = $this->pdo->prepare($sqlInsert);
+            
+            $insertedCount = 0;
+            $skippedCount = 0;
+
+            foreach ($transacciones as $trx) {
+                $stmtCheck->execute([$usuario_id, $trx['fecha'], $trx['descripcion'], $trx['importe']]);
+                if ($stmtCheck->fetch()) {
+                    // El movimiento ya existe, lo omitimos.
+                    $skippedCount++;
+                } else {
+                    // El movimiento es nuevo, lo insertamos.
+                    $stmtInsert->execute([$usuario_id, $trx['categoria_id'] ?? null, $trx['fecha'], $trx['descripcion'], $trx['importe']]);
+                    $insertedCount++;
+                }
+            }
+
+            $this->pdo->commit();
+            return ['inserted' => $insertedCount, 'skipped' => $skippedCount];
+
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw new Exception("Error al guardar las transacciones en lote: " . $e->getMessage());
+        }
+    }
 }
 ?>

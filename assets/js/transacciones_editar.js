@@ -1,12 +1,9 @@
 /* transacciones_editar.js
    Controla el PANEL LATERAL de edición de transacciones.
    - Carga categorías (3 niveles)
-   - Rellena valores al editar
-   - Guarda cambios mediante TransaccionRouter.php
-*/
-/* transacciones_editar.js - Lógica Unificada para Nueva y Editar */
-
-/* transacciones_editar.js - Lógica Unificada para Nueva y Editar */
+   - Rellena valores al editar (modo 'edit')
+   - Permite crear nuevas transacciones (modo 'new')
+   - Guarda cambios mediante TransaccionRouter.php */
 
 console.log('transacciones_editar.js cargado');
 
@@ -39,13 +36,13 @@ window.transaccionActual = null;
 // -----------------------------------------------------
 
 function abrirPanel() {
-	panel.classList.add('visible');
-	overlay.classList.add('visible');
+	panel.classList.remove('translate-x-full');
+	overlay.classList.remove('hidden');
 }
 
 function cerrarPanel() {
-	panel.classList.remove('visible');
-	overlay.classList.remove('visible');
+	panel.classList.add('translate-x-full');
+	overlay.classList.add('hidden');
 	window.transaccionActual = null;
 	document.getElementById('formEditar').reset();
 
@@ -60,11 +57,11 @@ function cerrarPanel() {
 
 document.addEventListener('keydown', (e) => {
 	if (e.key === 'Escape') {
-		// 1. Prioridad: cerrar panel de formulario
-		if (panel.classList.contains('visible')) {
+		// Prioridad: cerrar panel de formulario si está abierto
+		if (!panel.classList.contains('translate-x-full')) {
 			cerrarPanel();
 		}
-		// 2. Cerrar sidebar si está abierto
+		// Cerrar sidebar si está abierto
 		if (sidebar && sidebar.classList.contains('visible')) {
 			sidebar.classList.remove('visible');
 		}
@@ -88,6 +85,8 @@ overlay?.addEventListener('click', cerrarPanel);
 document.getElementById('btnNuevaTransaccion')?.addEventListener('click', () => {
 	window.transaccionActual = null;
 	panelTitulo.innerText = "Nueva Transacción";
+	panel.classList.remove('mode-edit');
+	panel.classList.add('mode-new');
 
 	// Establecer fecha de hoy por defecto
 	fFecha.value = new Date().toISOString().split("T")[0];
@@ -211,6 +210,8 @@ window.addEventListener('tx:editar', async (ev) => {
 
 	window.transaccionActual = id;
 	panelTitulo.innerText = "Editar Transacción";
+	panel.classList.remove('mode-new');
+	panel.classList.add('mode-edit');
 	await loadCategorias();
 	await loadTransaccion(id);
 	abrirPanel();

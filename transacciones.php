@@ -98,6 +98,15 @@ include 'includes/header.php';
         background-color: #eef2ff !important; /* bg-indigo-50 */
         border: 2px dashed #6366f1; /* border-indigo-500 */
     }
+    /* Diferenciación visual para el panel de edición/creación */
+    #panelEditar.mode-new #panelHeader {
+        background-color: #e0e7ff; /* bg-indigo-100 */
+        border-color: #c7d2fe; /* border-indigo-200 */
+    }
+    #panelEditar.mode-edit #panelHeader {
+        background-color: #fef3c7; /* bg-amber-100 */
+        border-color: #fde68a; /* border-amber-200 */
+    }
 </style>
 <div class="container mx-auto p-6 max-w-6xl min-h-screen pb-24">
     
@@ -106,10 +115,20 @@ include 'includes/header.php';
             <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Movimientos</h1>
             <p class="text-sm text-gray-500 mt-1">Historial completo de tus finanzas.</p>
         </div>
-        <!-- Este botón es detectado por transacciones_editar.js para abrir el panel lateral -->
-        <button id="btnNuevaTransaccion" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Nuevo Movimiento
-        </button>
+        <div class="flex items-center gap-4">
+            <a href="views/importar.php" class="bg-green-600 text-white px-4 py-2.5 rounded-xl shadow-md hover:bg-green-700 font-bold transition flex items-center gap-2 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                Importar
+            </a>
+            <button id="btnExportarCSV" class="bg-gray-600 text-white px-4 py-2.5 rounded-xl shadow-md hover:bg-gray-700 font-bold transition flex items-center gap-2 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                Exportar
+            </a>
+            <!-- Este botón es detectado por transacciones_editar.js para abrir el panel lateral -->
+            <button id="btnNuevaTransaccion" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Nuevo Movimiento
+            </button>
+        </div>
     </div>
 
     <div class="lg:grid lg:grid-cols-12 lg:gap-8">
@@ -168,10 +187,6 @@ include 'includes/header.php';
                 <button onclick="limpiarFiltros()" class="text-gray-500 hover:text-indigo-600 font-bold px-4 py-1.5 bg-gray-50 hover:bg-indigo-50 rounded-lg transition border border-gray-100 ml-auto md:ml-0">
                     Limpiar Filtros
                 </button>
-                <button id="btnExportarCSV" class="text-green-600 hover:text-white font-bold px-4 py-1.5 bg-green-50 hover:bg-green-600 rounded-lg transition border border-green-100 hover:border-green-600 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-                    Exportar
-                </button>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -226,6 +241,58 @@ include 'includes/header.php';
                 Eliminar Seleccionados
             </button>
         </div>
+    </div>
+</div>
+
+<!-- Panel Lateral para Editar/Crear Transacción -->
+<div id="overlayPanel" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-30 hidden transition-opacity"></div>
+<div id="panelEditar" class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out z-40 flex flex-col">
+    <div id="panelHeader" class="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50 transition-colors">
+        <h2 id="panelTitulo" class="text-xl font-bold text-gray-800">Editar Transacción</h2>
+        <button id="cerrarPanel" class="text-gray-500 hover:text-gray-800">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+    <div class="flex-grow p-6 overflow-y-auto">
+        <form id="formEditar" class="space-y-6">
+            <div>
+                <label for="e_fecha" class="block text-sm font-bold text-gray-700 mb-2">Fecha</label>
+                <input type="date" id="e_fecha" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+                <label for="e_desc" class="block text-sm font-bold text-gray-700 mb-2">Descripción</label>
+                <input type="text" id="e_desc" placeholder="Ej: Compra en supermercado" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="e_monto" class="block text-sm font-bold text-gray-700 mb-2">Importe</label>
+                    <input type="number" step="0.01" id="e_monto" placeholder="25.50" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label for="e_tipo" class="block text-sm font-bold text-gray-700 mb-2">Tipo</label>
+                    <select id="e_tipo" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                        <option value="gasto">Gasto</option>
+                        <option value="ingreso">Ingreso</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">Categoría Raíz</label>
+                <select id="e_cat" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"></select>
+            </div>
+            <div>
+                <label for="e_subcat" class="block text-sm font-bold text-gray-700 mb-2">Subcategoría</label>
+                <select id="e_subcat" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"><option value="">—</option></select>
+            </div>
+            <div>
+                <label for="e_subsub" class="block text-sm font-bold text-gray-700 mb-2">Detalle</label>
+                <select id="e_subsub" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"><option value="">—</option></select>
+            </div>
+        </form>
+    </div>
+    <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-4">
+        <button id="cancelarEdicion" class="px-5 py-2.5 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition border border-gray-200">Cancelar</button>
+        <button id="guardarCambios" class="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition">Guardar Cambios</button>
     </div>
 </div>
 
@@ -941,5 +1008,7 @@ document.getElementById('btnExportarCSV').addEventListener('click', () => {
     window.location.href = `controllers/ExportRouter.php?${params.toString()}`;
 });
 </script>
-
++
+<!-- Carga el script que controla el panel lateral de edición/creación -->
+<script src="assets/js/transacciones_editar.js"></script>
 <?php include 'includes/footer.php'; ?>

@@ -9,7 +9,7 @@ class AuthController {
     }
 
     public function login($email, $password) {
-        $stmt = $this->db->prepare("SELECT id, nombre, password FROM usuarios WHERE email = ?");
+        $stmt = $this->db->prepare("SELECT id, nombre, password, rol FROM usuarios WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -59,5 +59,18 @@ class AuthController {
             // error_log('Error en registro (AuthController): ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Verifica si la contraseña proporcionada coincide con la del usuario dado.
+     * @param int $userId El ID del usuario.
+     * @param string $password La contraseña en texto plano a verificar.
+     * @return bool True si la contraseña es correcta, false en caso contrario.
+     */
+    public function verifyPasswordForUser(int $userId, string $password): bool {
+        $stmt = $this->db->prepare("SELECT password FROM usuarios WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $user && password_verify($password, $user['password']);
     }
 }

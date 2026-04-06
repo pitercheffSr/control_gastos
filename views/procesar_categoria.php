@@ -40,6 +40,14 @@ switch ($action) {
         $result = $controller->addSubcategoria($_POST);
         break;
 
+    case 'delete_subcategoria':
+        $result = $controller->deleteSubcategoria($_POST);
+        break;
+
+    case 'delete_categoria':
+        $result = $controller->deleteCategoria($_POST);
+        break;
+
     case 'add_subsubcategoria':
         $result = $controller->addSubSubcategoria($_POST);
         break;

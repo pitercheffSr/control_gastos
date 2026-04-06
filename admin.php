@@ -1,22 +1,28 @@
 <?php 
 require_once 'config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { header('Location: login.php'); exit; }
-
-$uid = $_SESSION['usuario_id'];
 
 // Bloqueo de puerta: Si no eres admin, te devuelvo al dashboard
-$stmtUser = $pdo->prepare("SELECT rol FROM usuarios WHERE id = ?");
-$stmtUser->execute([$uid]);
-$uData = $stmtUser->fetch();
+if (!isset($_SESSION['usuario_id'])) {
+    header('Location: login.php');
+    exit;
+}
 
-if (!$uData || $uData['rol'] !== 'admin') {
+$stmtUser = $pdo->prepare("SELECT rol FROM usuarios WHERE id = ?");
+$stmtUser->execute([$_SESSION['usuario_id']]);
+$userRole = $stmtUser->fetchColumn();
+
+if ($userRole !== 'admin') {
     header('Location: dashboard.php');
     exit;
 }
 
 include 'includes/header.php'; 
 ?>
+<script>
+    // La comprobación de rol ahora se hace en el backend (PHP) antes de renderizar la página,
+    // lo cual es mucho más seguro. El código JS de comprobación ya no es necesario aquí.
+</script>
 
 <div class="container mx-auto p-6 max-w-6xl min-h-screen pb-24">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -25,8 +31,12 @@ include 'includes/header.php';
             <p class="text-sm text-gray-500 mt-1">Gestión global de usuarios de FinanzasPro.</p>
         </div>
         <div class="flex flex-wrap gap-3">
-            <button onclick="abrirModalUsuario()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Nuevo Usuario
+            <a href="registro.php" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Nuevo Usuario Manual
+            </a>
+            <button onclick="eliminarTodosLosUsuarios()" class="bg-red-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-red-700 font-bold transition flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                Borrar Todos los Usuarios
             </button>
         </div>
     </div>
@@ -48,30 +58,6 @@ include 'includes/header.php';
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
-
-<div id="modalUsuario" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm">
-    <div id="modalUsuarioContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 opacity-0 transition-all duration-300">
-        <h2 id="modalUserTitle" class="text-2xl font-extrabold mb-6 text-gray-800">Usuario</h2>
-        <form id="formUsuario" class="space-y-5">
-            <input type="hidden" id="usuario_edit_id">
-            <div>
-                <label class="block text-sm font-bold mb-1.5 text-gray-700">Nombre de Usuario</label>
-                <input type="text" id="user_nombre" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition" required autocomplete="off">
-            </div>
-            <div>
-                <label class="block text-sm font-bold mb-1.5 text-gray-700">Rol</label>
-                <select id="user_rol" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer bg-white">
-                    <option value="usuario">Usuario Normal</option>
-                    <option value="admin">Administrador</option>
-                </select>
-            </div>
-            <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onclick="cerrarModalUsuario()" class="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition">Cancelar</button>
-                <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md">Guardar</button>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -102,10 +88,10 @@ async function cargarUsuarios() {
                 </td>
                 <td class="p-4 text-sm font-medium text-gray-500">${fechaBorrado}</td>
                 <td class="p-4 text-center">
-                    <button onclick="abrirModalUsuario(${u.id}, '${u.nombre}', '${u.rol}')" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition" title="Editar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                    </button>
                     ${!esAdmin ? `
+                    <button onclick="eliminarTransaccionesUsuario(${u.id}, '${u.nombre}')" class="text-gray-400 hover:text-orange-500 mx-1 p-1.5 rounded hover:bg-orange-50 transition" title="Borrar todas las transacciones de este usuario">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                    </button>
                     <button onclick="eliminarUsuario(${u.id}, '${u.nombre}')" class="text-gray-400 hover:text-red-500 mx-1 p-1.5 rounded hover:bg-red-50 transition" title="Eliminar">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>
@@ -120,49 +106,37 @@ async function cargarUsuarios() {
     }
 }
 
-function abrirModalUsuario(id = null, nombre = '', rol = 'usuario') {
-    document.getElementById('formUsuario').reset();
-    document.getElementById('usuario_edit_id').value = id || '';
-    
-    if (id) {
-        document.getElementById('user_nombre').value = nombre;
-        document.getElementById('user_rol').value = rol;
+/**
+ * Solicita la contraseña del administrador dos veces para confirmar una acción crítica.
+ * @returns {Promise<string|null>} La contraseña si coincide y no es nula, o null si no coincide o se cancela.
+ */
+async function promptAdminPassword() {
+    const p1 = prompt("Por favor, introduce tu contraseña de administrador para confirmar:");
+    if (p1 === null) return null; // Cancelado
+    if (p1.trim() === "") {
+        alert("La contraseña no puede estar vacía.");
+        return null;
     }
-    
-    document.getElementById('modalUsuario').classList.remove('hidden');
-    setTimeout(() => { document.getElementById('modalUsuarioContent').classList.add('scale-100', 'opacity-100'); }, 10);
+    const p2 = prompt("Por favor, repite tu contraseña de administrador:");
+    if (p2 === null) return null; // Cancelado
+    if (p1 !== p2) {
+        alert("Las contraseñas no coinciden.");
+        return null;
+    }
+    return p1;
 }
-
-function cerrarModalUsuario() {
-    const content = document.getElementById('modalUsuarioContent');
-    if(content) content.classList.remove('scale-100', 'opacity-100');
-    setTimeout(() => { 
-        const modal = document.getElementById('modalUsuario'); 
-        if(modal) modal.classList.add('hidden'); 
-    }, 300);
-}
-
-// Cierre centralizado con Escape para el modal (y el menú si lo tienes en header)
-document.addEventListener('keydown', (e) => { 
-    if(e.key === "Escape") { 
-        cerrarModalUsuario();
-        
-        // Cierre del menú hamburguesa si está abierto
-        const mobileMenu = document.getElementById('mobile-menu');
-        if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
-            mobileMenu.classList.add('hidden');
-        }
-    } 
-});
 
 async function eliminarUsuario(id, nombre) {
     if (!confirm(`⚠️ ATENCIÓN: Estás a punto de borrar definitivamente al usuario "${nombre}".\n\nTodos sus movimientos, categorías y datos se perderán para siempre.\n\n¿Estás absolutamente seguro?`)) return;
 
+    const adminPassword = await promptAdminPassword();
+    if (adminPassword === null) return; // Usuario canceló o contraseñas no coinciden/vacías
+
     try {
         const res = await fetch('controllers/AdminRouter.php?action=delete', {
             method: 'POST',
-            body: JSON.stringify({ id }),
-            headers: {'Content-Type': 'application/json'}
+            body: JSON.stringify({ id, admin_password: adminPassword }),
+            headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
         
@@ -177,12 +151,61 @@ async function eliminarUsuario(id, nombre) {
     }
 }
 
-// Prevenir el envío de momento (puedes enlazarlo luego a una API de guardado)
-document.getElementById('formUsuario').addEventListener('submit', (e) => {
-    e.preventDefault();
-    alert('Función de guardar en construcción.');
-    cerrarModalUsuario();
-});
+async function eliminarTransaccionesUsuario(id, nombre) {
+    if (!confirm(`☢️ MÁXIMA ALERTA: Estás a punto de borrar TODAS las transacciones del usuario "${nombre}".\n\nEsta acción es irreversible y no se puede deshacer.\n\n¿Estás completamente seguro de querer continuar?`)) {
+        return;
+    }
+
+    const adminPassword = await promptAdminPassword();
+    if (adminPassword === null) return; // Usuario canceló o contraseñas no coinciden/vacías
+
+    try {
+        const res = await fetch('controllers/AdminRouter.php?action=deleteAllTransactions', {
+            method: 'POST',
+            body: JSON.stringify({ id, admin_password: adminPassword }),
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(`¡Hecho! Todas las transacciones del usuario "${nombre}" han sido eliminadas.`);
+            // No es necesario recargar la tabla, ya que no cambia visualmente.
+        } else {
+            alert("Error al borrar transacciones: " + (data.error || "Desconocido"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Hubo un error de comunicación al intentar borrar las transacciones.");
+    }
+}
+
+async function eliminarTodosLosUsuarios() {
+    if (!confirm(`☢️☢️☢️ ALERTA MÁXIMA ☢️☢️☢️\n\nEstás a punto de borrar TODOS los usuarios que NO son administradores.\n\nEsta acción es DEFINITIVA e IRREVERSIBLE.\n\n¿Estás 100% seguro de que quieres hacer esto?`)) {
+        return;
+    }
+
+    const adminPassword = await promptAdminPassword();
+    if (adminPassword === null) return; // Usuario canceló o contraseñas no coinciden/vacías
+
+    try {
+        const res = await fetch('controllers/AdminRouter.php?action=deleteAllNonAdmins', {
+            method: 'POST', // POST es más seguro para acciones destructivas
+            body: JSON.stringify({ admin_password: adminPassword }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('¡Limpieza completada! Todos los usuarios no administradores han sido eliminados.');
+            cargarUsuarios(); // Recargar la tabla
+        } else {
+            alert("Error durante la limpieza masiva: " + (data.error || "Desconocido"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Hubo un error de comunicación al intentar la limpieza masiva.");
+    }
+}
 
 document.addEventListener('DOMContentLoaded', cargarUsuarios);
 </script>

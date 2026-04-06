@@ -43,7 +43,7 @@ $stmt->close();
                         </div>
                         <?php if ($categoria['id_usuario'] != 0) : ?>
                             <!-- Botón para eliminar solo categorías personalizadas -->
-                            <a href="#" class="btn btn-sm btn-danger" onclick="return confirmarEliminacion('<?php echo htmlspecialchars($categoria['nombre'], ENT_QUOTES); ?>', 'eliminar_categoria.php?id=<?php echo $categoria['id']; ?>');">Eliminar</a>
+                            <a href="#" class="btn btn-sm btn-danger" onclick="confirmarEliminacion('<?php echo htmlspecialchars($categoria['nombre'], ENT_QUOTES); ?>', <?php echo $categoria['id']; ?>, 'delete_categoria', 'categoría'); return false;">Eliminar</a>
                         <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
@@ -107,13 +107,13 @@ $stmt->close();
                     <?php foreach ($tree[$cat_id] as $subcat) : ?>
                     <li class="list-group-item">
                         <span class="fw-bold"><?php echo htmlspecialchars($subcat['info']['nombre']); ?></span>
-                        <a href="#" class="btn btn-sm btn-danger float-end ms-2" onclick="return confirmarEliminacion('<?php echo htmlspecialchars($subcat['info']['nombre'], ENT_QUOTES); ?>', 'eliminar_subcategoria.php?id=<?php echo $subcat['info']['id']; ?>');">Eliminar</a>
+                        <a href="#" class="btn btn-sm btn-danger float-end ms-2" onclick="confirmarEliminacion('<?php echo htmlspecialchars($subcat['info']['nombre'], ENT_QUOTES); ?>', <?php echo $subcat['info']['id']; ?>, 'delete_subcategoria', 'subcategoría'); return false;">Eliminar</a>
                         <?php if (!empty($subcat['children'])) : ?>
                             <ul class="list-group mt-2 ms-3">
                                 <?php foreach ($subcat['children'] as $child) : ?>
                                     <li class="list-group-item">
                                         <span><?php echo htmlspecialchars($child['nombre']); ?></span>
-                                        <a href="#" class="btn btn-sm btn-danger float-end ms-2" onclick="return confirmarEliminacion('<?php echo htmlspecialchars($child['nombre'], ENT_QUOTES); ?>', 'eliminar_subcategoria.php?id=<?php echo $child['id']; ?>');">Eliminar</a>
+                                        <a href="#" class="btn btn-sm btn-danger float-end ms-2" onclick="confirmarEliminacion('<?php echo htmlspecialchars($child['nombre'], ENT_QUOTES); ?>', <?php echo $child['id']; ?>, 'delete_subcategoria', 'subcategoría'); return false;">Eliminar</a>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -128,34 +128,23 @@ $stmt->close();
     <div class="col-md-4">
         <h4>Subcategorías</h4>
         <div class="card p-4 mb-3">
-            <form action="procesar_subcategoria.php" method="POST">
+            <form id="form-add-subcategoria">
                 <div class="mb-3">
                     <label for="nombre_sub" class="form-label">Nombre</label>
                     <input type="text" class="form-control" id="nombre_sub" name="nombre" required>
                 </div>
                 <div class="mb-3">
-                    <label for="id_categoria" class="form-label">Categoría Principal</label>
-                    <select class="form-select" id="id_categoria" name="id_categoria" required>
+                    <label for="id_categoria_form" class="form-label">Categoría Principal</label>
+                    <select class="form-select" id="id_categoria_form" name="id_categoria" required>
                         <option value="1">Necesidades (50%)</option>
                         <option value="2">Deseos (30%)</option>
                         <option value="3">Ahorro (20%)</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label for="parent_id" class="form-label">Subcategoría Padre (opcional)</label>
-                    <select class="form-select" id="parent_id" name="parent_id">
+                    <label for="parent_id_form" class="form-label">Subcategoría Padre (opcional)</label>
+                    <select class="form-select" id="parent_id_form" name="parent_id">
                         <option value="">Ninguna (subcategoría de primer nivel)</option>
-                        <?php
-            // Mostrar solo subcategorías de primer nivel para la categoría seleccionada
-                        $sql_padres = "SELECT id, nombre FROM subcategorias WHERE parent_id IS NULL AND id_usuario = ?";
-                        $stmt_padres = $conexion->prepare($sql_padres);
-                        $stmt_padres->bind_param("i", $id_usuario);
-                        $stmt_padres->execute();
-                        $padres = $stmt_padres->get_result()->fetch_all(MYSQLI_ASSOC);
-                        $stmt_padres->close();
-                        foreach ($padres as $padre) : ?>
-                            <option value="<?php echo $padre['id']; ?>"><?php echo htmlspecialchars($padre['nombre']); ?></option>
-                        <?php endforeach; ?>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Guardar Subcategoría</button>
@@ -167,28 +156,62 @@ $stmt->close();
 <!-- SweetAlert2 y animaciones -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" />
+<?php
+// Obtenemos todas las subcategorías de primer nivel para el filtrado dinámico en JS
+$sql_padres = "SELECT id, nombre, id_categoria FROM subcategorias WHERE parent_id IS NULL AND id_usuario = ?";
+$stmt_padres = $conexion->prepare($sql_padres);
+$stmt_padres->bind_param("i", $id_usuario);
+$stmt_padres->execute();
+$padres_data = $stmt_padres->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt_padres->close();
+?>
 <script>
-function confirmarEliminacion(nombre, url) {
-    Swal.fire({
-        title: '<span style="color:#d33;font-weight:bold;">¿Eliminar? 🗑️</span>',
-        html: '¿Estás seguro de que deseas eliminar <b>"' + nombre + '"</b>?<br><small>Esta acción no se puede deshacer.</small>',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        focusCancel: true,
-        background: '#fffbe6',
-        customClass: { popup: 'shadow rounded' },
-        showClass: { popup: 'animate__animated animate__fadeInDown' },
-        hideClass: { popup: 'animate__animated animate__fadeOutUp' }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            window.location.href = url;
+async function confirmarEliminacion(nombre, itemId, action, itemType = 'elemento') {
+    const result = await Swal.fire({
+            title: '<span style="color:#d33;font-weight:bold;">¿Eliminar? 🗑️</span>',
+            html: `¿Estás seguro de que deseas eliminar la ${itemType} <b>"${nombre}"</b>?<br><small>Esta acción no se puede deshacer.</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            focusCancel: true,
+            background: '#fffbe6',
+            customClass: { popup: 'shadow rounded' },
+            showClass: { popup: 'animate__animated animate__fadeInDown' },
+            hideClass: { popup: 'animate__animated animate__fadeOutUp' }
+        });
+
+    if (result.isConfirmed) {
+        try {
+            const formData = new FormData();
+            formData.append('action', action);
+            formData.append('id', itemId);
+
+            const response = await fetch('procesar_categoria.php', {
+                method: 'POST',
+                body: formData
+            });
+            const res = await response.json();
+
+            if (res.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Eliminado!',
+                    text: res.message || `El ${itemType} ha sido eliminado.`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                    willClose: () => window.location.reload()
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.message || `No se pudo eliminar el ${itemType}.` });
+            }
+        } catch (error) {
+            console.error('Error en la eliminación:', error);
+            Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor.' });
         }
-    });
-    return false;
+    }
 }
 // Mensajes de éxito/error con iconos y animación
 window.addEventListener('DOMContentLoaded', function() {
@@ -234,6 +257,75 @@ window.addEventListener('DOMContentLoaded', function() {
                 background: '#f0f8ff',
                 customClass: { popup: 'shadow rounded' }
             });
+        });
+    }
+
+    // --- Lógica para el formulario de subcategorías con AJAX ---
+    const todosLosPadres = <?php echo json_encode($padres_data); ?>;
+    const categoriaFormSelect = document.getElementById('id_categoria_form');
+    const parentFormSelect = document.getElementById('parent_id_form');
+
+    function actualizarPadresDisponibles() {
+        const categoriaSeleccionada = categoriaFormSelect.value;
+        const padresFiltrados = todosLosPadres.filter(p => p.id_categoria == categoriaSeleccionada);
+
+        // Limpiar opciones existentes (excepto la primera)
+        parentFormSelect.innerHTML = '<option value="">Ninguna (subcategoría de primer nivel)</option>';
+
+        // Añadir nuevas opciones filtradas
+        padresFiltrados.forEach(padre => {
+            const option = document.createElement('option');
+            option.value = padre.id;
+            option.textContent = padre.nombre;
+            parentFormSelect.appendChild(option);
+        });
+    }
+
+    // Actualizar al cambiar la categoría principal y al cargar la página
+    if (categoriaFormSelect) {
+        categoriaFormSelect.addEventListener('change', actualizarPadresDisponibles);
+        actualizarPadresDisponibles(); // Para el estado inicial
+    }
+
+    const formSubcategoria = document.getElementById('form-add-subcategoria');
+    if (formSubcategoria) {
+        formSubcategoria.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(formSubcategoria);
+            formData.append('action', 'add_subcategoria');
+
+            const submitButton = formSubcategoria.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
+
+            try {
+                const response = await fetch('procesar_categoria.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: result.message || 'Subcategoría creada correctamente.',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        willClose: () => window.location.reload() // Recarga la página al cerrar
+                    });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: result.message || 'No se pudo crear la subcategoría.' });
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Guardar Subcategoría';
+                }
+            } catch (error) {
+                console.error('Error al enviar el formulario:', error);
+                Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor.' });
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Guardar Subcategoría';
+            }
         });
     }
 });

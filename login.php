@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // ¡Credenciales correctas! Iniciar la sesión.
             $_SESSION['usuario_id'] = $user['id'];
             $_SESSION['usuario_nombre'] = $user['nombre'];
+            $_SESSION['usuario_rol'] = $user['rol']; // Guardamos el rol en la sesión
             $_SESSION['last_activity'] = time();
             
             redirect('dashboard.php'); // Redirigir al panel principal
