@@ -37,4 +37,33 @@ if (!function_exists('redirect')) {
         exit();
     }
 }
+
+// -----------------------------------------------------------------
+// GESTIÓN DE SESIONES Y CIERRE POR INACTIVIDAD
+// -----------------------------------------------------------------
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$timeout_duration = 900; // 15 minutos
+
+if (isset($_SESSION['usuario_id'])) {
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $timeout_duration) {
+        session_unset();
+        session_destroy();
+        
+        $isAjax = (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) || 
+                  (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            http_response_code(401);
+            echo json_encode(['error' => 'Tu sesión ha expirado por inactividad. Actualiza la página.', 'timeout' => true]);
+            exit;
+        } elseif (basename($_SERVER['PHP_SELF']) !== 'login.php') {
+            redirect("login.php?timeout=1");
+        }
+    }
+    $_SESSION['last_activity'] = time();
+}
 ?>

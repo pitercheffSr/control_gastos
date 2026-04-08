@@ -33,6 +33,74 @@ switch ($action) {
         echo json_encode($users);
         break;
 
+    case 'updateUser':
+        $input = json_decode(file_get_contents('php://input'), true);
+        $adminPassword = $input['admin_password'] ?? null;
+
+        if (!$authController->verifyPasswordForUser($_SESSION['usuario_id'], $adminPassword)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Contraseña de administrador incorrecta.']);
+            exit;
+        }
+
+        $id = $input['id'] ?? null;
+        $nombre = trim($input['nombre'] ?? '');
+        $email = trim($input['email'] ?? '');
+        $rol = trim($input['rol'] ?? '');
+
+        if (!$id || empty($nombre) || empty($email) || empty($rol)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Faltan datos obligatorios.']);
+            exit;
+        }
+
+        try {
+            $stmt = $pdo->prepare("UPDATE usuarios SET nombre = ?, email = ?, rol = ? WHERE id = ?");
+            if ($stmt->execute([$nombre, $email, $rol, $id])) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'No se pudo actualizar el usuario.']);
+            }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Error de base de datos: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'resetUserPassword':
+        $input = json_decode(file_get_contents('php://input'), true);
+        $adminPassword = $input['admin_password'] ?? null;
+
+        // Verificamos por seguridad que el administrador es legítimo
+        if (!$authController->verifyPasswordForUser($_SESSION['usuario_id'], $adminPassword)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Contraseña de administrador incorrecta.']);
+            exit;
+        }
+
+        $id = $input['id'] ?? null;
+        $newPassword = $input['new_password'] ?? '';
+
+        if (!$id || strlen($newPassword) < 6) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Datos inválidos o contraseña muy corta.']);
+            exit;
+        }
+
+        try {
+            if ($authController->updatePassword($id, $newPassword)) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'No se pudo actualizar la contraseña.']);
+            }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Error de base de datos: ' . $e->getMessage()]);
+        }
+        break;
+
     case 'delete':
         $input = json_decode(file_get_contents('php://input'), true);
         $adminPassword = $input['admin_password'] ?? null;

@@ -11,6 +11,11 @@ require_once 'controllers/AuthController.php'; // Incluimos el controlador
 
 $error_message = '';
 
+// Comprobar si el usuario fue redirigido por inactividad
+if (isset($_GET['timeout']) && $_GET['timeout'] == 1) {
+    $error_message = 'Tu sesión ha expirado por inactividad. Por favor, vuelve a iniciar sesión.';
+}
+
 // 2. Redirigir si el usuario ya ha iniciado sesión
 if (isset($_SESSION['usuario_id'])) {
     redirect('dashboard.php');
@@ -18,12 +23,15 @@ if (isset($_SESSION['usuario_id'])) {
 
 // 3. Procesar el formulario cuando se envía
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'] ?? '';
+    $usuario = $_POST['usuario'] ?? '';
     $password = $_POST['password'] ?? '';
 
-    if (empty($email) || empty($password)) {
-        $error_message = 'Por favor, introduce tu email y contraseña.';
+    if (empty($usuario) || empty($password)) {
+        $error_message = 'Por favor, introduce tu nombre de usuario y contraseña.';
     } else {
+        $usuario_limpio = strtolower(preg_replace('/\s+/', '', $usuario));
+        $email = $usuario_limpio . '@cgastos.mi';
+
         $auth = new AuthController($pdo);
         $user = $auth->login($email, $password);
 
@@ -36,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             redirect('dashboard.php'); // Redirigir al panel principal
         } else {
-            $error_message = 'El email o la contraseña son incorrectos.';
+            $error_message = 'El usuario o la contraseña son incorrectos.';
         }
     }
 }
@@ -63,10 +71,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
         
         <form method="POST" action="login.php" class="space-y-6" autocomplete="off">
-            <input type="email" name="email" placeholder="Email" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="email">
-            <div class="relative">
-                <input type="password" name="password" id="password" placeholder="Contraseña" required class="w-full px-4 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="current-password">
-                <button type="button" onclick="togglePassword('password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400">👁️</button>
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1" for="usuario">Nombre de usuario</label>
+                <div class="flex">
+                    <input type="text" name="usuario" id="usuario" placeholder="usuario123" required class="w-full px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" pattern="[a-zA-Z0-9_-]+" title="Solo letras, números, guiones y guiones bajos" autocomplete="username">
+                    <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-bold">
+                        @cgastos.mi
+                    </span>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1" for="password">Contraseña</label>
+                <div class="relative">
+                    <input type="password" name="password" id="password" placeholder="••••••••" required class="w-full px-4 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="current-password">
+                    <button type="button" onclick="togglePassword('password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400">👁️</button>
+                </div>
+                <div class="text-right mt-2">
+                    <a href="recuperar.php" class="text-sm font-medium text-indigo-600 hover:text-indigo-800 transition">¿Olvidaste tu contraseña?</a>
+                </div>
             </div>
             <button type="submit" class="w-full px-5 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md transition">Entrar</button>
         </form>

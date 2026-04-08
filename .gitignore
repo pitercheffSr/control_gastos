@@ -50,3 +50,5 @@ config(server).php
 config(server).php
 config(database).php
 config(app).php
+oferta.txt
+config.example.php

@@ -61,6 +61,35 @@ include 'includes/header.php';
     </div>
 </div>
 
+<!-- Modal Editar Usuario -->
+<div id="modalEditarUsuario" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 transform transition-all">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Editar Usuario</h2>
+        <form id="formEditarUsuario" onsubmit="guardarEdicionUsuario(event)">
+            <input type="hidden" id="edit_user_id">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <input type="text" id="edit_user_nombre" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" id="edit_user_email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                <select id="edit_user_rol" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="usuario">Usuario</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="cerrarModalEditar()" class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition">Cancelar</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium transition">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 async function cargarUsuarios() {
     try {
@@ -88,6 +117,12 @@ async function cargarUsuarios() {
                 </td>
                 <td class="p-4 text-sm font-medium text-gray-500">${fechaBorrado}</td>
                 <td class="p-4 text-center">
+                    <button onclick="abrirModalEditar(${u.id}, '${u.nombre.replace(/'/g, "&#39;")}', '${u.email}', '${u.rol}')" class="text-gray-400 hover:text-blue-500 mx-1 p-1.5 rounded hover:bg-blue-50 transition" title="Editar Usuario">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                    <button onclick="resetearPasswordUsuario(${u.id}, '${u.nombre.replace(/'/g, "&#39;")}')" class="text-gray-400 hover:text-green-500 mx-1 p-1.5 rounded hover:bg-green-50 transition" title="Forzar cambio de contraseña">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    </button>
                     ${!esAdmin ? `
                     <button onclick="eliminarTransaccionesUsuario(${u.id}, '${u.nombre}')" class="text-gray-400 hover:text-orange-500 mx-1 p-1.5 rounded hover:bg-orange-50 transition" title="Borrar todas las transacciones de este usuario">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
@@ -204,6 +239,84 @@ async function eliminarTodosLosUsuarios() {
     } catch (e) {
         console.error(e);
         alert("Hubo un error de comunicación al intentar la limpieza masiva.");
+    }
+}
+
+function abrirModalEditar(id, nombre, email, rol) {
+    document.getElementById('edit_user_id').value = id;
+    document.getElementById('edit_user_nombre').value = nombre;
+    document.getElementById('edit_user_email').value = email;
+    document.getElementById('edit_user_rol').value = rol;
+    
+    const modal = document.getElementById('modalEditarUsuario');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function cerrarModalEditar() {
+    const modal = document.getElementById('modalEditarUsuario');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function guardarEdicionUsuario(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit_user_id').value;
+    const nombre = document.getElementById('edit_user_nombre').value;
+    const email = document.getElementById('edit_user_email').value;
+    const rol = document.getElementById('edit_user_rol').value;
+
+    const adminPassword = await promptAdminPassword();
+    if (adminPassword === null) return;
+
+    try {
+        const res = await fetch('controllers/AdminRouter.php?action=updateUser', {
+            method: 'POST',
+            body: JSON.stringify({ id, nombre, email, rol, admin_password: adminPassword }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            cerrarModalEditar();
+            cargarUsuarios(); // Recarga la tabla de inmediato
+        } else {
+            alert("Error al actualizar: " + (data.error || "Desconocido"));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Hubo un error de comunicación.");
+    }
+}
+
+async function resetearPasswordUsuario(id, nombre) {
+    const newPassword = prompt(`Introduce la nueva contraseña para el usuario "${nombre}"\n(Debe tener al menos 6 caracteres):`);
+    
+    if (newPassword === null) return; // Cancelado
+    if (newPassword.length < 6) {
+        alert("Operación cancelada: La contraseña debe tener al menos 6 caracteres.");
+        return;
+    }
+
+    const adminPassword = await promptAdminPassword();
+    if (adminPassword === null) return;
+
+    try {
+        const res = await fetch('controllers/AdminRouter.php?action=resetUserPassword', {
+            method: 'POST',
+            body: JSON.stringify({ id, new_password: newPassword, admin_password: adminPassword }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(`¡Éxito! La contraseña del usuario "${nombre}" ha sido actualizada.`);
+        } else {
+            alert("Error al restablecer la contraseña: " + (data.error || "Desconocido"));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Hubo un error de comunicación.");
     }
 }
 

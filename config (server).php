@@ -120,9 +120,17 @@ if (isset($_SESSION['usuario_id'])) {
         session_unset();     // Limpia todas las variables de sesión.
         session_destroy();   // Destruye la sesión por completo.
         
-        // Redirige al usuario a la página de login con un mensaje de 'timeout'.
-        // Se comprueba que no esté ya en login.php para evitar un bucle infinito.
-        if (basename($_SERVER['PHP_SELF']) !== 'login.php') {
+        // Detectar si la petición es de tipo AJAX o Fetch API
+        $isAjax = (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) || 
+                  (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            http_response_code(401); // 401 Unauthorized
+            echo json_encode(['error' => 'Tu sesión ha expirado por inactividad. Actualiza la página.', 'timeout' => true]);
+            exit;
+        } elseif (basename($_SERVER['PHP_SELF']) !== 'login.php') {
+            // Si es navegación normal, redirige a la página de login con el aviso.
             redirect("login.php?timeout=1");
         }
     }
