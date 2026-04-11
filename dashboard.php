@@ -143,6 +143,8 @@ include 'includes/header.php';
 
 <script>
 const DIA_INICIO = <?= $dia_inicio ?>;
+const escapeHtml = (unsafe) => unsafe ? String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : '';
+
 // Inyectamos el mapa de categorías de PHP a JavaScript
 const categoriasArbol = <?= json_encode($categoriasArbol) ?>;
 // Creamos un mapa para búsquedas rápidas de ID a Nombre
@@ -278,7 +280,7 @@ async function cargarDashboard() {
                 <li class="py-4 flex justify-between items-center hover:bg-gray-50 px-2 rounded transition">
                     <div class="flex items-center gap-4">
                         <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${isGasto ? 'bg-red-400' : 'bg-green-400'}">${isGasto ? '▼' : '▲'}</div>
-                        <div><p class="font-bold text-gray-800 text-sm md:text-base">${m.descripcion}</p><p class="text-xs text-gray-500 mt-0.5">${fechaFormato} • <span class="bg-gray-100 px-1.5 py-0.5 rounded border">${m.categoria_nombre || 'Por clasificar'}</span></p></div>
+                        <div><p class="font-bold text-gray-800 text-sm md:text-base">${escapeHtml(m.descripcion)}</p><p class="text-xs text-gray-500 mt-0.5">${fechaFormato} • <span class="bg-gray-100 px-1.5 py-0.5 rounded border">${escapeHtml(m.categoria_nombre || 'Por clasificar')}</span></p></div>
                     </div>
                     <span class="font-extrabold text-sm md:text-base ${isGasto ? 'text-red-500' : 'text-green-500'}">${Math.abs(importeValue).toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span>
                 </li>`;

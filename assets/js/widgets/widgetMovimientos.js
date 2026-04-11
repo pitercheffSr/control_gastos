@@ -5,6 +5,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     const contenedor = document.getElementById('lista-movimientos-recent');
     if (!contenedor) return;
+    
+    const escapeHtml = (unsafe) => unsafe ? String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : '';
 
     window.cargarMovimientosWidget = async function() {
         try {
@@ -20,8 +22,8 @@ document.addEventListener('DOMContentLoaded', function() {
             contenedor.innerHTML = movimientos.map(m => `
                 <div class="flex justify-between items-center border-b border-gray-100 py-3">
                     <div>
-                        <p class="font-semibold text-sm text-gray-800">${m.descripcion}</p>
-                        <p class="text-xs text-gray-500">${m.fecha} • ${m.categoria_nombre || 'Sin categoría'}</p>
+                        <p class="font-semibold text-sm text-gray-800">${escapeHtml(m.descripcion)}</p>
+                        <p class="text-xs text-gray-500">${m.fecha} • ${escapeHtml(m.categoria_nombre || 'Sin categoría')}</p>
                     </div>
                     <span class="font-bold ${parseFloat(m.monto) < 0 ? 'text-red-500' : 'text-green-500'}">
                         ${parseFloat(m.monto).toFixed(2)}€
