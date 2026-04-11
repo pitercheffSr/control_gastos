@@ -5,16 +5,22 @@
  * y pon los datos de tu base de datos local.
  */
 
+// =================================================================
+// 1. MODO DE DESARROLLO / PRODUCCIÓN
+// =================================================================
+// Cambia estos valores a 0 en tu servidor de producción para no mostrar errores.
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Pon aquí los datos de tu entorno local
-$host    = 'localhost';
-$db_name = 'nombre_de_tu_bd'; 
-$user    = 'root';               
-$pass    = '';               
-$charset = 'utf8mb4';
+// =================================================================
+// 2. CONFIGURACIÓN DE LA BASE DE DATOS
+// =================================================================
+$host    = 'localhost';           // Servidor de base de datos (ej. localhost o IP)
+$db_name = 'tu_base_de_datos';    // Nombre de la base de datos
+$user    = 'tu_usuario';          // Usuario de MySQL/MariaDB
+$pass    = 'tu_contrasena';       // Contraseña (dejar vacío si usas XAMPP por defecto)
+$charset = 'utf8mb4';             // Codificación recomendada para soportar emojis y tildes
 
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -38,9 +44,9 @@ if (!function_exists('redirect')) {
     }
 }
 
-// -----------------------------------------------------------------
-// GESTIÓN DE SESIONES Y CIERRE POR INACTIVIDAD
-// -----------------------------------------------------------------
+// =================================================================
+// 3. GESTIÓN DE SESIONES Y SEGURIDAD
+// =================================================================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
