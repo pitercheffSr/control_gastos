@@ -68,7 +68,12 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
                     </div>
                     <a href="dashboard.php" class="text-white font-bold text-xl tracking-wide">Control<span class="font-light">Gastos</span></a>
                 </div>
-                <div class="flex items-center">
+                <div class="flex items-center gap-3">
+                    <select id="filtroTipoGlobal" class="bg-indigo-700 text-white text-sm rounded-lg px-2 py-1.5 border border-indigo-500 focus:ring-2 focus:ring-white outline-none cursor-pointer hidden sm:block">
+                        <option value="">Todos los tipos</option>
+                        <option value="ingreso">Solo Ingresos</option>
+                        <option value="gasto">Solo Gastos</option>
+                    </select>
                     <button id="btnMenuToggle" class="text-indigo-100 hover:text-white focus:outline-none p-2 rounded-lg hover:bg-indigo-700 transition" aria-label="Abrir menú">
                         <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>

@@ -34,9 +34,9 @@ include 'includes/header.php';
             <a href="registro.php" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Nuevo Usuario Manual
             </a>
-            <button onclick="eliminarTodosLosUsuarios()" class="bg-red-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-red-700 font-bold transition flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                Borrar Todos los Usuarios
+            <button id="btnBorrarSeleccionados" onclick="eliminarUsuariosSeleccionados()" class="hidden bg-orange-600 text-white px-5 py-2.5 rounded-xl shadow-md hover:bg-orange-700 font-bold transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Borrar Seleccionados (<span id="countSeleccionados">0</span>)
             </button>
         </div>
     </div>
@@ -46,6 +46,9 @@ include 'includes/header.php';
             <table class="w-full text-left border-collapse min-w-[600px]">
                 <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
+                        <th class="p-4 w-4">
+                            <input type="checkbox" id="selectAllUsers" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer">
+                        </th>
                         <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">ID</th>
                         <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Nombre</th>
                         <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Email / Rol</th>
@@ -54,7 +57,7 @@ include 'includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="tablaUsuarios" class="divide-y divide-gray-100">
-                    <tr><td colspan="5" class="p-8 text-center text-gray-400 font-medium italic">Cargando usuarios...</td></tr>
+                    <tr><td colspan="6" class="p-8 text-center text-gray-400 font-medium italic">Cargando usuarios...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -91,6 +94,20 @@ include 'includes/header.php';
 </div>
 
 <script>
+let seleccionados = new Set();
+
+function actualizarBotonBorrar() {
+    const btn = document.getElementById('btnBorrarSeleccionados');
+    const count = document.getElementById('countSeleccionados');
+    if (count) count.innerText = seleccionados.size;
+    
+    if (seleccionados.size > 0) {
+        btn.classList.remove('hidden');
+    } else {
+        btn.classList.add('hidden');
+    }
+}
+
 async function cargarUsuarios() {
     try {
         const res = await fetch('controllers/AdminRouter.php?action=getAll');
@@ -101,14 +118,20 @@ async function cargarUsuarios() {
             return;
         }
 
+        seleccionados.clear();
+        actualizarBotonBorrar();
+        if (document.getElementById('selectAllUsers')) document.getElementById('selectAllUsers').checked = false;
+
         let html = '';
         usuarios.forEach(u => {
             const esAdmin = u.rol === 'admin';
             const badgeClass = esAdmin ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-gray-100 text-gray-600 border-gray-200';
             const fechaBorrado = u.fecha_borrado ? new Date(u.fecha_borrado).toLocaleDateString('es-ES') : 'N/A';
+            const checkboxHtml = !esAdmin ? `<input type="checkbox" class="user-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer" data-id="${u.id}">` : `<input type="checkbox" disabled class="rounded border-gray-300 text-gray-300 cursor-not-allowed" title="No se puede borrar a un administrador">`;
             
             html += `
             <tr class="hover:bg-gray-50 transition">
+                <td class="p-4">${checkboxHtml}</td>
                 <td class="p-4 text-gray-500 text-sm font-bold">#${u.id}</td>
                 <td class="p-4 font-bold text-gray-800">${u.nombre}</td>
                 <td class="p-4">
@@ -214,34 +237,6 @@ async function eliminarTransaccionesUsuario(id, nombre) {
     }
 }
 
-async function eliminarTodosLosUsuarios() {
-    if (!confirm(`☢️☢️☢️ ALERTA MÁXIMA ☢️☢️☢️\n\nEstás a punto de borrar TODOS los usuarios que NO son administradores.\n\nEsta acción es DEFINITIVA e IRREVERSIBLE.\n\n¿Estás 100% seguro de que quieres hacer esto?`)) {
-        return;
-    }
-
-    const adminPassword = await promptAdminPassword();
-    if (adminPassword === null) return; // Usuario canceló o contraseñas no coinciden/vacías
-
-    try {
-        const res = await fetch('controllers/AdminRouter.php?action=deleteAllNonAdmins', {
-            method: 'POST', // POST es más seguro para acciones destructivas
-            body: JSON.stringify({ admin_password: adminPassword }),
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            alert('¡Limpieza completada! Todos los usuarios no administradores han sido eliminados.');
-            cargarUsuarios(); // Recargar la tabla
-        } else {
-            alert("Error durante la limpieza masiva: " + (data.error || "Desconocido"));
-        }
-    } catch (e) {
-        console.error(e);
-        alert("Hubo un error de comunicación al intentar la limpieza masiva.");
-    }
-}
-
 function abrirModalEditar(id, nombre, email, rol) {
     document.getElementById('edit_user_id').value = id;
     document.getElementById('edit_user_nombre').value = nombre;
@@ -319,6 +314,56 @@ async function resetearPasswordUsuario(id, nombre) {
         alert("Hubo un error de comunicación.");
     }
 }
+
+async function eliminarUsuariosSeleccionados() {
+    const ids = Array.from(seleccionados);
+    if (ids.length === 0) return;
+
+    if (!confirm(`⚠️ Estás a punto de borrar definitivamente ${ids.length} usuario(s).\n\nTodos sus movimientos, categorías y datos se perderán para siempre.\n\n¿Estás absolutamente seguro?`)) return;
+
+    const adminPassword = await promptAdminPassword();
+    if (adminPassword === null) return; // Validación de admin 2FA
+
+    try {
+        const res = await fetch('controllers/AdminRouter.php?action=deleteMultiple', {
+            method: 'POST',
+            body: JSON.stringify({ ids: ids, admin_password: adminPassword }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('Usuarios eliminados con éxito.');
+            cargarUsuarios();
+        } else {
+            alert("Error al borrar: " + (data.error || "Desconocido"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Hubo un error de comunicación.");
+    }
+}
+
+document.getElementById('tablaUsuarios').addEventListener('change', (e) => {
+    if (e.target.classList.contains('user-checkbox')) {
+        if (e.target.checked) seleccionados.add(e.target.dataset.id);
+        else seleccionados.delete(e.target.dataset.id);
+        
+        actualizarBotonBorrar();
+        const allCheckboxes = document.querySelectorAll('.user-checkbox');
+        document.getElementById('selectAllUsers').checked = allCheckboxes.length > 0 && seleccionados.size === allCheckboxes.length;
+    }
+});
+
+document.getElementById('selectAllUsers').addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    document.querySelectorAll('.user-checkbox').forEach(cb => {
+        cb.checked = isChecked;
+        if (isChecked) seleccionados.add(cb.dataset.id);
+        else seleccionados.delete(cb.dataset.id);
+    });
+    actualizarBotonBorrar();
+});
 
 document.addEventListener('DOMContentLoaded', cargarUsuarios);
 </script>

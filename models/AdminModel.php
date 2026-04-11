@@ -22,11 +22,5 @@ class AdminModel {
         $stmt = $this->pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ?");
         return $stmt->execute([$userId]);
     }
-
-    public function deleteAllNonAdminUsers() {
-        // Esta consulta elimina a todos los usuarios cuyo rol NO sea 'admin'.
-        $stmt = $this->pdo->prepare("DELETE FROM usuarios WHERE rol != 'admin'");
-        return $stmt->execute();
-    }
 }
 ?>

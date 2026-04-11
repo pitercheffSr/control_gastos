@@ -143,7 +143,7 @@ class TransaccionModel {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function getAllForExport($usuario_id, $startDate, $endDate, $categoryId, $searchText, $sortBy = 'fecha', $sortOrder = 'DESC') {
+    public function getAllForExport($usuario_id, $startDate, $endDate, $categoryId, $searchText, $sortBy = 'fecha', $sortOrder = 'DESC', $tipo = null) {
         $col = $this->getNombreColumnaImporte();
 
         // --- Construcción dinámica de la cláusula WHERE y los parámetros ---
@@ -158,6 +158,12 @@ class TransaccionModel {
         if ($endDate) {
             $whereClauses[] = 't.fecha <= ?';
             $params[] = $endDate;
+        }
+
+        if ($tipo === 'ingreso') {
+            $whereClauses[] = "t.{$col} > 0";
+        } elseif ($tipo === 'gasto') {
+            $whereClauses[] = "t.{$col} < 0";
         }
 
         if ($categoryId) {
@@ -200,7 +206,7 @@ class TransaccionModel {
         return $stmtData->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function getPaginated($usuario_id, $page, $limit, $startDate, $endDate, $categoryId, $searchText, $sortBy = 'fecha', $sortOrder = 'DESC') {
+    public function getPaginated($usuario_id, $page, $limit, $startDate, $endDate, $categoryId, $searchText, $sortBy = 'fecha', $sortOrder = 'DESC', $tipo = null) {
         $col = $this->getNombreColumnaImporte();
         $offset = ($page - 1) * $limit;
 
@@ -215,6 +221,12 @@ class TransaccionModel {
         if ($endDate) {
             $whereClauses[] = 't.fecha <= ?';
             $params[] = $endDate;
+        }
+
+        if ($tipo === 'ingreso') {
+            $whereClauses[] = "t.{$col} > 0";
+        } elseif ($tipo === 'gasto') {
+            $whereClauses[] = "t.{$col} < 0";
         }
 
         // El filtro de categoría es prioritario sobre el de texto

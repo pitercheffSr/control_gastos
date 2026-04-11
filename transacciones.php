@@ -177,6 +177,18 @@ include 'includes/header.php';
                     </select>
                 </div>
 
+                <div class="flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
+                    <span class="text-sm font-bold text-gray-600">Ordenar:</span>
+                    <select id="filtroOrden" class="border-none focus:ring-0 text-indigo-600 font-bold bg-transparent cursor-pointer outline-none">
+                        <option value="fecha-DESC">Más recientes</option>
+                        <option value="fecha-ASC">Más antiguos</option>
+                        <option value="importe-DESC">Mayor importe</option>
+                        <option value="importe-ASC">Menor importe</option>
+                        <option value="descripcion-ASC">Descripción (A-Z)</option>
+                        <option value="descripcion-DESC">Descripción (Z-A)</option>
+                    </select>
+                </div>
+
                 <div class="flex-grow flex items-center gap-2 border-l border-gray-200 pl-4 ml-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
@@ -209,8 +221,6 @@ include 'includes/header.php';
                             <tr id="filaCargando">
                                 <td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td>
                             </tr>
-                            <tr id="filaVacia" class="hidden"><td colspan="6" class="p-8 text-center text-gray-400">No hay movimientos registrados.</td></tr>
-                            <tr id="filaSinResultados" class="hidden"><td colspan="6" class="p-8 text-center text-gray-500 font-medium italic">No se encontraron movimientos para los filtros aplicados.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -325,6 +335,10 @@ function limpiarFiltros() {
     document.getElementById('filtroFin').value = '';
     document.getElementById('filtroCategoria').value = '';
     document.getElementById('filtroTexto').value = '';
+    const selectOrden = document.getElementById('filtroOrden');
+    if (selectOrden) selectOrden.value = 'fecha-DESC';
+    estadoOrdenacion.sortBy = 'fecha';
+    estadoOrdenacion.sortOrder = 'DESC';
     estadoPaginacion.paginaActual = 1;
     cargarTransacciones();
 }
@@ -369,6 +383,7 @@ async function cargarTransacciones() {
     const fFin = document.getElementById('filtroFin').value;
     const fCategoria = document.getElementById('filtroCategoria').value;
     const fTexto = document.getElementById('filtroTexto').value;
+    const fTipoGlobal = document.getElementById('filtroTipoGlobal').value;
 
     const params = new URLSearchParams({
         page: estadoPaginacion.paginaActual,
@@ -379,6 +394,7 @@ async function cargarTransacciones() {
         searchText: fTexto,
         sortBy: estadoOrdenacion.sortBy,
         sortOrder: estadoOrdenacion.sortOrder,
+        tipo: fTipoGlobal
     });
 
     tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td></tr>';
@@ -400,8 +416,8 @@ async function cargarTransacciones() {
         if (json.data.length === 0) {
             const hayFiltros = fInicio || fFin || fTexto || fCategoria;
             tbody.innerHTML = hayFiltros 
-                ? document.getElementById('filaSinResultados').outerHTML 
-                : document.getElementById('filaVacia').outerHTML;
+                ? '<tr><td colspan="6" class="p-8 text-center text-gray-500 font-medium italic">No se encontraron movimientos para los filtros aplicados.</td></tr>' 
+                : '<tr><td colspan="6" class="p-8 text-center text-gray-400">No hay movimientos registrados.</td></tr>';
             return;
         }
 
@@ -683,10 +699,9 @@ async function guardarEdicionEnFila(tr) {
         });
         const json = await resp.json();
         if (json.success) {
-            // ¡Éxito! Actualizamos la fila y los totales sin recargar toda la tabla.
-            reemplazarContenidoFila(tr, json.data);
+            // ¡Éxito! Recargamos los datos por AJAX para actualizar el orden y posibles totales
             filaEnEdicion = null;
-            actualizarTotales();
+            cargarTransacciones();
         } else {
             alert('Error al guardar: ' + (json.error || 'Error desconocido'));
         }
@@ -701,14 +716,25 @@ function generarContenidoHtmlFila(m) {
     const isGasto = m.importe < 0;
     const fechaF = new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+    // Función interna para resaltar el texto buscado
+    const textoBuscado = document.getElementById('filtroTexto').value.trim();
+    const highlight = (text) => {
+        const safeText = escapeHtml(text || '');
+        if (!textoBuscado) return safeText;
+        
+        const safeQuery = escapeHtml(textoBuscado).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escapar para RegExp
+        const regex = new RegExp(`(${safeQuery})`, 'gi');
+        return safeText.replace(regex, '<mark class="bg-yellow-200 text-yellow-900 font-extrabold rounded px-0.5">$1</mark>');
+    };
+
     return `
         <!-- Transaction ID: ${m.id} -->
         <td class="p-4 w-4">
             <input type="checkbox" class="row-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer" data-id="${m.id}">
         </td>
         <td class="p-4 text-sm text-gray-500 font-medium">${fechaF}</td>
-        <td class="p-4 font-bold text-gray-800">${escapeHtml(m.descripcion)}</td>
-        <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-bold">${escapeHtml(m.categoria_nombre || 'Por clasificar')}</span></td>
+        <td class="p-4 font-bold text-gray-800">${highlight(m.descripcion)}</td>
+        <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-bold">${highlight(m.categoria_nombre || 'Por clasificar')}</span></td>
         <td class="p-4 text-right font-extrabold ${isGasto ? 'text-red-500' : 'text-green-500'}">
             ${formatter.format(Math.abs(m.importe))}
         </td>
@@ -859,6 +885,14 @@ document.getElementById('filtroCategoria').addEventListener('change', () => {
     cargarTransacciones();
 });
 
+document.getElementById('filtroOrden').addEventListener('change', (e) => {
+    const [sortBy, sortOrder] = e.target.value.split('-');
+    estadoOrdenacion.sortBy = sortBy;
+    estadoOrdenacion.sortOrder = sortOrder;
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
+});
+
 let debounceTimer;
 document.getElementById('filtroTexto').addEventListener('keyup', () => {
     clearTimeout(debounceTimer);
@@ -866,6 +900,12 @@ document.getElementById('filtroTexto').addEventListener('keyup', () => {
         estadoPaginacion.paginaActual = 1;
         cargarTransacciones();
     }, 400); // Espera 400ms después de que el usuario deje de escribir
+});
+
+// Escuchar el filtro superior global de tipos
+document.getElementById('filtroTipoGlobal').addEventListener('change', () => {
+    estadoPaginacion.paginaActual = 1;
+    cargarTransacciones();
 });
 
 // Carga inicial de datos al entrar en la página
@@ -901,6 +941,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 estadoOrdenacion.sortBy = newSortBy;
                 estadoOrdenacion.sortOrder = (newSortBy === 'descripcion') ? 'ASC' : 'DESC';
             }
+                // Sincronizar el desplegable visual con el clic en la tabla
+                const selectOrden = document.getElementById('filtroOrden');
+                if (selectOrden) selectOrden.value = `${estadoOrdenacion.sortBy}-${estadoOrdenacion.sortOrder}`;
+                
             estadoPaginacion.paginaActual = 1;
             cargarTransacciones();
         });
@@ -995,6 +1039,7 @@ document.getElementById('btnExportarCSV').addEventListener('click', () => {
     const fFin = document.getElementById('filtroFin').value;
     const fCategoria = document.getElementById('filtroCategoria').value;
     const fTexto = document.getElementById('filtroTexto').value;
+    const fTipoGlobal = document.getElementById('filtroTipoGlobal').value;
 
     const params = new URLSearchParams({
         startDate: fInicio,
@@ -1003,6 +1048,7 @@ document.getElementById('btnExportarCSV').addEventListener('click', () => {
         searchText: fTexto,
         sortBy: estadoOrdenacion.sortBy,
         sortOrder: estadoOrdenacion.sortOrder,
+        tipo: fTipoGlobal
     });
 
     window.location.href = `controllers/ExportRouter.php?${params.toString()}`;
