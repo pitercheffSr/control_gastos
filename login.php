@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['usuario_nombre'] = $user['nombre'];
             $_SESSION['usuario_rol'] = $user['rol']; // Guardamos el rol en la sesión
             $_SESSION['last_activity'] = time();
+            $_SESSION['login_reciente'] = true; // Marca para forzar el session storage
             
             redirect('dashboard.php'); // Redirigir al panel principal
         } else {

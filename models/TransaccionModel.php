@@ -166,7 +166,9 @@ class TransaccionModel {
             $whereClauses[] = "t.{$col} < 0";
         }
 
-        if ($categoryId) {
+        if ($categoryId === 'unclassified') {
+            $whereClauses[] = "t.categoria_id IS NULL";
+        } elseif ($categoryId) {
             $whereClauses[] = "t.categoria_id IN (
                 WITH RECURSIVE subcategorias AS (
                     SELECT id FROM categorias WHERE id = ? AND usuario_id = ?
@@ -186,11 +188,17 @@ class TransaccionModel {
         $whereSql = " WHERE " . implode(' AND ', $whereClauses);
 
         // --- Construcción de la cláusula ORDER BY ---
-        $sortableColumns = ['fecha', 'descripcion', 'importe'];
+        $sortableColumns = ['fecha', 'descripcion', 'importe', 'categoria_nombre'];
         $orderByColumn = 't.fecha';
 
         if (in_array($sortBy, $sortableColumns)) {
-            $orderByColumn = ($sortBy === 'importe') ? "t.{$col}" : "t.{$sortBy}";
+            if ($sortBy === 'importe') {
+                $orderByColumn = "t.{$col}";
+            } elseif ($sortBy === 'categoria_nombre') {
+                $orderByColumn = "c.nombre"; // Ordenar por el nombre de la categoría en el JOIN
+            } else {
+                $orderByColumn = "t.{$sortBy}";
+            }
         }
 
         $orderDirection = (strtoupper($sortOrder) === 'ASC') ? 'ASC' : 'DESC';
@@ -230,7 +238,9 @@ class TransaccionModel {
         }
 
         // El filtro de categoría es prioritario sobre el de texto
-        if ($categoryId) {
+        if ($categoryId === 'unclassified') {
+            $whereClauses[] = "t.categoria_id IS NULL";
+        } elseif ($categoryId) {
             // Usamos una CTE (Common Table Expression) recursiva para obtener la categoría y todas sus hijas.
             // Esto es mucho más eficiente que hacer múltiples consultas en PHP.
             $whereClauses[] = "t.categoria_id IN (
@@ -264,12 +274,18 @@ class TransaccionModel {
         $aggregates = $stmtAggregates->fetch(PDO::FETCH_ASSOC);
 
         // --- Construcción de la cláusula ORDER BY ---
-        $sortableColumns = ['fecha', 'descripcion', 'importe']; // Nombres de columna seguros para ordenar
+        $sortableColumns = ['fecha', 'descripcion', 'importe', 'categoria_nombre']; // Nombres de columna seguros para ordenar
         $orderByColumn = 't.fecha'; // Columna por defecto
 
         if (in_array($sortBy, $sortableColumns)) {
-            // Mapeamos el nombre 'importe' a la columna real de la BD ($col)
-            $orderByColumn = ($sortBy === 'importe') ? "t.{$col}" : "t.{$sortBy}";
+            // Mapeamos a las columnas reales de la BD
+            if ($sortBy === 'importe') {
+                $orderByColumn = "t.{$col}";
+            } elseif ($sortBy === 'categoria_nombre') {
+                $orderByColumn = "c.nombre"; // Ordenar por el nombre de la categoría en el JOIN
+            } else {
+                $orderByColumn = "t.{$sortBy}";
+            }
         }
 
         $orderDirection = 'DESC'; // Dirección por defecto

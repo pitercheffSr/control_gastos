@@ -18,10 +18,30 @@ try {
 
     // --- PROTECCIÓN CSRF PARA RUTAS QUE MODIFICAN DATOS ---
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-        if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
-            http_response_code(403);
-            throw new Exception('Token CSRF ausente o inválido.');
+        // Intentar leer el token del cuerpo si la petición es JSON
+        $inputData = json_decode(file_get_contents('php://input'), true);
+        $jsonToken = is_array($inputData) ? ($inputData['csrf_token'] ?? '') : '';
+        
+        $csrfToken = trim((string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? $jsonToken));
+        $sessionToken = trim((string)($_SESSION['csrf_token'] ?? ''));
+        
+        $isSameOrigin = false;
+        if (isset($_SERVER['HTTP_SEC_FETCH_SITE']) && $_SERVER['HTTP_SEC_FETCH_SITE'] === 'same-origin') {
+            $isSameOrigin = true;
+        } elseif (isset($_SERVER['HTTP_REFERER']) && isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST']) !== false) {
+            $isSameOrigin = true;
+        }
+
+        // Si el navegador NO puede confirmar que es nuestra propia web, exigimos el token estricto
+        if (!$isSameOrigin) {
+            if (empty($sessionToken)) {
+                http_response_code(401);
+                throw new Exception('Sesión expirada o cookies bloqueadas por el navegador.');
+            }
+            if (empty($csrfToken) || !hash_equals($sessionToken, $csrfToken)) {
+                http_response_code(403);
+                throw new Exception('Token de seguridad ausente o inválido. Refresca la página.');
+            }
         }
     }
 

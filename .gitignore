@@ -45,9 +45,11 @@ test_endpoints.php
 # ARCHIVOS DE CONFIGURACIÓN Y CREDENCIALES
 # ==========================================
 config.php
-config(server).php
+config_local.php
 config(database).php
 config(app).php
-
+config_produccion.php
+config_desarrollo.php
+config_test.php 
 # Archivos misceláneos temporales
 oferta.txt

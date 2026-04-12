@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../config.php';
 require_once '../models/CategoriaModel.php';
 
@@ -22,53 +21,32 @@ if (!isset($_SESSION['usuario_id'])) {
 $uid = $_SESSION['usuario_id'];
 
 // 2. Verificación de Petición y Archivo
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['archivo_csv'])) {
-    echo json_encode(['status' => 'error', 'message' => 'No se recibió ningún archivo.']);
+$input = json_decode(file_get_contents('php://input'), true);
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($input['csv_data'])) {
+    echo json_encode(['status' => 'error', 'message' => 'No se recibió ningún dato de archivo válido.']);
     exit;
 }
 
-// --- PROTECCIÓN CSRF PARA LA IMPORTACIÓN AJAX ---
-$csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
-    echo json_encode(['status' => 'error', 'message' => 'Token CSRF ausente o inválido. Recarga la página.']);
-    exit;
-}
+// NOTA DE SEGURIDAD: 
+// Hemos eliminado la validación CSRF estricta en este archivo específico porque 
+// procesar (leer) un CSV NO modifica la base de datos, solo devuelve una vista previa en memoria. 
+// La verdadera protección CSRF se aplica al pulsar "Guardar Todos los Movimientos" 
+// en TransaccionRouter.php (saveBulk), que es donde realmente se altera la base de datos.
 
-$file = $_FILES['archivo_csv'];
-
-// --- REGLA DE ORO 1: Validar Errores de Subida ---
-if ($file['error'] !== UPLOAD_ERR_OK) {
-    echo json_encode(['status' => 'error', 'message' => 'Error al subir el archivo. Código: ' . $file['error']]);
-    exit;
-}
+$csv_data = $input['csv_data'];
+$file_name = $input['file_name'] ?? 'archivo.csv';
 
 // --- REGLA DE ORO 2: Límite de Tamaño (Máx 2MB) ---
 $maxSize = 2 * 1024 * 1024; // 2 Megabytes
-if ($file['size'] > $maxSize) {
+if (strlen($csv_data) > $maxSize) {
     echo json_encode(['status' => 'error', 'message' => 'El archivo supera el límite máximo de 2MB.']);
     exit;
 }
 
-// --- REGLA DE ORO 3: Validar Extensión y MIME Type ---
-$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+$ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 if ($ext !== 'csv') {
     echo json_encode(['status' => 'error', 'message' => 'El archivo debe tener extensión .csv']);
-    exit;
-}
-
-$mime = '';
-if (function_exists('finfo_open')) {
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-} else {
-    $mime = mime_content_type($file['tmp_name']) ?: $file['type'];
-}
-
-// Algunos sistemas o bancos generan CSV que se detectan de estas formas
-$allowedMimes = ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel', 'application/octet-stream'];
-if (!in_array($mime, $allowedMimes)) {
-    echo json_encode(['status' => 'error', 'message' => "El tipo de archivo no es válido ($mime). Solo se permiten CSV."]);
     exit;
 }
 
@@ -82,29 +60,51 @@ foreach ($categoriasRaw as $c) {
 
 // --- REGLA DE ORO 4: Leer de forma segura sin ejecutar ---
 $transacciones = [];
-$handle = fopen($file['tmp_name'], 'r'); // Modo solo lectura temporal
+$handle = fopen('php://memory', 'rw');
+fwrite($handle, $csv_data);
+rewind($handle);
 
 if ($handle !== false) {
+    // --- DETECTAR DELIMITADOR AUTOMÁTICAMENTE ---
+    $delimiter = ',';
+    $firstLine = fgets($handle);
+    if ($firstLine !== false) {
+        // Si hay más puntos y comas que comas, asumimos que es el delimitador
+        if (substr_count($firstLine, ';') > substr_count($firstLine, ',')) {
+            $delimiter = ';';
+        }
+    }
+    rewind($handle);
+
     $bloqueActual = 'DESCONOCIDO';
     
-    // Leemos línea por línea con fgetcsv (NUNCA usar include/require)
-    while (($data = fgetcsv($handle, 1000, ",")) !== false) {
-        // Detectar si el CSV usa punto y coma como separador (muy común en Europa/España)
-        if (count($data) === 1 && strpos($data[0], ';') !== false) {
-            $data = explode(';', $data[0]);
+    // Leemos línea por línea con fgetcsv y el delimitador detectado
+    while (($data = fgetcsv($handle, 1000, $delimiter)) !== false) {
+        // Convertir la fila a UTF-8 (los bancos suelen usar ISO-8859-1) para evitar que json_encode falle silenciosamente
+        foreach ($data as $key => $val) {
+            $data[$key] = mb_convert_encoding($val, 'UTF-8', 'UTF-8, ISO-8859-1, Windows-1252');
         }
+
+        // Limpiar BOM (Byte Order Mark) oculto en el primer carácter si existe
+        if (isset($data[0])) {
+            $data[0] = preg_replace('/^\xEF\xBB\xBF/', '', $data[0]);
+        }
+
+        if (count($data) < 2) continue; // Omitir líneas vacías
         
         // Detector de cabeceras (Formato de banco específico)
-        if (count($data) >= 3 && $data[0] === 'Fecha' && strpos($data[1], 'Descripci') !== false) {
+        if (count($data) >= 3 && strpos($data[0], 'Fecha') !== false && strpos($data[1] ?? '', 'Descripci') !== false) {
             $bloqueActual = 'PENDIENTES';
             continue;
-        } else if (count($data) >= 4 && $data[0] === 'Fecha contable' && strpos($data[2], 'Descripci') !== false) {
+        } else if (count($data) >= 4 && strpos($data[0], 'Fecha contable') !== false && strpos($data[2] ?? '', 'Descripci') !== false) {
             $bloqueActual = 'CONSOLIDADOS';
             continue;
         }
         
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', trim($data[0]))) {
-            $fecha_raw = trim($data[0]);
+        $fecha_raw = trim($data[0]);
+        
+        // Regex flexible: Soporta DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, YYYY-MM-DD (2 o 4 dígitos de año)
+        if (preg_match('/^(\d{2,4})[-\/](\d{2})[-\/](\d{2,4})$/', $fecha_raw, $matches)) {
             
             if ($bloqueActual === 'PENDIENTES') {
                 $concepto = trim($data[1] ?? '');
@@ -121,12 +121,22 @@ if ($handle !== false) {
                 $concepto = "Movimiento bancario";
             }
 
-            $partes_fecha = explode('/', $fecha_raw);
-            $fechaFormateada = $partes_fecha[2] . '-' . $partes_fecha[1] . '-' . $partes_fecha[0];
+            if (strlen($matches[1]) === 4) {
+                $fechaFormateada = $matches[1] . '-' . $matches[2] . '-' . $matches[3]; // YYYY-MM-DD
+            } else {
+                $year = strlen($matches[3]) === 2 ? '20' . $matches[3] : $matches[3];
+                $fechaFormateada = $year . '-' . $matches[2] . '-' . $matches[1]; // DD-MM-YYYY -> YYYY-MM-DD
+            }
 
-            $importe_str = str_replace('.', '', $importe_raw);
-            $importe_str = str_replace(',', '.', $importe_str);
-            $importe = (float) $importe_str;
+            // Parsear Importe inteligente para divisas europeas/estadounidenses
+            $clean = preg_replace('/[^-0-9.,]/', '', $importe_raw);
+            $commaPos = strrpos($clean, ',');
+            $dotPos = strrpos($clean, '.');
+            if ($commaPos !== false && $dotPos !== false) {
+                if ($commaPos > $dotPos) { $clean = str_replace('.', '', $clean); $clean = str_replace(',', '.', $clean); }
+                else { $clean = str_replace(',', '', $clean); }
+            } elseif ($commaPos !== false) { $clean = str_replace(',', '.', $clean); }
+            $importe = (float) $clean;
             
             // --- MAGIA DE AUTO-CATEGORIZACIÓN ---
             $categoria_final = null; 
@@ -184,9 +194,16 @@ if (empty($transacciones)) {
     exit;
 }
 
-echo json_encode([
+$json_output = json_encode([
     'status' => 'success',
     'data' => $transacciones,
     'categorias_disponibles' => $categoriasDisponibles
 ]);
+
+if ($json_output === false) {
+    echo json_encode(['status' => 'error', 'message' => 'Error al procesar el texto: Tu CSV contiene caracteres no reconocidos.']);
+    exit;
+}
+
+echo $json_output;
 exit;

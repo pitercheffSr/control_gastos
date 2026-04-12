@@ -47,12 +47,25 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
         // Error silencioso para no romper el Dashboard
     }
 }
+
+// Detectar si estamos dentro de un subdirectorio (como /views/) para corregir los enlaces
+$ruta_prefijo = (strpos($_SERVER['SCRIPT_NAME'], '/views/') !== false) ? '../' : '';
 ?><!DOCTYPE html>
 <html lang="es">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Gastos 50/30/20</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <?php if (isset($_SESSION['login_reciente'])): ?>
+        <script>sessionStorage.setItem('sesion_activa', '1');</script>
+        <?php unset($_SESSION['login_reciente']); ?>
+    <?php elseif (isset($_SESSION['usuario_id'])): ?>
+        <script>
+            // Bloquea la función "Continuar donde lo dejaste" de los navegadores cerrando sesión si se reabre la pestaña
+            if (!sessionStorage.getItem('sesion_activa')) { window.location.href = '<?= $ruta_prefijo ?>logout.php'; }
+        </script>
+    <?php endif; ?>
     <style>
         body { padding-top: 4rem; background-color: #f8fafc; }
     </style>
@@ -66,7 +79,7 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
                     <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">
                         <span class="text-indigo-600 font-extrabold text-xl">€</span>
                     </div>
-                    <a href="dashboard.php" class="text-white font-bold text-xl tracking-wide">Control<span class="font-light">Gastos</span></a>
+                    <a href="<?= $ruta_prefijo ?>dashboard.php" class="text-white font-bold text-xl tracking-wide">Control<span class="font-light">Gastos</span></a>
                 </div>
                 <div class="flex items-center gap-3">
                     <?php if (basename($_SERVER['PHP_SELF']) === 'transacciones.php'): ?>
@@ -95,17 +108,17 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
             </button>
         </div>
         <div class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-            <a href="dashboard.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Dashboard</a>
-            <a href="transacciones.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> Movimientos</a>
-            <a href="categorias.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg> Categorías</a>
-            <a href="perfil.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg> Mi Perfil</a>
+            <a href="<?= $ruta_prefijo ?>dashboard.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Dashboard</a>
+            <a href="<?= $ruta_prefijo ?>transacciones.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> Movimientos</a>
+            <a href="<?= $ruta_prefijo ?>categorias.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg> Categorías</a>
+            <a href="<?= $ruta_prefijo ?>perfil.php" class="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition font-medium"><svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg> Mi Perfil</a>
             <?php if (isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] === 'admin'): ?>
             <div class="my-2 border-t border-gray-100"></div>
-            <a href="admin.php" class="flex items-center gap-3 px-4 py-3 text-purple-700 bg-purple-50 rounded-xl hover:bg-purple-100 transition font-bold"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 11-12 0 6 6 0 0112 0zM7 8a3 3 0 116 0 3 3 0 01-6 0z" clip-rule="evenodd" /><path d="M5.468 15.144A9 9 0 0012 18a9 9 0 006.532-2.856A5 5 0 0012 13a5 5 0 00-6.532 2.144z" /></svg> Panel Admin</a>
+            <a href="<?= $ruta_prefijo ?>admin.php" class="flex items-center gap-3 px-4 py-3 text-purple-700 bg-purple-50 rounded-xl hover:bg-purple-100 transition font-bold"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 11-12 0 6 6 0 0112 0zM7 8a3 3 0 116 0 3 3 0 01-6 0z" clip-rule="evenodd" /><path d="M5.468 15.144A9 9 0 0012 18a9 9 0 006.532-2.856A5 5 0 0012 13a5 5 0 00-6.532 2.144z" /></svg> Panel Admin</a>
             <?php endif; ?>
         </div>
         <div class="p-4 border-t border-gray-100 bg-gray-50">
-            <a href="logout.php" class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-bold text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> Cerrar Sesión</a>
+            <a href="<?= $ruta_prefijo ?>logout.php" class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-bold text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> Cerrar Sesión</a>
         </div>
     </aside>
 

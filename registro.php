@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['usuario_nombre'] = $usuario;
                     $_SESSION['usuario_rol'] = 'usuario';
                     $_SESSION['last_activity'] = time();
+                    $_SESSION['login_reciente'] = true; // Marca para forzar el session storage
                 }
                 
                 $registro_exitoso = true;

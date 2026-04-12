@@ -310,23 +310,50 @@ function renderDonutChart(distribucion) {
         return;
     }
 
-    // 1. Procesar datos: obtener nombres, IDs y totales, y filtrar gastos nulos/cero.
-    let dataWithIdsAndNames = distribucion.map(d => ({
-        id: d.categoria_id,
-        nombre: categoriasMap.get(d.categoria_id) || 'Sin Categoría',
-        total: parseFloat(d.total) || 0
-    })).filter(d => d.total > 0);
+    // 1. Procesar datos: Agrupar por la categoría raíz (Regla 50/30/20)
+    let grupos = {};
 
-    // 2. Ordenar y agrupar los más pequeños en "Otros"
-    dataWithIdsAndNames.sort((a, b) => b.total - a.total);
-    const topN = 6; // Mostramos los 6 más grandes
-    let chartData = dataWithIdsAndNames.slice(0, topN);
-    const othersTotal = dataWithIdsAndNames.slice(topN).reduce((sum, item) => sum + item.total, 0);
+    distribucion.forEach(d => {
+        const total = parseFloat(d.total) || 0;
+        if (total <= 0) return;
 
-    if (othersTotal > 0) {
-        // "Otros" no tiene un ID específico, lo marcamos como null.
-        chartData.push({ id: null, nombre: 'Otros', total: othersTotal });
-    }
+        let currentId = d.categoria_id;
+        let rootId = null;
+        let rootName = '';
+        let loop = 0;
+        
+        // Subimos por el árbol de categorías hasta encontrar al padre principal
+        while(currentId && loop < 20) {
+            const cat = categoriasArbol.find(c => c.id == currentId);
+            if (!cat) break;
+            rootId = cat.id;
+            rootName = cat.nombre.toLowerCase();
+            if (!cat.parent_id) break;
+            currentId = cat.parent_id;
+            loop++;
+        }
+
+        let groupName = 'Otros / Sin Clasificar';
+        
+        if (rootName.includes('necesidad') || rootName === 'necesidades') {
+            groupName = 'Necesidades (50%)';
+        } else if (rootName.includes('deseo') || rootName === 'deseos') {
+            groupName = 'Deseos (30%)';
+        } else if (rootName.includes('ahorro') || rootName.includes('inversion') || rootName.includes('inversión')) {
+            groupName = 'Ahorro (20%)';
+        } else if (rootId) {
+            // Si tiene una categoría padre que no es de las 3 principales (poco común)
+            const catReal = categoriasArbol.find(c => c.id == rootId);
+            groupName = catReal ? catReal.nombre : 'Otros';
+        }
+
+        if (!grupos[groupName]) {
+            grupos[groupName] = { id: rootId, nombre: groupName, total: 0 };
+        }
+        grupos[groupName].total += total;
+    });
+
+    let chartData = Object.values(grupos).sort((a, b) => b.total - a.total);
     
     if (chartData.length === 0) {
         container.innerHTML = '<p class="text-gray-400 italic text-center py-10">No hay gastos categorizados en este periodo.</p>';
@@ -337,8 +364,12 @@ function renderDonutChart(distribucion) {
     const data = chartData.map(d => d.total);
 
     // 3. Colores para el gráfico
-    const colors = ['#4f46e5', '#7c3aed', '#db2777', '#f97316', '#eab308', '#22c55e', '#64748b'];
-    const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+    const backgroundColors = labels.map(label => {
+        if (label.includes('Necesidades')) return '#22c55e'; // Verde
+        if (label.includes('Deseos')) return '#a855f7';      // Morado
+        if (label.includes('Ahorro')) return '#4f46e5';      // Indigo
+        return '#94a3b8';                                    // Gris para Otros / Sin clasificar
+    });
 
     // 4. Crear el nuevo gráfico
     const ctx = canvas.getContext('2d');
@@ -381,7 +412,7 @@ function renderDonutChart(distribucion) {
             cutout: '60%',
             plugins: {
                 legend: {
-                    position: 'right',
+                    position: window.innerWidth < 768 ? 'bottom' : 'right',
                     labels: { boxWidth: 12, font: { size: 12 } }
                 },
                 tooltip: {

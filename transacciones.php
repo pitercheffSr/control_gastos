@@ -76,7 +76,7 @@ function renderCategoriaArbolDragDrop($categoriasPorPadre, $parentId = 0, $nivel
     $html .= '</ul>';
     return $html;
 }
-$opcionesCategoriaParaFiltroHtml = '<option value="">Todas</option>' . renderizarOpcionesCategoria($categoriasPorPadre);
+$opcionesCategoriaParaFiltroHtml = '<option value="">Todas</option><option value="unclassified" class="font-bold text-orange-600">⚠️ Sin clasificar</option>' . renderizarOpcionesCategoria($categoriasPorPadre);
 $opcionesCategoriaParaEdicionHtml = '<option value="">-- Por clasificar --</option>' . renderizarOpcionesCategoria($categoriasPorPadre);
 // --- FIN: Lógica para el filtro de categorías ---
 
@@ -186,6 +186,8 @@ include 'includes/header.php';
                         <option value="importe-ASC">Menor importe</option>
                         <option value="descripcion-ASC">Descripción (A-Z)</option>
                         <option value="descripcion-DESC">Descripción (Z-A)</option>
+                        <option value="categoria_nombre-ASC">Categoría (A-Z)</option>
+                        <option value="categoria_nombre-DESC">Categoría (Z-A)</option>
                     </select>
                 </div>
 
@@ -211,7 +213,7 @@ include 'includes/header.php';
                                 </th>
                                 <th data-sort="fecha" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Fecha</th>
                                 <th data-sort="descripcion" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Descripción</th>
-                                <th class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs">Categoría</th>
+                                <th data-sort="categoria_nombre" class="p-4 text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Categoría</th>
                                 <th data-sort="importe" class="p-4 text-right text-gray-500 font-bold tracking-wider uppercase text-xs cursor-pointer hover:bg-gray-100 transition-colors">Importe</th>
                                 <th class="p-4 text-center text-gray-500 font-bold tracking-wider uppercase text-xs">Acciones</th>
                             </tr>
@@ -316,7 +318,7 @@ window.csrf_token = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 // ============================================
 // LÓGICA DE LA TABLA (FILTRADO, PAGINACIÓN, EDICIÓN)
 // ============================================
-const escapeHtml = (unsafe) => unsafe ? unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : '';
+const escapeHtml = (unsafe) => (unsafe == null) ? '' : String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
 const estadoPaginacion = {
     paginaActual: 1,
@@ -967,7 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 estadoOrdenacion.sortOrder = estadoOrdenacion.sortOrder === 'ASC' ? 'DESC' : 'ASC';
             } else {
                 estadoOrdenacion.sortBy = newSortBy;
-                estadoOrdenacion.sortOrder = (newSortBy === 'descripcion') ? 'ASC' : 'DESC';
+                estadoOrdenacion.sortOrder = (newSortBy === 'descripcion' || newSortBy === 'categoria_nombre') ? 'ASC' : 'DESC';
             }
                 // Sincronizar el desplegable visual con el clic en la tabla
                 const selectOrden = document.getElementById('filtroOrden');

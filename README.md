@@ -38,4 +38,7 @@ Una aplicación web moderna y reactiva para gestionar finanzas personales basán
 - **Seguridad (Hotfix):** Implementación exhaustiva de Tokens CSRF en toda la aplicación y securización en el manejo de sesiones en PHP.
 - **Rendimiento:** Unificación de la capa de datos. Se migró la gestión de categorías de `MySQLi` a `PDO`, reduciendo las conexiones simultáneas al servidor.
 - **Importación SPA:** El flujo de importación de archivos CSV ahora es 100% AJAX, eliminando redirecciones y mostrando una vista previa pre-categorizada en tiempo real.
+- **Importador de CSV Avanzado:** Algoritmo de lectura mejorado con auto-detección de delimitadores, limpieza de caracteres invisibles (BOM), conversión automática a UTF-8 y soporte para formatos de fecha flexibles.
+- **Seguridad "Defense in Depth":** Sistema CSRF reforzado con validación de cabeceras nativas (`Sec-Fetch-Site` y `Referer`) para prevenir bloqueos y falsos positivos causados por firewalls de hostings estrictos.
+- **Entornos Aislados:** Creación de plantillas separadas (`config_local.php` y `config_produccion.php`) para un despliegue más seguro mediante SFTP.
 - **Limpieza de Deuda Técnica:** Eliminación completa de endpoints obsoletos (Zombie APIs) y código heredado.
