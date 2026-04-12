@@ -227,7 +227,7 @@ include 'includes/header.php';
             </div>
 
             <!-- Contenedor para la paginación -->
-            <div id="paginacionContenedor" class="flex justify-between items-center mt-6 px-4 py-2"></div>
+            <div id="paginacionContenedor" class="flex justify-between items-center mt-4 px-4 py-2"></div>
         </div>
     </div>
 </div>
@@ -317,13 +317,28 @@ const escapeHtml = (unsafe) => unsafe ? unsafe.replace(/&/g, "&amp;").replace(/<
 
 const estadoPaginacion = {
     paginaActual: 1,
-    limite: 25, // Número de items por página
+    limite: 10, // Número de items por página
     totalItems: 0
 };
 const estadoOrdenacion = {
     sortBy: 'fecha',
     sortOrder: 'DESC'
 };
+
+// Función para mostrar una notificación flotante moderna y no intrusiva
+function mostrarNotificacion(mensaje) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-6 py-3 rounded-xl shadow-2xl font-bold z-50 transition-all duration-300 transform translate-y-10 opacity-0';
+    toast.innerText = mensaje;
+    document.body.appendChild(toast);
+    
+    requestAnimationFrame(() => { toast.classList.remove('translate-y-10', 'opacity-0'); });
+
+    setTimeout(() => {
+        toast.classList.add('translate-y-10', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 
 let seleccionados = new Set(); // Almacena los IDs de las filas seleccionadas
 // La variable `draggedTransactionId` ya no es necesaria si usamos `dataTransfer`
@@ -397,13 +412,17 @@ async function cargarTransacciones() {
         tipo: fTipoGlobal
     });
 
-    tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">Cargando movimientos...</td></tr>';
+    // En lugar de vaciar la tabla y perder la posición de scroll, la difuminamos
+    tbody.style.opacity = '0.5';
+    tbody.style.pointerEvents = 'none';
     
     try {
         console.log('Fetching transactions with params:', params.toString());
         const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}&_=${new Date().getTime()}`); // Añadir cache-buster
         const json = await resp.json();
 
+        tbody.style.opacity = '1';
+        tbody.style.pointerEvents = 'auto';
         tbody.innerHTML = ''; // Limpiar "Cargando..."
 
         if (!json.success) throw new Error(json.error || 'Error en la respuesta del servidor.');
@@ -425,6 +444,8 @@ async function cargarTransacciones() {
         renderTabla(json.data, tbody);
 
     } catch (err) {
+        tbody.style.opacity = '1';
+        tbody.style.pointerEvents = 'auto';
         tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500">Error al cargar: ${err.message}</td></tr>`;
     }
 }
@@ -782,7 +803,8 @@ async function eliminarTransaccion(id) {
         });
         const data = await res.json();
         if (data.success) {
-            cargarTransacciones(); // ¡Actualización dinámica!
+            await cargarTransacciones(); 
+            mostrarNotificacion("¡Hecho! Movimiento eliminado.");
         } else {
             alert("Error al borrar: " + (data.error || "Desconocido"));
         }
@@ -805,7 +827,8 @@ async function eliminarSeleccionados() {
         });
         const data = await res.json();
         if (data.success) {
-            cargarTransacciones(); // Recarga la tabla para ver los cambios
+            await cargarTransacciones(); 
+            mostrarNotificacion("¡Hecho! Movimientos eliminados correctamente.");
         } else {
             alert("Error al borrar: " + (data.error || "Desconocido"));
         }
@@ -833,7 +856,8 @@ async function cambiarCategoriaSeleccionados() {
         });
         const data = await res.json();
         if (data.success) {
-            cargarTransacciones(); // Recarga la tabla para ver los cambios
+            await cargarTransacciones(); 
+            mostrarNotificacion("¡Hecho! Categorías actualizadas correctamente.");
         } else {
             alert("Error al actualizar categorías: " + (data.error || "Desconocido"));
         }
@@ -847,7 +871,7 @@ async function reassignTransactionCategory(transactionId, categoryId) {
         const res = await fetch('controllers/TransaccionRouter.php?action=reassignCategory', {
             method: 'POST',
             body: JSON.stringify({ transactionId, categoryId: categoryId || null }), // categoryId puede ser null para "Por clasificar"
-            headers: { 'Content-Type': 'application/json' } // Eliminado X-CSRF-TOKEN si no está implementado
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
         });
         const data = await res.json();
         if (data.success) {
@@ -855,7 +879,8 @@ async function reassignTransactionCategory(transactionId, categoryId) {
             console.log(`Reassign successful for transaction ${transactionId}, refreshing table.`);
             // Limpiamos el filtro de categoría para asegurar que la transacción reasignada sea visible.
             document.getElementById('filtroCategoria').value = ''; 
-            cargarTransacciones();
+            await cargarTransacciones();
+            mostrarNotificacion("¡Hecho! Categoría reasignada.");
         } else {
             alert("Error al reasignar categoría: " + (data.error || "Desconocido"));
             cargarTransacciones(); // Recarga para revertir cualquier cambio visual optimista
@@ -988,17 +1013,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tr) {
             const transactionData = JSON.parse(tr.dataset.transaction);
             e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/transaction-id', transactionData.id); // Almacenamos el ID en dataTransfer
+            e.dataTransfer.setData('text/plain', transactionData.id.toString()); // Debe ser String y 'text/plain' por compatibilidad
             // Añadimos un pequeño delay para que el navegador "capture" la imagen del elemento antes de hacerlo semitransparente
             setTimeout(() => { tr.classList.add('opacity-40'); }, 0);
         }
     });
 
     tablaMovimientos.addEventListener('dragend', (e) => {
-        const tr = e.target.closest('.fila-movimiento');
-        if (tr) {
-            tr.classList.remove('opacity-40');
-        }
+        // Limpiamos la opacidad de todas las filas para asegurar que vuelvan a su estado normal
+        document.querySelectorAll('.fila-movimiento.opacity-40').forEach(el => el.classList.remove('opacity-40'));
+        // Aprovechamos para limpiar cualquier resaltado residual en las categorías
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     });
 
     dropZone.addEventListener('dragover', (e) => {
@@ -1018,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         e.target.closest('.droppable-category')?.classList.remove('drag-over');
         const categoryId = e.target.closest('.droppable-category')?.dataset.categoryId;
-        const transactionIdToReassign = e.dataTransfer.getData('text/transaction-id'); // Obtenemos el ID de dataTransfer
+        const transactionIdToReassign = e.dataTransfer.getData('text/plain'); // Obtenemos el ID
         if (transactionIdToReassign && categoryId !== undefined) {
             reassignTransactionCategory(transactionIdToReassign, categoryId);
         }

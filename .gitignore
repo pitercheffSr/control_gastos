@@ -41,20 +41,13 @@ test_endpoints.php
 # Keep composer global bins out (no commit)
 /.config/composer/
 
-.vscode/settings.json
-# Archivos de configuración con contraseñas
-config.php  
 # ==========================================
 # ARCHIVOS DE CONFIGURACIÓN Y CREDENCIALES
 # ==========================================
 config.php
-config(server).php
-.vscode/
-.env
 config(server).php
 config(database).php
 config(app).php
 
 # Archivos misceláneos temporales
 oferta.txt
-config.example.php

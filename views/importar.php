@@ -152,7 +152,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('../controllers/TransaccionRouter.php?action=saveBulk', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': window.csrf_token
+                },
                 body: JSON.stringify(transaccionesParaGuardar)
             });
             const result = await response.json();

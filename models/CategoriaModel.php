@@ -7,7 +7,7 @@ class CategoriaModel {
     }
 
     public function getAll($usuario_id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ? OR usuario_id IS NULL ORDER BY parent_id, nombre");
+        $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ? OR usuario_id IS NULL ORDER BY parent_id, orden, nombre");
         $stmt->execute([$usuario_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

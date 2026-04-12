@@ -9,7 +9,7 @@ $padre = $_GET['padre'] ?? null;
 try {
     if ($nivel === 'nivel1') {
         // Categorías raíz (parent_id = NULL)
-        $stmt = $conn->query("SELECT id, nombre FROM categorias WHERE parent_id IS NULL ORDER BY nombre");
+        $stmt = $conn->query("SELECT id, nombre FROM categorias WHERE parent_id IS NULL ORDER BY orden, nombre");
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
     }
@@ -19,7 +19,7 @@ try {
             echo json_encode([]);
             exit;
         }
-        $stmt = $conn->prepare("SELECT id, nombre FROM categorias WHERE parent_id = :p ORDER BY nombre");
+        $stmt = $conn->prepare("SELECT id, nombre FROM categorias WHERE parent_id = :p ORDER BY orden, nombre");
         $stmt->execute(['p' => $padre]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
@@ -30,7 +30,7 @@ try {
             echo json_encode([]);
             exit;
         }
-        $stmt = $conn->prepare("SELECT id, nombre FROM categorias WHERE parent_id = :p ORDER BY nombre");
+        $stmt = $conn->prepare("SELECT id, nombre FROM categorias WHERE parent_id = :p ORDER BY orden, nombre");
         $stmt->execute(['p' => $padre]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;

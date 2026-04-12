@@ -64,8 +64,11 @@ try {
         $endDate = $_GET['endDate'] ?? null;
         $categoryId = $_GET['categoryId'] ?? null;
         $searchText = $_GET['searchText'] ?? null;
+        $sortBy = $_GET['sortBy'] ?? 'fecha';
+        $sortOrder = $_GET['sortOrder'] ?? 'DESC';
+        $tipo = isset($_GET['tipo']) && in_array($_GET['tipo'], ['ingreso', 'gasto']) ? $_GET['tipo'] : null;
 
-        $result = $model->getPaginated($uid, $page, $limit, $startDate, $endDate, $categoryId, $searchText);
+        $result = $model->getPaginated($uid, $page, $limit, $startDate, $endDate, $categoryId, $searchText, $sortBy, $sortOrder, $tipo);
         
         ob_clean();
         // Devolvemos un objeto que incluye tanto los datos como la información de paginación
@@ -82,6 +85,33 @@ try {
             throw new Exception('ID inválido');
         }
     }
+    elseif ($action === 'deleteMultiple') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $ids = $data['ids'] ?? [];
+        
+        if (!empty($ids) && is_array($ids)) {
+            $model->deleteMultiple($ids, $uid);
+            ob_clean();
+            echo json_encode(['success' => true]);
+            exit;
+        } else {
+            throw new Exception('No se proporcionaron IDs válidos.');
+        }
+    }
+    elseif ($action === 'updateCategoryMultiple') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $ids = $data['ids'] ?? [];
+        $categoryId = $data['categoria_id'] ?? null;
+        
+        if (!empty($ids) && is_array($ids)) {
+            $model->updateCategoryMultiple($ids, $categoryId, $uid);
+            ob_clean();
+            echo json_encode(['success' => true]);
+            exit;
+        } else {
+            throw new Exception('No se proporcionaron IDs válidos.');
+        }
+    }
     elseif ($action === 'saveBulk') {
         $data = json_decode(file_get_contents("php://input"), true);
         if (empty($data) || !is_array($data)) {
@@ -91,6 +121,20 @@ try {
         ob_clean();
         echo json_encode(['success' => true, 'inserted' => $result['inserted'], 'skipped' => $result['skipped']]);
         exit;
+    }
+    elseif ($action === 'reassignCategory') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $transactionId = $data['transactionId'] ?? null;
+        $categoryId = $data['categoryId'] ?? null;
+
+        if ($transactionId) {
+            $model->reassignCategory($transactionId, $categoryId, $uid);
+            ob_clean();
+            echo json_encode(['success' => true]);
+            exit;
+        } else {
+            throw new Exception('ID de transacción inválido');
+        }
     }
     else {
         throw new Exception('Acción no reconocida');

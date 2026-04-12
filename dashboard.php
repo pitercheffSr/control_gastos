@@ -257,9 +257,10 @@ async function cargarDashboard() {
     } catch (e) { console.error("Error en KPIs:", e); }
 
     try {
+        const tipoGlobal = document.getElementById('filtroTipoGlobal') ? document.getElementById('filtroTipoGlobal').value : '';
         const containerMovs = document.getElementById('lista-movimientos-recent');
         // Modificado para obtener los 8 últimos movimientos del periodo seleccionado
-        const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&page=1&limit=8&startDate=${fInicio}&endDate=${fFin}`);
+        const resMovs = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&page=1&limit=8&startDate=${fInicio}&endDate=${fFin}&tipo=${tipoGlobal}`);
         const movs = await resMovs.json();
         // El método getPaginated devuelve un objeto con 'data', 'total' y 'totals'
         // Necesitamos acceder a 'data' para obtener las transacciones.
@@ -538,6 +539,11 @@ document.addEventListener('keydown', (e) => {
             mobileMenu.classList.add('hidden');
         }
     }
+});
+
+// Escuchar el cambio del filtro global en el header para recargar el panel
+document.getElementById('filtroTipoGlobal')?.addEventListener('change', () => {
+    cargarDashboard();
 });
 
 document.addEventListener('DOMContentLoaded', () => {
