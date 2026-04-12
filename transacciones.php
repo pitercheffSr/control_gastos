@@ -310,6 +310,9 @@ include 'includes/header.php';
 const opcionesCategoriaHTML = <?= json_encode($opcionesCategoriaParaEdicionHtml) ?>;
 const DIA_INICIO = <?= $dia_inicio ?>;
 
+// Declaración explícita del token CSRF en la ventana global para que JS lo capture
+window.csrf_token = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+
 // ============================================
 // LÓGICA DE LA TABLA (FILTRADO, PAGINACIÓN, EDICIÓN)
 // ============================================

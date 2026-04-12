@@ -43,6 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($registro['id'])) {
                 // Si NO es un administrador creando la cuenta, iniciamos sesión automáticamente
                 if (!isset($_SESSION['usuario_rol']) || $_SESSION['usuario_rol'] !== 'admin') {
+                    // Medida contra Fijación de Sesión (Session Fixation)
+                    session_regenerate_id(true);
+
                     $_SESSION['usuario_id'] = $registro['id'];
                     $_SESSION['usuario_nombre'] = $usuario;
                     $_SESSION['usuario_rol'] = 'usuario';

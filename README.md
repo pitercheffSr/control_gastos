@@ -10,7 +10,7 @@ Una aplicación web moderna y reactiva para gestionar finanzas personales basán
 - **Búsqueda Avanzada:** Buscador en tiempo real con **resaltado visual** (marcador amarillo) de las coincidencias en las descripciones y categorías.
 - **Gestor de Categorías:** Sistema de subcategorías infinitas ordenables mediante *Drag and Drop* (SortableJS).
 - **Importación / Exportación:** Importación inteligente de extractos bancarios en CSV con auto-clasificación basada en descripciones, y exportación de datos respetando los filtros activos.
-- **Privacidad y Seguridad:** Cierre de sesión automático por inactividad y auto-destrucción de cuentas y datos tras 4 meses de antigüedad.
+- **Seguridad de Grado Bancario:** Protección integral contra ataques CSRF mediante tokens dinámicos en llamadas AJAX, prevención de Fijación de Sesión (Session Fixation), cookies seguras (HttpOnly, Strict) y cierre de sesión por inactividad. Destrucción automática de cuentas tras 4 meses.
 
 ## 🚀 Tecnologías Utilizadas
 
@@ -35,7 +35,7 @@ Una aplicación web moderna y reactiva para gestionar finanzas personales basán
 
 ## 🛠️ Últimas Actualizaciones
 
-- **UI:** Migración completa de Spectre.css a TailwindCSS.
-- **Filtros:** Se añadió el selector global de "Tipo de Movimiento" en el menú superior.
-- **UX:** Mejora en el manejo de tablas vacías y adición de *highlights* (marcado visual) en los resultados de búsqueda.
-- **Limpieza:** Eliminación de código espagueti y archivos obsoletos, centralizando el enrutamiento mediante `TransaccionRouter.php` y `CategoriaRouter.php`.
+- **Seguridad (Hotfix):** Implementación exhaustiva de Tokens CSRF en toda la aplicación y securización en el manejo de sesiones en PHP.
+- **Rendimiento:** Unificación de la capa de datos. Se migró la gestión de categorías de `MySQLi` a `PDO`, reduciendo las conexiones simultáneas al servidor.
+- **Importación SPA:** El flujo de importación de archivos CSV ahora es 100% AJAX, eliminando redirecciones y mostrando una vista previa pre-categorizada en tiempo real.
+- **Limpieza de Deuda Técnica:** Eliminación completa de endpoints obsoletos (Zombie APIs) y código heredado.

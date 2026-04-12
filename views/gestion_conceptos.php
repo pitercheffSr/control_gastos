@@ -5,18 +5,15 @@ if (!isset($_SESSION['usuario_id'])) {
     exit;
 }
 include '../includes/header.php';
-include '../includes/conexion.php';
+require_once '../config.php';
 
 $id_usuario = $_SESSION['usuario_id'];
 
 // Obtener categorías generales (id_usuario = 0) y personalizadas
 $sql = "SELECT * FROM categorias WHERE id_usuario = 0 OR id_usuario = ?";
-$stmt = $conexion->prepare($sql);
-$stmt->bind_param("i", $id_usuario);
-$stmt->execute();
-$resultado = $stmt->get_result();
-$categorias = $resultado->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$id_usuario]);
+$categorias = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <style>
@@ -75,11 +72,9 @@ $stmt->close();
                 <?php
                 // Obtener todas las subcategorías del usuario agrupadas por categoría principal
                 $sql_sub = "SELECT s.*, c.nombre as categoria_nombre FROM subcategorias s INNER JOIN categorias c ON s.id_categoria = c.id WHERE s.id_usuario = ? ORDER BY s.id_categoria, s.parent_id, s.nombre";
-                $stmt_sub = $conexion->prepare($sql_sub);
-                $stmt_sub->bind_param("i", $id_usuario);
-                $stmt_sub->execute();
-                $subcategorias = $stmt_sub->get_result()->fetch_all(MYSQLI_ASSOC);
-                $stmt_sub->close();
+                $stmt_sub = $pdo->prepare($sql_sub);
+                $stmt_sub->execute([$id_usuario]);
+                $subcategorias = $stmt_sub->fetchAll(PDO::FETCH_ASSOC);
 
 // Agrupar por categoría y por parent_id
                 $cat_map = [1 => 'Necesidades', 2 => 'Deseos', 3 => 'Ahorro'];
@@ -159,13 +154,14 @@ $stmt->close();
 <?php
 // Obtenemos todas las subcategorías de primer nivel para el filtrado dinámico en JS
 $sql_padres = "SELECT id, nombre, id_categoria FROM subcategorias WHERE parent_id IS NULL AND id_usuario = ?";
-$stmt_padres = $conexion->prepare($sql_padres);
-$stmt_padres->bind_param("i", $id_usuario);
-$stmt_padres->execute();
-$padres_data = $stmt_padres->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt_padres->close();
+$stmt_padres = $pdo->prepare($sql_padres);
+$stmt_padres->execute([$id_usuario]);
+$padres_data = $stmt_padres->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <script>
+// Exponer el token CSRF global para llamadas AJAX
+window.csrf_token = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+
 async function confirmarEliminacion(nombre, itemId, action, itemType = 'elemento') {
     const result = await Swal.fire({
             title: '<span style="color:#d33;font-weight:bold;">¿Eliminar? 🗑️</span>',
@@ -191,6 +187,9 @@ async function confirmarEliminacion(nombre, itemId, action, itemType = 'elemento
 
             const response = await fetch('procesar_categoria.php', {
                 method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': window.csrf_token
+                },
                 body: formData
             });
             const res = await response.json();
@@ -302,6 +301,9 @@ window.addEventListener('DOMContentLoaded', function() {
             try {
                 const response = await fetch('procesar_categoria.php', {
                     method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': window.csrf_token
+                    },
                     body: formData
                 });
                 const result = await response.json();

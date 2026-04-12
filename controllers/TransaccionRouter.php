@@ -16,6 +16,15 @@ try {
     $action = $_GET['action'] ?? '';
     $model = new TransaccionModel($pdo);
 
+    // --- PROTECCIÓN CSRF PARA RUTAS QUE MODIFICAN DATOS ---
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
+            http_response_code(403);
+            throw new Exception('Token CSRF ausente o inválido.');
+        }
+    }
+
     if ($action === 'getAllLimit') {
         echo json_encode($model->getAllLimit($uid, 10));
     }

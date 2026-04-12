@@ -24,6 +24,17 @@ if ($userRole !== 'admin') {
 // --- Fin de la seguridad ---
 
 $action = $_GET['action'] ?? '';
+
+// --- PROTECCIÓN CSRF PARA ACCIONES DE ADMINISTRADOR ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Token CSRF ausente o inválido.']);
+        exit;
+    }
+}
+
 $authController = new AuthController($pdo); // Instanciamos el AuthController
 $model = new AdminModel($pdo);
 

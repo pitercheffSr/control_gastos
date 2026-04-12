@@ -60,6 +60,9 @@ include '../includes/header.php';
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+// Exponer el token CSRF global para usarlo en las llamadas AJAX
+window.csrf_token = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+
 function escapeHtml(unsafe) {
     return unsafe
          .replace(/&/g, "&amp;")
@@ -86,6 +89,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('procesar_importacion.php', {
                 method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': window.csrf_token
+                },
                 body: formData
             });
             const result = await response.json();

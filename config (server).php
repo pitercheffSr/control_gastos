@@ -102,9 +102,24 @@ if (!function_exists('redirect')) {
 // -----------------------------------------------------------------
 // 5. GESTIÓN DE SESIONES Y CIERRE POR INACTIVIDAD
 // -----------------------------------------------------------------
+// Configurar parámetros de cookies de sesión seguros antes de iniciarla
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => true,      // Solo transmitir la cookie sobre HTTPS
+    'httponly' => true,    // Bloquear el acceso a la cookie desde JavaScript
+    'samesite' => 'Strict' // Prevenir envío de cookies en peticiones cruzadas (CSRF)
+]);
+
 // Se asegura de que la sesión esté iniciada en todas las páginas.
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
+
+// Generar un Token CSRF global si no existe para proteger formularios y llamadas AJAX
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // Tiempo máximo de inactividad permitido en segundos (900s = 15 minutos).

@@ -6,6 +6,14 @@ require_once '../models/CategoriaModel.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // 1. Verificación de Sesión
+// Función Helper: Quita mayúsculas y acentos para que las búsquedas no fallen
+function limpiarTexto($texto) {
+    $texto = strtolower(trim($texto));
+    $buscar  = ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ', 'Á', 'É', 'Í', 'Ó', 'Ú', 'Ü', 'Ñ'];
+    $reemplazar = ['a', 'e', 'i', 'o', 'u', 'u', 'n', 'a', 'e', 'i', 'o', 'u', 'u', 'n'];
+    return str_replace($buscar, $reemplazar, $texto);
+}
+
 if (!isset($_SESSION['usuario_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Acceso denegado.']);
     exit;
@@ -16,6 +24,13 @@ $uid = $_SESSION['usuario_id'];
 // 2. Verificación de Petición y Archivo
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['archivo_csv'])) {
     echo json_encode(['status' => 'error', 'message' => 'No se recibió ningún archivo.']);
+    exit;
+}
+
+// --- PROTECCIÓN CSRF PARA LA IMPORTACIÓN AJAX ---
+$csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
+    echo json_encode(['status' => 'error', 'message' => 'Token CSRF ausente o inválido. Recarga la página.']);
     exit;
 }
 
@@ -70,7 +85,7 @@ $transacciones = [];
 $handle = fopen($file['tmp_name'], 'r'); // Modo solo lectura temporal
 
 if ($handle !== false) {
-    $rowCounter = 0;
+    $bloqueActual = 'DESCONOCIDO';
     
     // Leemos línea por línea con fgetcsv (NUNCA usar include/require)
     while (($data = fgetcsv($handle, 1000, ",")) !== false) {
@@ -79,38 +94,85 @@ if ($handle !== false) {
             $data = explode(';', $data[0]);
         }
         
-        $rowCounter++;
-        
-        // Omitir cabeceras si existen (heurística: la primera columna no parece fecha ni número)
-        if ($rowCounter === 1 && !preg_match('/^[0-9]{2,4}[-\/][0-9]{2}/', $data[0]) && !is_numeric($data[0])) {
-            continue; 
+        // Detector de cabeceras (Formato de banco específico)
+        if (count($data) >= 3 && $data[0] === 'Fecha' && strpos($data[1], 'Descripci') !== false) {
+            $bloqueActual = 'PENDIENTES';
+            continue;
+        } else if (count($data) >= 4 && $data[0] === 'Fecha contable' && strpos($data[2], 'Descripci') !== false) {
+            $bloqueActual = 'CONSOLIDADOS';
+            continue;
         }
         
-        // Asumimos un formato estándar bancario básico:
-        // [0] Fecha, [1] Concepto/Descripción, [2] Importe
-        $fechaRaw = trim($data[0] ?? '');
-        $descripcion = trim($data[1] ?? '');
-        $importeRaw = trim($data[2] ?? '');
-        
-        // Si las columnas parecen correctas, las parseamos
-        if (!empty($fechaRaw) && !empty($descripcion) && $importeRaw !== '') {
-            // Formatear Fecha (Soporta DD/MM/YYYY o YYYY-MM-DD)
-            $fechaFormateada = date('Y-m-d', strtotime(str_replace('/', '-', $fechaRaw)));
+        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', trim($data[0]))) {
+            $fecha_raw = trim($data[0]);
             
-            // Parsear Importe con lógica inteligente para divisas europeas/estadounidenses
-            $clean = preg_replace('/[^-0-9.,]/', '', $importeRaw);
-            $commaPos = strrpos($clean, ',');
-            $dotPos = strrpos($clean, '.');
-            if ($commaPos !== false && $dotPos !== false) {
-                if ($commaPos > $dotPos) { $clean = str_replace('.', '', $clean); $clean = str_replace(',', '.', $clean); } // 1.500,25
-                else { $clean = str_replace(',', '', $clean); } // 1,500.25
-            } elseif ($commaPos !== false) { $clean = str_replace(',', '.', $clean); } // 1500,25
+            if ($bloqueActual === 'PENDIENTES') {
+                $concepto = trim($data[1] ?? '');
+                $importe_raw = trim($data[2] ?? '');
+            } else if ($bloqueActual === 'CONSOLIDADOS') {
+                $concepto = trim($data[2] ?? '');
+                $importe_raw = trim($data[3] ?? '');
+            } else {
+                $concepto = trim($data[1] ?? '');
+                $importe_raw = trim($data[2] ?? '');
+            }
+
+            if(empty($concepto)) {
+                $concepto = "Movimiento bancario";
+            }
+
+            $partes_fecha = explode('/', $fecha_raw);
+            $fechaFormateada = $partes_fecha[2] . '-' . $partes_fecha[1] . '-' . $partes_fecha[0];
+
+            $importe_str = str_replace('.', '', $importe_raw);
+            $importe_str = str_replace(',', '.', $importe_str);
+            $importe = (float) $importe_str;
             
+            // --- MAGIA DE AUTO-CATEGORIZACIÓN ---
+            $categoria_final = null; 
+            $conceptoLimpio = limpiarTexto($concepto);
+
+            foreach ($categoriasRaw as $cat) {
+                $nombreCat = $cat['nombre'];
+                $encontrado = false;
+
+                if (preg_match('/\((.*?)\)/', $nombreCat, $coincidencias)) {
+                    $palabrasClave = explode(',', $coincidencias[1]);
+                    
+                    foreach ($palabrasClave as $palabra) {
+                        $palabraLimpia = limpiarTexto($palabra);
+                        if (!empty($palabraLimpia)) {
+                            $patron = '/(^|[^a-z0-9])' . preg_quote($palabraLimpia, '/') . '([^a-z0-9]|$)/i';
+                            if (preg_match($patron, $conceptoLimpio)) {
+                                $encontrado = true;
+                                break; 
+                            }
+                        }
+                    }
+                }
+
+                if (!$encontrado) {
+                    $nombreBase = trim(preg_replace('/\((.*?)\)/', '', $nombreCat));
+                    $nombreBaseLimpio = limpiarTexto($nombreBase);
+                    if (!empty($nombreBaseLimpio)) {
+                        $patron = '/(^|[^a-z0-9])' . preg_quote($nombreBaseLimpio, '/') . '([^a-z0-9]|$)/i';
+                        if (preg_match($patron, $conceptoLimpio)) {
+                            $encontrado = true;
+                        }
+                    }
+                }
+
+                if ($encontrado) {
+                    $categoria_final = $cat['id'];
+                    break;
+                }
+            }
+
             $transacciones[] = [
                 'fecha' => $fechaFormateada,
-                'descripcion' => substr($descripcion, 0, 255), // Límite de seguridad
-                'importe' => (float) $clean,
-                'categoria_id' => null // Pendiente de que el usuario lo clasifique en el front
+                'descripcion' => substr($concepto, 0, 255),
+                'importe' => $importe,
+                'categoria_id' => $categoria_final
             ];
         }
     }

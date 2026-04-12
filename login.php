@@ -36,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $auth->login($email, $password);
 
         if ($user) {
+            // Medida contra Fijación de Sesión (Session Fixation)
+            session_regenerate_id(true);
+
             // ¡Credenciales correctas! Iniciar la sesión.
             $_SESSION['usuario_id'] = $user['id'];
             $_SESSION['usuario_nombre'] = $user['nombre'];
