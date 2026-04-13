@@ -14,6 +14,8 @@ function renderCategoriaSortable($c, $categoriasPorPadre) {
     $esSistema = is_null($c['usuario_id']);
     $id = $c['id'];
     $tieneHijos = isset($categoriasPorPadre[$id]);
+    // Ocultar texto entre paréntesis para la interfaz visual (si queda vacío, usa el original)
+    $nombreVisual = trim(preg_replace('/\s*\(.*?\)/', '', $c['nombre'])) ?: $c['nombre'];
     ?>
     <li data-id="<?= $id ?>" class="list-group-item bg-white rounded-lg shadow-sm border">
         <div class="p-3 flex items-center justify-between group">
@@ -29,7 +31,7 @@ function renderCategoriaSortable($c, $categoriasPorPadre) {
                     </button>
                     <?php endif; ?>
                 </div>
-                <span class="font-bold text-gray-800"><?= htmlspecialchars($c['nombre']) ?></span>
+                <span class="font-bold text-gray-800" title="<?= htmlspecialchars($c['nombre']) ?>"><?= htmlspecialchars($nombreVisual) ?></span>
                 <span class="px-2 py-0.5 <?= $c['tipo_fijo'] === 'ingreso' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?> rounded-md text-xs font-bold uppercase"><?= htmlspecialchars($c['tipo_fijo']) ?></span>
                 <?php if($esSistema): ?>
                     <span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">Sistema</span>
@@ -132,8 +134,10 @@ include 'includes/header.php';
                 <label class="block text-sm font-bold mb-1.5 text-gray-700">Pertenece a (Opcional)</label>
                 <select id="cat_parent" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition bg-white cursor-pointer">
                     <option value="">-- Ninguna (Es categoría principal) --</option>
-                    <?php foreach($todasLasCategorias as $c): ?>
-                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+                    <?php foreach($todasLasCategorias as $c): 
+                        $nombreVisualOpt = trim(preg_replace('/\s*\(.*?\)/', '', $c['nombre'])) ?: $c['nombre'];
+                    ?>
+                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($nombreVisualOpt) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -141,8 +145,10 @@ include 'includes/header.php';
             <div>
                 <label class="block text-sm font-bold mb-1.5 text-gray-700">Tipo Contable</label>
                 <select id="cat_tipo" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition bg-white cursor-pointer">
-                    <option value="gasto">Gasto</option>
-                    <option value="ingreso">Ingreso</option>
+                    <option value="gasto">Gasto (Resta en cuentas y suma en informes)</option>
+                    <option value="ingreso">Ingreso (Suma en cuentas)</option>
+                    <option value="ahorro">Ahorro (Resta en cuenta, suma en Meta 20%)</option>
+                    <option value="puente">Puente / Traspaso (Movimiento invisible)</option>
                 </select>
             </div>
             
@@ -249,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
                 for (const categoryId in data.totals) {
                     const total = data.totals[categoryId];
-                    if (total < 0) {
+                    if (total !== 0) {
                         const el = document.querySelector(`li[data-id="${categoryId}"] .category-total`);
                         if (el) el.textContent = formatter.format(Math.abs(total));
                     }
@@ -335,9 +341,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.getElementById('formCategoria').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const nombreCat = document.getElementById('cat_nombre').value;
     const data = {
         id: document.getElementById('categoria_id').value,
-        nombre: document.getElementById('cat_nombre').value,
+        nombre: nombreCat,
         tipo_fijo: document.getElementById('cat_tipo').value,
         parent_id: document.getElementById('cat_parent').value || null
     };
@@ -348,8 +355,34 @@ document.getElementById('formCategoria').addEventListener('submit', async (e) =>
             headers: {'Content-Type': 'application/json'}
         });
         const result = await res.json();
-        if(result.success) location.reload();
-        else alert("Error: " + (result.error || "Desconocido"));
+        
+        if(result.success) {
+            // Comprobar si el usuario ha introducido reglas entre paréntesis
+            const tieneReglas = /\(.*?\)/.test(nombreCat);
+            
+            if (tieneReglas) {
+                if (confirm(`Has incluido reglas de auto-clasificación (palabras entre paréntesis).\n\n¿Quieres revisar ahora mismo todos tus movimientos "Por clasificar" y aplicarles esta regla automáticamente?`)) {
+                    try {
+                        const resAuto = await fetch('controllers/TransaccionRouter.php?action=autoClassify', {
+                            method: 'POST',
+                            body: JSON.stringify({ ids: [] }),
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const dataAuto = await resAuto.json();
+                        if (dataAuto.success && dataAuto.updated > 0) {
+                            alert(`¡Magia aplicada! ${dataAuto.updated} movimiento(s) ha(n) sido clasificado(s).`);
+                        } else if (dataAuto.success) {
+                            alert(`Reglas revisadas, pero no se encontraron coincidencias en los movimientos sin clasificar.`);
+                        }
+                    } catch (err) {
+                        console.error("Error al auto-clasificar:", err);
+                    }
+                }
+            }
+            location.reload();
+        } else {
+            alert("Error: " + (result.error || "Desconocido"));
+        }
     } catch (err) {
         alert("Error de comunicación.");
     }

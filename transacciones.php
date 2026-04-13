@@ -116,6 +116,10 @@ include 'includes/header.php';
             <p class="text-sm text-gray-500 mt-1">Historial completo de tus finanzas.</p>
         </div>
         <div class="flex items-center gap-4">
+            <button id="btnAutoClasificar" class="bg-purple-600 text-white px-4 py-2.5 rounded-xl shadow-md hover:bg-purple-700 font-bold transition flex items-center gap-2 text-sm" title="Aplica tus reglas para clasificar automáticamente los movimientos sin categoría">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd" /></svg>
+                Auto-Clasificar
+            </button>
             <a href="views/importar.php" class="bg-green-600 text-white px-4 py-2.5 rounded-xl shadow-md hover:bg-green-700 font-bold transition flex items-center gap-2 text-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                 Importar
@@ -241,16 +245,20 @@ include 'includes/header.php';
             <span id="selection-count">0</span> seleccionados
         </div>
         <div class="flex items-center gap-6">
-            <div class="flex items-center gap-2">
+            <button id="btnAutoClasificarSeleccionados" class="bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-lg font-bold text-sm transition flex items-center gap-2 shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd" /></svg>
+                Auto-Clasificar
+            </button>
+            <div class="flex items-center gap-2 border-l border-gray-600 pl-6">
                 <label for="bulk-category-select" class="text-sm font-medium">Cambiar categoría a:</label>
                 <select id="bulk-category-select" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
                     <?php echo $opcionesCategoriaParaEdicionHtml; ?>
                 </select>
                 <button id="btnAplicarCategoria" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-lg font-bold text-sm transition">Aplicar</button>
             </div>
-            <button id="btnEliminarSeleccionados" class="bg-red-600 hover:bg-red-700 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition shadow-md">
+            <button id="btnEliminarSeleccionados" class="bg-red-600 hover:bg-red-700 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition shadow-md ml-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                Eliminar Seleccionados
+                Eliminar
             </button>
         </div>
     </div>
@@ -897,6 +905,32 @@ async function reassignTransactionCategory(transactionId, categoryId) {
     }
 }
 
+async function autoClasificar(ids = []) {
+    const text = ids.length > 0 
+        ? `¿Forzar auto-clasificación en ${ids.length} movimiento(s) seleccionado(s) evaluando de nuevo tus reglas entre paréntesis?`
+        : `¿Aplicar tus reglas automáticamente a todos los movimientos que estén "Por clasificar"?`;
+    
+    if (!confirm(text)) return;
+
+    try {
+        const res = await fetch('controllers/TransaccionRouter.php?action=autoClassify', {
+            method: 'POST',
+            body: JSON.stringify({ ids }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
+        });
+        const data = await res.json();
+        if (data.success) {
+            await cargarTransacciones(); 
+            mostrarNotificacion(`¡Magia aplicada! ${data.updated} movimiento(s) clasificado(s).`);
+        } else {
+            alert("Error al auto-clasificar: " + (data.error || "Desconocido"));
+        }
+    } catch (err) {
+        alert("Error de comunicación al intentar auto-clasificar.");
+    } finally {
+    }
+}
+
 // Event Listeners para los filtros
 document.getElementById('filtroMes').addEventListener('change', aplicarFiltroMes);
 document.getElementById('filtroInicio').addEventListener('change', () => {
@@ -979,6 +1013,10 @@ document.addEventListener('DOMContentLoaded', () => {
             cargarTransacciones();
         });
     });
+
+    // Listeners para los botones mágicos
+    document.getElementById('btnAutoClasificar')?.addEventListener('click', () => autoClasificar([]));
+    document.getElementById('btnAutoClasificarSeleccionados')?.addEventListener('click', () => autoClasificar(Array.from(seleccionados)));
 
     // Listener para el botón de eliminar seleccionados
     document.getElementById('btnEliminarSeleccionados').addEventListener('click', eliminarSeleccionados);

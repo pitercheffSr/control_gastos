@@ -31,7 +31,8 @@ class CategoriaController
 	public function crear(array $data): array
 	{
 		$nombre = trim($data['nombre'] ?? '');
-		$tipo   = $data['tipo'] ?? 'gasto';
+		$tipos_permitidos = ['gasto', 'ingreso', 'ahorro', 'puente'];
+		$tipo   = in_array($data['tipo'] ?? '', $tipos_permitidos) ? $data['tipo'] : 'gasto';
 		$parent = $data['parent_id'] ?? null;
 
 		if ($nombre === '') {
@@ -58,6 +59,7 @@ class CategoriaController
 
 		$id = (int) $data['id'];
 		$parent = $data['parent_id'] ?? null;
+		$tipos_permitidos = ['gasto', 'ingreso', 'ahorro', 'puente'];
 
 		// 🚫 No permitir que una categoría sea padre de sí misma
 		if ($parent !== null && (int)$parent === $id) {
@@ -71,7 +73,7 @@ class CategoriaController
 			$id,
 			[
 				'nombre'    => trim($data['nombre'] ?? ''),
-				'tipo'      => $data['tipo'] ?? 'gasto',
+				'tipo'      => in_array($data['tipo'] ?? '', $tipos_permitidos) ? $data['tipo'] : 'gasto',
 				'parent_id' => $parent,
 			]
 		);
