@@ -5,12 +5,15 @@ require_once __DIR__ . '/../models/CategoriaModel.php';
 class CategoriaController
 {
 	private CategoriaModel $model;
-	private $pdo;
 
 	public function __construct(PDO $pdo)
 	{
 		$this->model = new CategoriaModel($pdo);
-		$this->pdo = $pdo;
+	}
+
+	private function getUserId(): ?int
+	{
+		return isset($_SESSION['usuario_id']) ? (int) $_SESSION['usuario_id'] : null;
 	}
 
 	/* =====================================================
@@ -18,11 +21,12 @@ class CategoriaController
     ===================================================== */
 	public function listar(): array
 	{
-		if (!isset($_SESSION['usuario_id'])) {
+		$uid = $this->getUserId();
+		if (!$uid) {
 			return [];
 		}
 
-		return $this->model->getAll($_SESSION['usuario_id']);
+		return $this->model->getAll($uid);
 	}
 
 	/* =====================================================
@@ -39,11 +43,12 @@ class CategoriaController
 			return ['ok' => false, 'error' => 'Nombre vacío'];
 		}
 
-		if (!isset($_SESSION['usuario_id'])) {
+		$uid = $this->getUserId();
+		if (!$uid) {
 			return ['ok' => false, 'error' => 'Sesión no válida'];
 		}
 
-		$ok = $this->model->create($_SESSION['usuario_id'], $nombre, $tipo, $parent);
+		$ok = $this->model->create($uid, $nombre, $tipo, $parent);
 
 		return ['ok' => $ok];
 	}
@@ -57,7 +62,8 @@ class CategoriaController
 			return ['ok' => false, 'error' => 'ID no proporcionado'];
 		}
 
-		if (!isset($_SESSION['usuario_id'])) {
+		$uid = $this->getUserId();
+		if (!$uid) {
 			return ['ok' => false, 'error' => 'Sesión no válida'];
 		}
 
@@ -75,7 +81,7 @@ class CategoriaController
 			];
 		}
 
-		$ok = $this->model->update($id, $_SESSION['usuario_id'], $nombre, $tipo, $parent);
+		$ok = $this->model->update($id, $uid, $nombre, $tipo, $parent);
 
 		return ['ok' => $ok];
 	}
@@ -89,11 +95,12 @@ class CategoriaController
 			return ['ok' => false, 'error' => 'ID no proporcionado'];
 		}
 
-		if (!isset($_SESSION['usuario_id'])) {
+		$uid = $this->getUserId();
+		if (!$uid) {
 			return ['ok' => false, 'error' => 'Sesión no válida'];
 		}
 
-		$ok = $this->model->delete((int) $data['id'], $_SESSION['usuario_id']);
+		$ok = $this->model->delete((int) $data['id'], $uid);
 		return ['ok' => $ok];
 	}
 
@@ -102,7 +109,8 @@ class CategoriaController
 	   ===================================================================== */
 
 	public function deleteCategoria($data) {
-		if (!isset($_SESSION['usuario_id'])) {
+		$uid = $this->getUserId();
+		if (!$uid) {
 			return ['status' => 'error', 'message' => 'Acceso no autorizado.'];
 		}
 		if (empty($data['id'])) {
@@ -110,11 +118,10 @@ class CategoriaController
 		}
 
 		$id_categoria = (int) $data['id'];
-		$id_usuario   = (int) $_SESSION['usuario_id'];
 
 		try {
 			// Delegamos al modelo, que además gestiona los movimientos huérfanos correctamente
-			$ok = $this->model->delete($id_categoria, $id_usuario);
+			$ok = $this->model->delete($id_categoria, $uid);
 
 			if ($ok) {
 				return ['status' => 'success', 'message' => 'Categoría eliminada con éxito.'];
