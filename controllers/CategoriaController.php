@@ -22,7 +22,7 @@ class CategoriaController
 			return [];
 		}
 
-		return $this->model->listarTodas();
+		return $this->model->getAll($_SESSION['usuario_id']);
 	}
 
 	/* =====================================================
@@ -33,19 +33,19 @@ class CategoriaController
 		$nombre = trim($data['nombre'] ?? '');
 		$tipos_permitidos = ['gasto', 'ingreso', 'ahorro', 'puente'];
 		$tipo   = in_array($data['tipo'] ?? '', $tipos_permitidos) ? $data['tipo'] : 'gasto';
-		$parent = $data['parent_id'] ?? null;
+		$parent = !empty($data['parent_id']) ? $data['parent_id'] : null;
 
 		if ($nombre === '') {
 			return ['ok' => false, 'error' => 'Nombre vacío'];
 		}
 
-		$id = $this->model->crear([
-			'nombre'    => $nombre,
-			'tipo'      => $tipo,
-			'parent_id' => $parent,
-		]);
+		if (!isset($_SESSION['usuario_id'])) {
+			return ['ok' => false, 'error' => 'Sesión no válida'];
+		}
 
-		return ['ok' => true, 'id' => $id];
+		$ok = $this->model->create($_SESSION['usuario_id'], $nombre, $tipo, $parent);
+
+		return ['ok' => $ok];
 	}
 
 	/* =====================================================
@@ -57,9 +57,15 @@ class CategoriaController
 			return ['ok' => false, 'error' => 'ID no proporcionado'];
 		}
 
+		if (!isset($_SESSION['usuario_id'])) {
+			return ['ok' => false, 'error' => 'Sesión no válida'];
+		}
+
 		$id = (int) $data['id'];
-		$parent = $data['parent_id'] ?? null;
+		$nombre = trim($data['nombre'] ?? '');
+		$parent = !empty($data['parent_id']) ? $data['parent_id'] : null;
 		$tipos_permitidos = ['gasto', 'ingreso', 'ahorro', 'puente'];
+		$tipo = in_array($data['tipo'] ?? '', $tipos_permitidos) ? $data['tipo'] : 'gasto';
 
 		// 🚫 No permitir que una categoría sea padre de sí misma
 		if ($parent !== null && (int)$parent === $id) {
@@ -69,14 +75,7 @@ class CategoriaController
 			];
 		}
 
-		$ok = $this->model->editar(
-			$id,
-			[
-				'nombre'    => trim($data['nombre'] ?? ''),
-				'tipo'      => in_array($data['tipo'] ?? '', $tipos_permitidos) ? $data['tipo'] : 'gasto',
-				'parent_id' => $parent,
-			]
-		);
+		$ok = $this->model->update($id, $_SESSION['usuario_id'], $nombre, $tipo, $parent);
 
 		return ['ok' => $ok];
 	}
@@ -90,13 +89,16 @@ class CategoriaController
 			return ['ok' => false, 'error' => 'ID no proporcionado'];
 		}
 
-		$ok = $this->model->eliminarConHijos((int) $data['id']);
+		if (!isset($_SESSION['usuario_id'])) {
+			return ['ok' => false, 'error' => 'Sesión no válida'];
+		}
+
+		$ok = $this->model->delete((int) $data['id'], $_SESSION['usuario_id']);
 		return ['ok' => $ok];
 	}
 
 	/* =====================================================================
 	   MÉTODOS PARA EL ROUTER procesar_categoria.php (Arquitectura Mixta)
-	   Estos métodos contienen lógica que idealmente estaría en el Modelo.
 	   ===================================================================== */
 
 	public function deleteCategoria($data) {
@@ -111,26 +113,16 @@ class CategoriaController
 		$id_usuario   = (int) $_SESSION['usuario_id'];
 
 		try {
-			// La consulta incluye "AND id_usuario = :id_usuario" para seguridad.
-			// Esto previene que un usuario borre categorías por defecto (id_usuario=0)
-			// o categorías de otros usuarios.
-			$stmt = $this->pdo->prepare(
-				'DELETE FROM categorias WHERE id = :id AND id_usuario = :id_usuario'
-			);
-			$stmt->execute(['id' => $id_categoria, 'id_usuario' => $id_usuario]);
+			// Delegamos al modelo, que además gestiona los movimientos huérfanos correctamente
+			$ok = $this->model->delete($id_categoria, $id_usuario);
 
-			if ($stmt->rowCount() > 0) {
+			if ($ok) {
 				return ['status' => 'success', 'message' => 'Categoría eliminada con éxito.'];
 			} else {
 				return ['status' => 'error', 'message' => 'No se pudo eliminar. La categoría es fija o no se encontró.'];
 			}
 
 		} catch (PDOException $e) {
-			// Capturar error de restricción de clave foránea (si tiene subcategorías)
-			if ($e->getCode() == '23000') {
-				 return ['status' => 'error', 'message' => 'No se puede eliminar. La categoría tiene subcategorías o transacciones asociadas.'];
-			}
-			// error_log('Error en deleteCategoria: ' . $e->getMessage());
 			return ['status' => 'error', 'message' => 'Ocurrió un error de base de datos al intentar eliminar.'];
 		}
 	}

@@ -2,14 +2,14 @@
 require_once __DIR__ . '/../models/CategoriaModel.php';
 
 class AuthController {
-    private $db;
+    private $pdo;
 
-    public function __construct($db) {
-        $this->db = $db;
+    public function __construct($pdo) {
+        $this->pdo = $pdo;
     }
 
     public function login($email, $password) {
-        $stmt = $this->db->prepare("SELECT id, nombre, password, rol FROM usuarios WHERE email = ?");
+        $stmt = $this->pdo->prepare("SELECT id, nombre, password, rol FROM usuarios WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -29,31 +29,31 @@ class AuthController {
         $hashRecuperacion = password_hash($codigoRecuperacion, PASSWORD_DEFAULT);
 
         try {
-            $this->db->beginTransaction();
+            $this->pdo->beginTransaction();
 
             // 1. Comprobar si el usuario ya existe
-            $stmtCheck = $this->db->prepare('SELECT id FROM usuarios WHERE email = ?');
+            $stmtCheck = $this->pdo->prepare('SELECT id FROM usuarios WHERE email = ?');
             $stmtCheck->execute([$email]);
             if ($stmtCheck->fetch()) {
                 throw new Exception('Este nombre de usuario ya está en uso.');
             }
 
             // 2. Insertar el nuevo usuario
-            $stmt = $this->db->prepare("INSERT INTO usuarios (nombre, email, password, recovery_hash) VALUES (?, ?, ?, ?)");
+            $stmt = $this->pdo->prepare("INSERT INTO usuarios (nombre, email, password, recovery_hash) VALUES (?, ?, ?, ?)");
             $stmt->execute([$nombre, $email, $hash, $hashRecuperacion]);
-            $nuevo_id = $this->db->lastInsertId();
+            $nuevo_id = $this->pdo->lastInsertId();
 
             // 3. Establecer valores por defecto (día de inicio y fecha de borrado)
             $fechaRegistro = new DateTime();
             $fechaBorrado = (clone $fechaRegistro)->modify('+4 months');
             $fechaBorradoStr = $fechaBorrado->format('Y-m-d H:i:s');
-            $stmtUpdate = $this->db->prepare("UPDATE usuarios SET dia_inicio_mes = 1, fecha_borrado = ? WHERE id = ?");
+            $stmtUpdate = $this->pdo->prepare("UPDATE usuarios SET dia_inicio_mes = 1, fecha_borrado = ? WHERE id = ?");
             $stmtUpdate->execute([$fechaBorradoStr, $nuevo_id]);
 
             // 4. Crear las categorías por defecto para el nuevo usuario llamando a un método privado.
             $this->crearCategoriasPorDefecto($nuevo_id);
 
-            $this->db->commit();
+            $this->pdo->commit();
 
             return [
                 'id' => $nuevo_id,
@@ -61,8 +61,8 @@ class AuthController {
             ];
 
         } catch (Exception $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
             }
             error_log('Error en registro (AuthController): ' . $e->getMessage());
             return ['error' => $e->getMessage()];
@@ -76,7 +76,7 @@ class AuthController {
      * @return bool True si la contraseña es correcta, false en caso contrario.
      */
     public function verifyPasswordForUser(int $userId, string $password): bool {
-        $stmt = $this->db->prepare("SELECT password FROM usuarios WHERE id = ?");
+        $stmt = $this->pdo->prepare("SELECT password FROM usuarios WHERE id = ?");
         $stmt->execute([$userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         return $user && password_verify($password, $user['password']);
@@ -86,13 +86,13 @@ class AuthController {
      * Restablece la contraseña utilizando el código de recuperación.
      */
     public function resetPasswordWithCode(string $email, string $code, string $newPassword): bool {
-        $stmt = $this->db->prepare("SELECT id, recovery_hash FROM usuarios WHERE email = ?");
+        $stmt = $this->pdo->prepare("SELECT id, recovery_hash FROM usuarios WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user && !empty($user['recovery_hash']) && password_verify($code, $user['recovery_hash'])) {
             $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $stmtUpd = $this->db->prepare("UPDATE usuarios SET password = ? WHERE id = ?");
+            $stmtUpd = $this->pdo->prepare("UPDATE usuarios SET password = ? WHERE id = ?");
             return $stmtUpd->execute([$newHash, $user['id']]);
         }
         return false;
@@ -108,7 +108,7 @@ class AuthController {
         $codigoRecuperacion = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
         $hashRecuperacion = password_hash($codigoRecuperacion, PASSWORD_DEFAULT);
 
-        $stmt = $this->db->prepare("UPDATE usuarios SET recovery_hash = ? WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE usuarios SET recovery_hash = ? WHERE id = ?");
         $stmt->execute([$hashRecuperacion, $userId]);
 
         return $codigoRecuperacion;
@@ -121,7 +121,7 @@ class AuthController {
      */
     public function updatePassword(int $userId, string $newPassword): bool {
         $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-        $stmt = $this->db->prepare("UPDATE usuarios SET password = ? WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE usuarios SET password = ? WHERE id = ?");
         return $stmt->execute([$newHash, $userId]);
     }
 
@@ -155,7 +155,7 @@ class AuthController {
         ];
 
         $sql = "INSERT INTO categorias (usuario_id, nombre, parent_id, tipo_fijo) VALUES (:usuario_id, :nombre, :parent_id, :tipo_fijo)";
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->pdo->prepare($sql);
 
         $ids_por_nombre = [];
 
@@ -172,7 +172,7 @@ class AuthController {
             ]);
 
             // Guardamos el ID de la categoría recién creada para usarla como padre de las siguientes.
-            $ids_por_nombre[$nombre] = $this->db->lastInsertId();
+            $ids_por_nombre[$nombre] = $this->pdo->lastInsertId();
         }
     }
 }

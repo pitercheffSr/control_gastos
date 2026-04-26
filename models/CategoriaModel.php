@@ -1,10 +1,7 @@
 <?php
-class CategoriaModel {
-    private $pdo;
+require_once __DIR__ . '/BaseModel.php';
 
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
+class CategoriaModel extends BaseModel {
 
     public function getAll($usuario_id) {
         $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ? OR usuario_id IS NULL ORDER BY parent_id, orden, nombre");
@@ -52,8 +49,7 @@ class CategoriaModel {
     }
 
     public function getTotalsRecursive($usuario_id, $startDate, $endDate) {
-        $stmtCol = $this->pdo->query("SHOW COLUMNS FROM transacciones LIKE 'importe'");
-        $col = ($stmtCol->rowCount() > 0) ? 'importe' : 'monto';
+        $col = $this->getNombreColumnaImporte();
 
         $allCategories = $this->getAll($usuario_id);
         $childrenMap = [];

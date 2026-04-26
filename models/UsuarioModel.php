@@ -1,13 +1,10 @@
 <?php
-class UsuarioModel {
-    private $db;
+require_once __DIR__ . '/BaseModel.php';
 
-    public function __construct($db) {
-        $this->db = $db;
-    }
+class UsuarioModel extends BaseModel {
 
     public function buscarPorEmail($email) {
-        $stmt = $this->db->prepare("SELECT * FROM usuarios WHERE email = ? LIMIT 1");
+        $stmt = $this->pdo->prepare("SELECT * FROM usuarios WHERE email = ? LIMIT 1");
         $stmt->execute([$email]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
@@ -15,9 +12,9 @@ class UsuarioModel {
     public function crear($nombre, $email, $password) {
         // Encriptamos la contraseña de forma segura
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        
+
         $sql = "INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)";
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->pdo->prepare($sql);
         try {
             return $stmt->execute([$nombre, $email, $hash]);
         } catch (PDOException $e) {

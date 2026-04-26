@@ -1,19 +1,11 @@
 <?php
-class DashboardModel {
-    private $pdo;
+require_once __DIR__ . '/BaseModel.php';
 
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
-
-    private function getNombreColumnaImporte() {
-        $stmt = $this->pdo->query("SHOW COLUMNS FROM transacciones LIKE 'importe'");
-        return ($stmt->rowCount() > 0) ? 'importe' : 'monto';
-    }
+class DashboardModel extends BaseModel {
 
     public function getKpis($usuario_id, $fecha_inicio, $fecha_fin) {
         $col = $this->getNombreColumnaImporte();
-        
+
         $stmtIngresos = $this->pdo->prepare("SELECT SUM($col) FROM transacciones WHERE usuario_id = ? AND $col > 0 AND fecha >= ? AND fecha <= ?");
         $stmtIngresos->execute([$usuario_id, $fecha_inicio, $fecha_fin]);
         $ingresos = $stmtIngresos->fetchColumn() ?: 0;
@@ -31,13 +23,13 @@ class DashboardModel {
     public function getDistribucionGastos($usuario_id, $fecha_inicio, $fecha_fin) {
         $col = $this->getNombreColumnaImporte();
         // Agrupamos por el ID real de la categoría
-        $stmt = $this->pdo->prepare(" 
-            SELECT t.categoria_id, SUM(ABS(t.{$col})) as total 
+        $stmt = $this->pdo->prepare("
+            SELECT t.categoria_id, SUM(ABS(t.{$col})) as total
             FROM transacciones t
             LEFT JOIN categorias c ON t.categoria_id = c.id
-            WHERE t.usuario_id = ? 
-              AND t.{$col} < 0 
-              AND t.fecha >= ? 
+            WHERE t.usuario_id = ?
+              AND t.{$col} < 0
+              AND t.fecha >= ?
               AND t.fecha <= ?
               AND COALESCE(c.tipo_fijo, 'gasto') NOT IN ('ahorro', 'puente')
             GROUP BY categoria_id

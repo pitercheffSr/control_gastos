@@ -1,10 +1,7 @@
 <?php
-class AdminModel {
-    private $pdo;
+require_once __DIR__ . '/BaseModel.php';
 
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
+class AdminModel extends BaseModel {
 
     public function getAllUsers() {
         // Traemos a todos los usuarios ordenados desde el más nuevo al más antiguo

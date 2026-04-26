@@ -1,24 +1,15 @@
 <?php
-class TransaccionModel {
-    private $pdo;
+require_once __DIR__ . '/BaseModel.php';
 
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
-
-    // Averiguamos dinámicamente cómo se llama tu columna de dinero en la BD
-    private function getNombreColumnaImporte() {
-        $stmt = $this->pdo->query("SHOW COLUMNS FROM transacciones LIKE 'importe'");
-        return ($stmt->rowCount() > 0) ? 'importe' : 'monto';
-    }
+class TransaccionModel extends BaseModel {
 
     public function getAll($usuario_id, $limit = null) {
         $col = $this->getNombreColumnaImporte();
         $sql = "
-            SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre 
-            FROM transacciones t 
-            LEFT JOIN categorias c ON t.categoria_id = c.id 
-            WHERE t.usuario_id = ? 
+            SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre
+            FROM transacciones t
+            LEFT JOIN categorias c ON t.categoria_id = c.id
+            WHERE t.usuario_id = ?
             ORDER BY t.fecha DESC, t.id DESC
         ";
 
@@ -57,14 +48,14 @@ class TransaccionModel {
         }
         // Sanitize all IDs to be integers to prevent SQL injection
         $ids = array_map('intval', $ids);
-        
+
         // Create placeholders for the IN clause: ?,?,?
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        
+
         $sql = "DELETE FROM transacciones WHERE id IN ({$placeholders}) AND usuario_id = ?";
-        
+
         $stmt = $this->pdo->prepare($sql);
-        
+
         // Bind all the IDs and the user_id at the end
         return $stmt->execute(array_merge($ids, [$usuario_id]));
     }
@@ -75,15 +66,15 @@ class TransaccionModel {
         }
         // Sanitize all IDs to be integers
         $ids = array_map('intval', $ids);
-        
+
         // Create placeholders for the IN clause
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        
+
         // The categoryId can be null, so we handle that.
         $sql = "UPDATE transacciones SET categoria_id = ? WHERE id IN ({$placeholders}) AND usuario_id = ?";
-        
+
         $stmt = $this->pdo->prepare($sql);
-        
+
         return $stmt->execute(array_merge([$categoryId], $ids, [$usuario_id]));
     }
 
@@ -97,9 +88,9 @@ class TransaccionModel {
         $col = $this->getNombreColumnaImporte();
         // 1. Obtener datos básicos de la transacción, incluyendo el tipo (gasto/ingreso)
         $stmt = $this->pdo->prepare("
-            SELECT id, fecha, descripcion, {$col} as importe, categoria_id, 
+            SELECT id, fecha, descripcion, {$col} as importe, categoria_id,
                    IF({$col} < 0, 'gasto', 'ingreso') as tipo
-            FROM transacciones 
+            FROM transacciones
             WHERE id = ? AND usuario_id = ?
         ");
         $stmt->execute([$id, $usuario_id]);
@@ -134,9 +125,9 @@ class TransaccionModel {
 
     public function getSingleTransactionWithCategoryName($id, $usuario_id) {
         $col = $this->getNombreColumnaImporte();
-        $sql = "SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre 
-                FROM transacciones t 
-                LEFT JOIN categorias c ON t.categoria_id = c.id 
+        $sql = "SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre
+                FROM transacciones t
+                LEFT JOIN categorias c ON t.categoria_id = c.id
                 WHERE t.id = ? AND t.usuario_id = ?";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([$id, $usuario_id]);
@@ -206,9 +197,9 @@ class TransaccionModel {
 
         // --- Consulta para obtener TODOS los datos (sin paginación) ---
         $sqlData = "SELECT t.fecha, t.descripcion, c.nombre as categoria_nombre, t.{$col} as importe
-                    FROM transacciones t 
+                    FROM transacciones t
                     LEFT JOIN categorias c ON t.categoria_id = c.id" . $whereSql . $orderBySql;
-        
+
         $stmtData = $this->pdo->prepare($sqlData);
         $stmtData->execute($params);
         return $stmtData->fetchAll(PDO::FETCH_ASSOC);
@@ -262,11 +253,11 @@ class TransaccionModel {
         $whereSql = " WHERE " . implode(' AND ', $whereClauses);
 
         // --- Consulta para obtener agregados (total y sumas) ---
-        $sqlAggregates = "SELECT 
+        $sqlAggregates = "SELECT
                             COUNT(t.id) as total_count,
                             SUM(IF(t.{$col} > 0, t.{$col}, 0)) as total_ingresos,
                             SUM(IF(t.{$col} < 0 AND COALESCE(c.tipo_fijo, 'gasto') NOT IN ('ahorro', 'puente'), t.{$col}, 0)) as total_gastos
-                          FROM transacciones t 
+                          FROM transacciones t
                           LEFT JOIN categorias c ON t.categoria_id = c.id" . $whereSql;
 
         $stmtAggregates = $this->pdo->prepare($sqlAggregates);
@@ -292,17 +283,17 @@ class TransaccionModel {
         if (strtoupper($sortOrder) === 'ASC' || strtoupper($sortOrder) === 'DESC') {
             $orderDirection = strtoupper($sortOrder);
         }
-        
+
         // Un segundo orden para consistencia en caso de valores iguales
         $orderBySql = " ORDER BY {$orderByColumn} {$orderDirection}, t.id DESC";
 
         // --- Consulta para obtener los datos paginados ---
-        $sqlData = "SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre 
-                    FROM transacciones t 
-                    LEFT JOIN categorias c ON t.categoria_id = c.id" . $whereSql . " 
-                    " . $orderBySql . " 
+        $sqlData = "SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre
+                    FROM transacciones t
+                    LEFT JOIN categorias c ON t.categoria_id = c.id" . $whereSql . "
+                    " . $orderBySql . "
                     LIMIT ? OFFSET ?";
-        
+
         $stmtData = $this->pdo->prepare($sqlData);
 
         // Añadimos los parámetros de paginación al final
@@ -329,13 +320,13 @@ class TransaccionModel {
         $this->pdo->beginTransaction();
         try {
             $col = $this->getNombreColumnaImporte();
-            
+
             $sqlCheck = "SELECT id FROM transacciones WHERE usuario_id = ? AND fecha = ? AND descripcion = ? AND {$col} = ?";
             $stmtCheck = $this->pdo->prepare($sqlCheck);
 
             $sqlInsert = "INSERT INTO transacciones (usuario_id, categoria_id, fecha, descripcion, {$col}) VALUES (?, ?, ?, ?, ?)";
             $stmtInsert = $this->pdo->prepare($sqlInsert);
-            
+
             $insertedCount = 0;
             $skippedCount = 0;
 
