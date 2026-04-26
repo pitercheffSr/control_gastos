@@ -25,19 +25,19 @@ if (isset($_SESSION['usuario_id']) && isset($pdo)) {
         if ($userObj && !empty($userObj['fecha_registro'])) {
             $fechaRegistro = new DateTime($userObj['fecha_registro']);
             $fechaActual = new DateTime();
-            
+
             $fechaCaducidad = clone $fechaRegistro;
             $fechaCaducidad->modify('+4 months');
-            
+
             $fecha_borrado_str = $fechaCaducidad->format('d/m/Y');
-            
+
             // Si ya ha pasado la fecha... ¡KABOOM!
             if ($fechaActual >= $fechaCaducidad) {
                 $uid = $_SESSION['usuario_id'];
                 $pdo->prepare("DELETE FROM transacciones WHERE usuario_id = ?")->execute([$uid]);
                 $pdo->prepare("DELETE FROM categorias WHERE usuario_id = ?")->execute([$uid]);
                 $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$uid]);
-                
+
                 session_destroy();
                 header('Location: index.php?expired=1');
                 exit;
@@ -56,7 +56,7 @@ $ruta_prefijo = (strpos($_SERVER['SCRIPT_NAME'], '/views/') !== false) ? '../' :
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Gastos 50/30/20</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <?php if (isset($_SESSION['login_reciente'])): ?>
         <script>sessionStorage.setItem('sesion_activa', '1');</script>
         <?php unset($_SESSION['login_reciente']); ?>
@@ -122,27 +122,5 @@ $ruta_prefijo = (strpos($_SERVER['SCRIPT_NAME'], '/views/') !== false) ? '../' :
         </div>
     </aside>
 
-    <script>
-        const btnToggle = document.getElementById('btnMenuToggle');
-        const btnCerrar = document.getElementById('btnMenuCerrar');
-        const menu = document.getElementById('menuLateral');
-        const overlay = document.getElementById('menuOverlay');
-
-        function abrirMenu() {
-            menu.classList.remove('translate-x-full');
-            overlay.classList.remove('hidden');
-            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
-        }
-        function cerrarMenu() {
-            menu.classList.add('translate-x-full');
-            overlay.classList.add('opacity-0');
-            setTimeout(() => overlay.classList.add('hidden'), 300);
-        }
-
-        btnToggle.addEventListener('click', abrirMenu);
-        btnCerrar.addEventListener('click', cerrarMenu);
-        overlay.addEventListener('click', cerrarMenu);
-        document.addEventListener('keydown', function(event) {
-            if (event.key === "Escape" && !menu.classList.contains('translate-x-full')) cerrarMenu();
-        });
-    </script>
+    <!-- Scripts Globales de Layout -->
+    <script src="<?= $ruta_prefijo ?>assets/js/header.js" defer></script>

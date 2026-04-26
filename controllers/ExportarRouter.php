@@ -5,6 +5,7 @@ require_once __DIR__ . '/../models/TransaccionModel.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 if (!isset($_SESSION['usuario_id'])) {
+    http_response_code(403);
     die("No autorizado");
 }
 
@@ -31,7 +32,7 @@ fputcsv($output, ['Fecha', 'Descripción', 'Categoría', 'Importe'], ';', '"');
 foreach ($transacciones as $t) {
     $catNombre = $t['categoria_nombre'] ?? 'Sin categoría';
     $importe = isset($t['importe']) ? (float)$t['importe'] : 0;
-    
+
     // Formateamos: dd/mm/yyyy y coma para los decimales
     $fechaFmt = date('d/m/Y', strtotime($t['fecha']));
     $importeFmt = number_format($importe, 2, ',', '');

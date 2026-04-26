@@ -15,6 +15,7 @@ class AuthController {
 
         if ($user && password_verify($password, $user['password'])) {
             // Sincronizamos con el nombre de variable que usa el header.php
+            unset($user['password']); // No devolver el hash de la contraseña por seguridad (Clean Code)
             return $user; // Devolvemos el usuario completo para que el script de login lo use
         }
         return false;
@@ -22,7 +23,7 @@ class AuthController {
 
     public function register($nombre, $email, $password) { // El método ahora maneja toda la lógica
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        
+
         // Generar un código de recuperación único de 8 caracteres
         $codigoRecuperacion = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
         $hashRecuperacion = password_hash($codigoRecuperacion, PASSWORD_DEFAULT);
@@ -48,7 +49,7 @@ class AuthController {
             $fechaBorradoStr = $fechaBorrado->format('Y-m-d H:i:s');
             $stmtUpdate = $this->db->prepare("UPDATE usuarios SET dia_inicio_mes = 1, fecha_borrado = ? WHERE id = ?");
             $stmtUpdate->execute([$fechaBorradoStr, $nuevo_id]);
-            
+
             // 4. Crear las categorías por defecto para el nuevo usuario llamando a un método privado.
             $this->crearCategoriasPorDefecto($nuevo_id);
 
@@ -98,7 +99,7 @@ class AuthController {
     }
 
     /**
-     * Genera un nuevo código de recuperación, invalida el anterior en la BD 
+     * Genera un nuevo código de recuperación, invalida el anterior en la BD
      * y devuelve el nuevo código en texto plano para mostrarlo al usuario.
      * @param int $userId El ID del usuario.
      * @return string El nuevo código generado.
@@ -106,10 +107,10 @@ class AuthController {
     public function generateNewRecoveryCode(int $userId): string {
         $codigoRecuperacion = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
         $hashRecuperacion = password_hash($codigoRecuperacion, PASSWORD_DEFAULT);
-        
+
         $stmt = $this->db->prepare("UPDATE usuarios SET recovery_hash = ? WHERE id = ?");
         $stmt->execute([$hashRecuperacion, $userId]);
-        
+
         return $codigoRecuperacion;
     }
 
@@ -162,14 +163,14 @@ class AuthController {
             $nombre = $cat[0];
             $nombre_padre = $cat[1];
             $parent_id = ($nombre_padre !== null) ? ($ids_por_nombre[$nombre_padre] ?? null) : null;
-            
+
             $stmt->execute([
                 ':usuario_id' => $usuario_id,
                 ':nombre' => $nombre,
                 ':parent_id' => $parent_id,
                 ':tipo_fijo' => $cat[2]
             ]);
-            
+
             // Guardamos el ID de la categoría recién creada para usarla como padre de las siguientes.
             $ids_por_nombre[$nombre] = $this->db->lastInsertId();
         }

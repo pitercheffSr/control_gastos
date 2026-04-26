@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['usuario_rol'] = $user['rol']; // Guardamos el rol en la sesión
             $_SESSION['last_activity'] = time();
             $_SESSION['login_reciente'] = true; // Marca para forzar el session storage
-            
+
             redirect('dashboard.php'); // Redirigir al panel principal
         } else {
             $error_message = 'El usuario o la contraseña son incorrectos.';
@@ -61,7 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Iniciar Sesión - Control de Gastos</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <style> body { font-family: 'Inter', sans-serif; background-color: #f8fafc; } </style>
+    <!-- CSS Externo -->
+    <link rel="stylesheet" href="assets/css/auth.css">
 </head>
 <body class="min-h-screen flex items-center justify-center">
     <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-lg">
@@ -69,11 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h1 class="text-3xl font-extrabold text-gray-900">Iniciar Sesión</h1>
             <p class="text-gray-500">Accede a tu panel de FinanzasPro</p>
         </hgroup>
-        
+
         <?php if (!empty($error_message)): ?>
             <div class="p-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert"><?php echo htmlspecialchars($error_message); ?></div>
         <?php endif; ?>
-        
+
         <form method="POST" action="login.php" class="space-y-6" autocomplete="off">
             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1" for="usuario">Nombre de usuario</label>
@@ -99,12 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <p class="text-center text-sm text-gray-600">¿No tienes una cuenta? <a href="registro.php" class="font-medium text-indigo-600 hover:underline">Regístrate aquí</a></p>
     </div>
 
-    <script>
-        function togglePassword(id) {
-            const input = document.getElementById(id);
-            input.type = input.type === 'password' ? 'text' : 'password';
-        }
-    </script>
+    <!-- JS Externo -->
+    <script src="assets/js/auth.js"></script>
 </body>
 </html>
- 
+

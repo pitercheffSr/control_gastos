@@ -71,3 +71,7 @@ Para aprovechar al máximo el sistema:
 2. Crea o edita una categoría y añade palabras clave entre paréntesis en el título. Ejemplo: `Coche (gasolinera, repsol, taller)`.
 3. Importa tu CSV bancario. El sistema leerá automáticamente esas palabras clave y asignará los movimientos a la categoría "Coche".
 4. Puedes darle al botón **Auto-Clasificar** en cualquier momento para aplicar nuevas reglas a movimientos antiguos.
+
+## 📄 Licencia
+
+Este proyecto se distribuye bajo la Licencia MIT. Eres libre de utilizar, modificar y distribuir este código.
