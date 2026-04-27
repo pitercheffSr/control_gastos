@@ -103,5 +103,4 @@ class CategoriaController
 		$ok = $this->model->delete((int) $data['id'], $uid);
 		return ['ok' => $ok];
 	}
-	}
 }

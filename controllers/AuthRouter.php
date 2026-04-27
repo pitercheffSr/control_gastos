@@ -82,6 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['auth_error'] = $registro['error'] ?? 'Hubo un error desconocido en el registro.';
             }
         }
+        } catch (Exception $e) {
+            $_SESSION['auth_error'] = $e->getMessage();
+        }
         header('Location: ../registro.php');
         exit;
     }
