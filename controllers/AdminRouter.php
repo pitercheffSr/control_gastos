@@ -3,37 +3,14 @@ require_once '../config.php';
 require_once '../models/AdminModel.php';
 
 require_once '../controllers/AuthController.php'; // Necesitamos AuthController para verificar la contraseña
+require_once '../middleware/AuthMiddleware.php';
 header('Content-Type: application/json');
 
-// --- Seguridad: Solo para administradores ---
-if (!isset($_SESSION['usuario_id'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'No autenticado.']);
-    exit;
-}
-
-$stmtUser = $pdo->prepare("SELECT rol FROM usuarios WHERE id = ?");
-$stmtUser->execute([$_SESSION['usuario_id']]);
-$userRole = $stmtUser->fetchColumn();
-
-if ($userRole !== 'admin') {
-    http_response_code(403);
-    echo json_encode(['error' => 'Acceso denegado. Se requiere rol de administrador.']);
-    exit;
-}
-// --- Fin de la seguridad ---
+// --- Seguridad: Middleware para administradores ---
+$uid = AuthMiddleware::checkAdmin($pdo);
+AuthMiddleware::checkCSRF();
 
 $action = $_GET['action'] ?? '';
-
-// --- PROTECCIÓN CSRF PARA ACCIONES DE ADMINISTRADOR ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-    if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'Token CSRF ausente o inválido.']);
-        exit;
-    }
-}
 
 $authController = new AuthController($pdo); // Instanciamos el AuthController
 $model = new AdminModel($pdo);
@@ -46,28 +23,25 @@ switch ($action) {
 
     case 'updateUser':
         $input = json_decode(file_get_contents('php://input'), true);
-        $adminPassword = $input['admin_password'] ?? null;
 
-        if (!$authController->verifyPasswordForUser($_SESSION['usuario_id'], $adminPassword)) {
+        // 1. Validamos todos los datos requeridos de una sola vez
+        $validData = AuthMiddleware::validateInput($input, [
+            'admin_password' => 'required',
+            'id' => 'required|numeric',
+            'nombre' => 'required',
+            'email' => 'required|email',
+            'rol' => 'required'
+        ]);
+
+        if (!$authController->verifyPasswordForUser($_SESSION['usuario_id'], $validData['admin_password'])) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Contraseña de administrador incorrecta.']);
             exit;
         }
 
-        $id = $input['id'] ?? null;
-        $nombre = trim($input['nombre'] ?? '');
-        $email = trim($input['email'] ?? '');
-        $rol = trim($input['rol'] ?? '');
-
-        if (!$id || empty($nombre) || empty($email) || empty($rol)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Faltan datos obligatorios.']);
-            exit;
-        }
-
         try {
             $stmt = $pdo->prepare("UPDATE usuarios SET nombre = ?, email = ?, rol = ? WHERE id = ?");
-            if ($stmt->execute([$nombre, $email, $rol, $id])) {
+            if ($stmt->execute([$validData['nombre'], $validData['email'], $validData['rol'], $validData['id']])) {
                 echo json_encode(['success' => true]);
             } else {
                 http_response_code(500);
@@ -81,26 +55,22 @@ switch ($action) {
 
     case 'resetUserPassword':
         $input = json_decode(file_get_contents('php://input'), true);
-        $adminPassword = $input['admin_password'] ?? null;
+
+        $validData = AuthMiddleware::validateInput($input, [
+            'admin_password' => 'required',
+            'id' => 'required|numeric',
+            'new_password' => 'required|min:6'
+        ]);
 
         // Verificamos por seguridad que el administrador es legítimo
-        if (!$authController->verifyPasswordForUser($_SESSION['usuario_id'], $adminPassword)) {
+        if (!$authController->verifyPasswordForUser($_SESSION['usuario_id'], $validData['admin_password'])) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Contraseña de administrador incorrecta.']);
             exit;
         }
 
-        $id = $input['id'] ?? null;
-        $newPassword = $input['new_password'] ?? '';
-
-        if (!$id || strlen($newPassword) < 6) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Datos inválidos o contraseña muy corta.']);
-            exit;
-        }
-
         try {
-            if ($authController->updatePassword($id, $newPassword)) {
+            if ($authController->updatePassword($validData['id'], $validData['new_password'])) {
                 echo json_encode(['success' => true]);
             } else {
                 http_response_code(500);

@@ -1,17 +1,13 @@
 <?php
 require_once '../config.php';
 require_once '../models/DashboardModel.php';
+require_once '../middleware/AuthMiddleware.php';
 
 ob_clean();
 header('Content-Type: application/json');
 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { 
-    echo json_encode(['success' => false, 'error' => 'No autorizado']);
-    exit; 
-}
+$uid = AuthMiddleware::checkAPI();
 
-$uid = $_SESSION['usuario_id'];
 $action = $_GET['action'] ?? '';
 $fInicio = $_GET['fecha_inicio'] ?? null;
 $fFin = $_GET['fecha_fin'] ?? null;

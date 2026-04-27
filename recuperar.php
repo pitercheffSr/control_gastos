@@ -1,6 +1,5 @@
 <?php
 require_once 'config.php';
-require_once 'controllers/AuthController.php';
 
 if (isset($_SESSION['usuario_id'])) {
     redirect('dashboard.php');
@@ -9,28 +8,13 @@ if (isset($_SESSION['usuario_id'])) {
 $error_message = '';
 $success_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $usuario = $_POST['usuario'] ?? '';
-    $codigo = $_POST['codigo'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    if (empty($usuario) || empty($codigo) || empty($password)) {
-        $error_message = 'Todos los campos son obligatorios.';
-    } elseif (strlen($password) < 6) {
-        $error_message = 'La nueva contraseña debe tener al menos 6 caracteres.';
-    } else {
-        $usuario_limpio = strtolower(preg_replace('/\s+/', '', $usuario));
-        $email = $usuario_limpio . '@cgastos.mi';
-        $codigo_limpio = strtoupper(trim($codigo));
-
-        $auth = new AuthController($pdo);
-
-        if ($auth->resetPasswordWithCode($email, $codigo_limpio, $password)) {
-            $success_message = '¡Tu contraseña ha sido actualizada con éxito! Ya puedes iniciar sesión.';
-        } else {
-            $error_message = 'El nombre de usuario o el código de recuperación son incorrectos.';
-        }
-    }
+if (isset($_SESSION['auth_error'])) {
+    $error_message = $_SESSION['auth_error'];
+    unset($_SESSION['auth_error']);
+}
+if (isset($_SESSION['auth_success'])) {
+    $success_message = $_SESSION['auth_success'];
+    unset($_SESSION['auth_success']);
 }
 ?>
 <!DOCTYPE html>
@@ -65,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="recuperar.php" class="space-y-5">
+                <form method="POST" action="controllers/AuthRouter.php?action=recover" class="space-y-5">
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-1">Nombre de Usuario</label>
                         <input type="text" name="usuario" required placeholder="tu_usuario" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">

@@ -7,50 +7,20 @@
 
 // 1. Incluir archivos necesarios
 require_once 'config.php';
-require_once 'controllers/AuthController.php'; // Incluimos el controlador
 
 $error_message = '';
 
 // Comprobar si el usuario fue redirigido por inactividad
 if (isset($_GET['timeout']) && $_GET['timeout'] == 1) {
     $error_message = 'Tu sesión ha expirado por inactividad. Por favor, vuelve a iniciar sesión.';
+} elseif (isset($_SESSION['auth_error'])) {
+    $error_message = $_SESSION['auth_error'];
+    unset($_SESSION['auth_error']); // Limpiamos el error tras leerlo
 }
 
 // 2. Redirigir si el usuario ya ha iniciado sesión
 if (isset($_SESSION['usuario_id'])) {
     redirect('dashboard.php');
-}
-
-// 3. Procesar el formulario cuando se envía
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $usuario = $_POST['usuario'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    if (empty($usuario) || empty($password)) {
-        $error_message = 'Por favor, introduce tu nombre de usuario y contraseña.';
-    } else {
-        $usuario_limpio = strtolower(preg_replace('/\s+/', '', $usuario));
-        $email = $usuario_limpio . '@cgastos.mi';
-
-        $auth = new AuthController($pdo);
-        $user = $auth->login($email, $password);
-
-        if ($user) {
-            // Medida contra Fijación de Sesión (Session Fixation)
-            session_regenerate_id(true);
-
-            // ¡Credenciales correctas! Iniciar la sesión.
-            $_SESSION['usuario_id'] = $user['id'];
-            $_SESSION['usuario_nombre'] = $user['nombre'];
-            $_SESSION['usuario_rol'] = $user['rol']; // Guardamos el rol en la sesión
-            $_SESSION['last_activity'] = time();
-            $_SESSION['login_reciente'] = true; // Marca para forzar el session storage
-
-            redirect('dashboard.php'); // Redirigir al panel principal
-        } else {
-            $error_message = 'El usuario o la contraseña son incorrectos.';
-        }
-    }
 }
 ?>
 <!DOCTYPE html>
@@ -75,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="p-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert"><?php echo htmlspecialchars($error_message); ?></div>
         <?php endif; ?>
 
-        <form method="POST" action="login.php" class="space-y-6" autocomplete="off">
+        <form method="POST" action="controllers/AuthRouter.php?action=login" class="space-y-6" autocomplete="off">
             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1" for="usuario">Nombre de usuario</label>
                 <div class="flex">
@@ -104,4 +74,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="assets/js/auth.js"></script>
 </body>
 </html>
-

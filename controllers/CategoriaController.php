@@ -103,34 +103,5 @@ class CategoriaController
 		$ok = $this->model->delete((int) $data['id'], $uid);
 		return ['ok' => $ok];
 	}
-
-	/* =====================================================================
-	   MÉTODOS PARA EL ROUTER procesar_categoria.php (Arquitectura Mixta)
-	   ===================================================================== */
-
-	public function deleteCategoria($data) {
-		$uid = $this->getUserId();
-		if (!$uid) {
-			return ['status' => 'error', 'message' => 'Acceso no autorizado.'];
-		}
-		if (empty($data['id'])) {
-			return ['status' => 'error', 'message' => 'ID de categoría no proporcionado.'];
-		}
-
-		$id_categoria = (int) $data['id'];
-
-		try {
-			// Delegamos al modelo, que además gestiona los movimientos huérfanos correctamente
-			$ok = $this->model->delete($id_categoria, $uid);
-
-			if ($ok) {
-				return ['status' => 'success', 'message' => 'Categoría eliminada con éxito.'];
-			} else {
-				return ['status' => 'error', 'message' => 'No se pudo eliminar. La categoría es fija o no se encontró.'];
-			}
-
-		} catch (PDOException $e) {
-			return ['status' => 'error', 'message' => 'Ocurrió un error de base de datos al intentar eliminar.'];
-		}
 	}
 }

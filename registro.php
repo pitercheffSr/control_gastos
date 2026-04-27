@@ -1,6 +1,5 @@
 <?php
 require_once 'config.php';
-require_once 'controllers/AuthController.php'; // Incluimos el controlador
 
 // La sesión ya se inicia en config.php
 if (isset($_SESSION['usuario_id'])) {
@@ -15,51 +14,14 @@ $error = '';
 $registro_exitoso = false;
 $codigo_recuperacion = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $usuario_raw = trim($_POST['usuario']);
-    $usuario = preg_replace('/[^a-zA-Z0-9_-]/', '', strtolower($usuario_raw));
-    
-    // --- COMPROBACIÓN ANTI-BOT (CAPTCHA MATEMÁTICO) ---
-    $respuesta_usuario = (int)$_POST['captcha_respuesta'];
-    $respuesta_correcta = (int)$_SESSION['captcha_correcto'];
-
-    if ($respuesta_usuario !== $respuesta_correcta) {
-        $error = 'Seguridad anti-bot fallida. La suma matemática no es correcta.';
-    } elseif (empty($usuario)) {
-        $error = 'Por favor, introduce un nombre de usuario válido.';
-    } else {
-        $email = $usuario . '@cgastos.mi';
-        $password = $_POST['password'];
-        $confirm_password = $_POST['confirm_password'];
-
-        if ($password !== $confirm_password) {
-            $error = 'Las contraseñas no coinciden.';
-        } elseif (strlen($password) < 6) {
-             $error = 'La contraseña debe tener al menos 6 caracteres.';
-        } else {
-            $auth = new AuthController($pdo);
-            $registro = $auth->register($usuario, $email, $password);
-
-            if (isset($registro['id'])) {
-                // Si NO es un administrador creando la cuenta, iniciamos sesión automáticamente
-                if (!isset($_SESSION['usuario_rol']) || $_SESSION['usuario_rol'] !== 'admin') {
-                    // Medida contra Fijación de Sesión (Session Fixation)
-                    session_regenerate_id(true);
-
-                    $_SESSION['usuario_id'] = $registro['id'];
-                    $_SESSION['usuario_nombre'] = $usuario;
-                    $_SESSION['usuario_rol'] = 'usuario';
-                    $_SESSION['last_activity'] = time();
-                    $_SESSION['login_reciente'] = true; // Marca para forzar el session storage
-                }
-                
-                $registro_exitoso = true;
-                $codigo_recuperacion = $registro['recovery_code'];
-            } else {
-                $error = $registro['error'] ?? 'Hubo un error desconocido en el registro.';
-            }
-        }
-    }
+if (isset($_SESSION['auth_error'])) {
+    $error = $_SESSION['auth_error'];
+    unset($_SESSION['auth_error']);
+}
+if (isset($_SESSION['auth_success_code'])) {
+    $registro_exitoso = true;
+    $codigo_recuperacion = $_SESSION['auth_success_code'];
+    unset($_SESSION['auth_success_code']);
 }
 
 // Generamos un nuevo desafío matemático cada vez que carga la página
@@ -87,7 +49,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
 
         <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 border border-gray-100 relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-            
+
             <!-- Aviso de privacidad -->
             <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-6 rounded-r-xl">
                 <div class="flex">
@@ -116,7 +78,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
                         <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     </div>
                     <h3 class="text-2xl font-extrabold text-gray-900">¡Cuenta creada con éxito!</h3>
-                    
+
                     <div class="bg-yellow-50 border-2 border-yellow-400 p-6 rounded-2xl shadow-sm text-left">
                         <p class="text-yellow-800 font-extrabold mb-2 flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> GUARDA ESTE CÓDIGO</p>
                         <p class="text-sm text-yellow-700 mb-4">Como no usamos tu correo personal, esta es la <strong>única forma</strong> de recuperar tu cuenta si olvidas la contraseña.</p>
@@ -136,7 +98,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
                     <?php endif; ?>
                 </div>
             <?php else: ?>
-            <form method="POST" class="space-y-6">
+            <form method="POST" action="controllers/AuthRouter.php?action=register" class="space-y-6">
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">Nombre de Usuario</label>
                     <div class="flex">

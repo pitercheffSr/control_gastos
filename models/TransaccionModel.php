@@ -123,17 +123,6 @@ class TransaccionModel extends BaseModel {
         return $transaccion;
     }
 
-    public function getSingleTransactionWithCategoryName($id, $usuario_id) {
-        $col = $this->getNombreColumnaImporte();
-        $sql = "SELECT t.id, t.fecha, t.descripcion, t.{$col} as importe, t.categoria_id, c.nombre as categoria_nombre
-                FROM transacciones t
-                LEFT JOIN categorias c ON t.categoria_id = c.id
-                WHERE t.id = ? AND t.usuario_id = ?";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$id, $usuario_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-
     public function getAllForExport($usuario_id, $startDate, $endDate, $categoryId, $searchText, $sortBy = 'fecha', $sortOrder = 'DESC', $tipo = null) {
         $col = $this->getNombreColumnaImporte();
 
@@ -349,6 +338,64 @@ class TransaccionModel extends BaseModel {
             $this->pdo->rollBack();
             throw new Exception("Error al guardar las transacciones en lote: " . $e->getMessage());
         }
+    }
+
+    public function autoClassify(array $ids, int $usuario_id, array $categorias): int
+    {
+        if (!empty($ids)) {
+            // Si se envían IDs específicos, reevaluamos esos en concreto
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $sql = "SELECT id, descripcion FROM transacciones WHERE id IN ($placeholders) AND usuario_id = ?";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute(array_merge($ids, [$usuario_id]));
+        } else {
+            // Solo evalúa los que están "Por clasificar"
+            $sql = "SELECT id, descripcion FROM transacciones WHERE categoria_id IS NULL AND usuario_id = ?";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$usuario_id]);
+        }
+
+        $transaccionesToClassify = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $updatedCount = 0;
+
+        $limpiarTexto = function($texto) {
+            $texto = strtolower(trim($texto));
+            $buscar  = ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ', 'Á', 'É', 'Í', 'Ó', 'Ú', 'Ü', 'Ñ'];
+            $reemplazar = ['a', 'e', 'i', 'o', 'u', 'u', 'n', 'a', 'e', 'i', 'o', 'u', 'u', 'n'];
+            return str_replace($buscar, $reemplazar, $texto);
+        };
+
+        $stmtUpdate = $this->pdo->prepare("UPDATE transacciones SET categoria_id = ? WHERE id = ? AND usuario_id = ?");
+
+        foreach ($transaccionesToClassify as $t) {
+            $conceptoLimpio = $limpiarTexto($t['descripcion']);
+            $categoria_final = null;
+
+            foreach ($categorias as $cat) {
+                $nombreCat = $cat['nombre'];
+                $encontrado = false;
+
+                // Buscar por reglas entre paréntesis ej: (mercadona, carrefour)
+                if (preg_match('/\((.*?)\)/', $nombreCat, $coincidencias)) {
+                    $palabrasClave = explode(',', $coincidencias[1]);
+                    foreach ($palabrasClave as $palabra) {
+                        $palabraLimpia = $limpiarTexto($palabra);
+                        if (!empty($palabraLimpia)) {
+                            $patron = '/(^|[^a-z0-9])' . preg_quote($palabraLimpia, '/') . '([^a-z0-9]|$)/i';
+                            if (preg_match($patron, $conceptoLimpio)) { $encontrado = true; break; }
+                        }
+                    }
+                }
+                if (!$encontrado) { // Buscar por el nombre base ej: "Supermercado"
+                    $nombreBaseLimpio = $limpiarTexto(trim(preg_replace('/\((.*?)\)/', '', $nombreCat)));
+                    if (!empty($nombreBaseLimpio) && preg_match('/(^|[^a-z0-9])' . preg_quote($nombreBaseLimpio, '/') . '([^a-z0-9]|$)/i', $conceptoLimpio)) { $encontrado = true; }
+                }
+                if ($encontrado) { $categoria_final = $cat['id']; break; }
+            }
+            if ($categoria_final) { $stmtUpdate->execute([$categoria_final, $t['id'], $usuario_id]); $updatedCount++; }
+        }
+
+        return $updatedCount;
     }
 }
 ?>

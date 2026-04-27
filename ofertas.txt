@@ -1,0 +1,7 @@
+¿Cómo podría usar este nuevo método validateInput en TransaccionRouter.php para limpiar las inserciones y borrados masivos?
+¿Podemos migrar CategoriaRouter.php a este sistema de validación para eliminar los empty()?
+
+--- COMANDOS GIT PARA SUBIR CAMBIOS ---
+git add .
+git commit -m "Mensaje descriptivo de los cambios"
+git push origin main

@@ -7,61 +7,59 @@ header('Content-Type: application/json');
 try {
     require_once '../config.php';
     require_once '../models/CategoriaModel.php';
+    require_once '../middleware/AuthMiddleware.php';
 
-    if (session_status() === PHP_SESSION_NONE) { session_start(); }
-    if (!isset($_SESSION['usuario_id'])) { throw new Exception('No autorizado'); }
+    $uid = AuthMiddleware::checkAPI();
+    AuthMiddleware::checkCSRF();
 
-    $uid = $_SESSION['usuario_id'];
     $action = $_GET['action'] ?? '';
     $model = new CategoriaModel($pdo);
 
     if ($action === 'getAll') {
         echo json_encode($model->getAll($uid));
-    } 
+    }
     elseif ($action === 'save') {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $id = !empty($data['id']) ? $data['id'] : null;
-        $nombre = $data['nombre'] ?? '';
-        $tipo = $data['tipo_fijo'] ?? 'gasto';
-        $parent = !empty($data['parent_id']) ? $data['parent_id'] : null;
+        $input = json_decode(file_get_contents("php://input"), true);
+        $validData = AuthMiddleware::validateInput($input, [
+            'id' => 'numeric', // Opcional para creación
+            'nombre' => 'required',
+            'tipo_fijo' => '', // Solo para extraerlo y limpiarlo
+            'parent_id' => 'numeric' // Opcional
+        ]);
 
-        if ($id) {
-            $model->update($id, $uid, $nombre, $tipo, $parent);
+        $tipo = !empty($validData['tipo_fijo']) ? $validData['tipo_fijo'] : 'gasto';
+
+        if (!empty($validData['id'])) {
+            $model->update($validData['id'], $uid, $validData['nombre'], $tipo, $validData['parent_id']);
         } else {
-            $model->create($uid, $nombre, $tipo, $parent);
+            $model->create($uid, $validData['nombre'], $tipo, $validData['parent_id']);
         }
         echo json_encode(['success' => true]);
     }
     elseif ($action === 'delete') {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $id = $data['id'] ?? null;
-        
-        if ($id) { 
-            $model->delete($id, $uid); 
-            echo json_encode(['success' => true]);
-        } else {
-            throw new Exception('ID de categoría no válido');
-        }
+        $input = json_decode(file_get_contents("php://input"), true);
+        $validData = AuthMiddleware::validateInput($input, ['id' => 'required|numeric']);
+
+        $model->delete($validData['id'], $uid);
+        echo json_encode(['success' => true]);
     }
     elseif ($action === 'updateOrder') {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $movedId = $data['movedId'] ?? null;
-        $newParentId = $data['newParentId'] === '' ? null : ($data['newParentId'] ?? null);
-        $siblingIds = $data['siblingIds'] ?? [];
+        $input = json_decode(file_get_contents("php://input"), true);
+        $validData = AuthMiddleware::validateInput($input, [
+            'movedId' => 'required|numeric',
+            'newParentId' => 'numeric',
+            'siblingIds' => 'required|array'
+        ]);
 
-        if ($movedId && is_array($siblingIds)) {
-            $model->updateOrder($movedId, $newParentId, $siblingIds, $uid);
-            echo json_encode(['success' => true]);
-        } else {
-            throw new Exception('Datos de ordenación inválidos.');
-        }
+        $model->updateOrder($validData['movedId'], $validData['newParentId'], $validData['siblingIds'], $uid);
+        echo json_encode(['success' => true]);
     }
     elseif ($action === 'getTotals') {
         $startDate = $_GET['startDate'] ?? date('Y-m-01');
         $endDate = $_GET['endDate'] ?? date('Y-m-t');
-        
+
         $totals = $model->getTotalsRecursive($uid, $startDate, $endDate);
-        
+
         echo json_encode(['success' => true, 'totals' => $totals]);
     } else {
         throw new Exception('Acción no reconocida');
