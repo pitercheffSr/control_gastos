@@ -49,7 +49,7 @@ if (isset($_SESSION['usuario_id'])) {
             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1" for="usuario">Nombre de usuario</label>
                 <div class="flex">
-                    <input type="text" name="usuario" id="usuario" placeholder="usuario123" required class="w-full px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" pattern="[a-zA-Z0-9_-]+" title="Solo letras, números, guiones y guiones bajos" autocomplete="username">
+                    <input type="text" name="usuario" id="usuario" required class="w-full px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" pattern="[a-zA-Z0-9_\-]+" title="Solo letras, números, guiones y guiones bajos" autocomplete="username" placeholder="usuario123">
                     <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-bold">
                         @cgastos.mi
                     </span>

@@ -1,37 +1,48 @@
 <?php
-require_once '../config.php';
-require_once '../models/DashboardModel.php';
-require_once '../middleware/AuthMiddleware.php';
-
-ob_clean();
+ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
 header('Content-Type: application/json');
 
-$uid = AuthMiddleware::checkAPI();
-
-$action = $_GET['action'] ?? '';
-$fInicio = $_GET['fecha_inicio'] ?? null;
-$fFin = $_GET['fecha_fin'] ?? null;
-
-$model = new DashboardModel($pdo);
-
 try {
+    require_once __DIR__ . '/../config.php';
+    require_once __DIR__ . '/../models/DashboardModel.php';
+    require_once __DIR__ . '/../AuthMiddleware.php';
+
+    $uid = AuthMiddleware::checkAPI();
+
+    $action = $_GET['action'] ?? '';
+    $fInicio = $_GET['fecha_inicio'] ?? null;
+    $fFin = $_GET['fecha_fin'] ?? null;
+
+    $model = new DashboardModel($pdo);
+
     if ($action === 'getKpis') {
-        echo json_encode($model->getKpis($uid, $fInicio, $fFin));
+        $data = $model->getKpis($uid, $fInicio, $fFin);
+        ob_clean();
+        echo json_encode($data);
         exit;
     }
 
     if ($action === 'getDistribucionGastos') {
-        echo json_encode($model->getDistribucionGastos($uid, $fInicio, $fFin));
+        $data = $model->getDistribucionGastos($uid, $fInicio, $fFin);
+        ob_clean();
+        echo json_encode($data);
         exit;
     }
 
     if ($action === 'getHistoricalBalance') {
-        echo json_encode($model->getHistoricalBalance($uid, $fInicio, $fFin));
+        $data = $model->getHistoricalBalance($uid, $fInicio, $fFin);
+        ob_clean();
+        echo json_encode($data);
         exit;
     }
 
+    ob_clean();
     echo json_encode(['success' => false, 'error' => 'Acción no reconocida']);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
+    ob_end_clean();
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
 ?>

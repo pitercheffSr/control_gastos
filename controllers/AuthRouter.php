@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/AuthController.php';
+require_once __DIR__ . '/../AuthMiddleware.php';
 
 $action = $_GET['action'] ?? '';
 $auth = new AuthController($pdo);
@@ -33,8 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $_SESSION['auth_error'] = 'El usuario o la contraseña son incorrectos.';
         }
-        } catch (Exception $e) {
-            $_SESSION['auth_error'] = 'Por favor, introduce tu nombre de usuario y contraseña.';
+        } catch (\Throwable $e) {
+            error_log('Error en AuthRouter (login): ' . $e->getMessage());
+            $_SESSION['auth_error'] = 'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.';
         }
         header('Location: ../login.php');
         exit;
@@ -82,8 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['auth_error'] = $registro['error'] ?? 'Hubo un error desconocido en el registro.';
             }
         }
-        } catch (Exception $e) {
-            $_SESSION['auth_error'] = $e->getMessage();
+        } catch (\Throwable $e) {
+            error_log('Error en AuthRouter (register): ' . $e->getMessage());
+            $_SESSION['auth_error'] = 'Ha ocurrido un error inesperado durante el registro.';
         }
         header('Location: ../registro.php');
         exit;
@@ -91,24 +94,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- 3. RECUPERAR CONTRASEÑA ---
     elseif ($action === 'recover') {
-        $usuario = $_POST['usuario'] ?? '';
-        $codigo = $_POST['codigo'] ?? '';
-        $password = $_POST['password'] ?? '';
+        try {
+            $usuario = $_POST['usuario'] ?? '';
+            $codigo = $_POST['codigo'] ?? '';
+            $password = $_POST['password'] ?? '';
 
-        if (empty($usuario) || empty($codigo) || empty($password)) {
-            $_SESSION['auth_error'] = 'Todos los campos son obligatorios.';
-        } elseif (strlen($password) < 6) {
-            $_SESSION['auth_error'] = 'La nueva contraseña debe tener al menos 6 caracteres.';
-        } else {
-            $usuario_limpio = strtolower(preg_replace('/\s+/', '', $usuario));
-            $email = $usuario_limpio . '@cgastos.mi';
-            $codigo_limpio = strtoupper(trim($codigo));
-
-            if ($auth->resetPasswordWithCode($email, $codigo_limpio, $password)) {
-                $_SESSION['auth_success'] = '¡Tu contraseña ha sido actualizada con éxito! Ya puedes iniciar sesión.';
+            if (empty($usuario) || empty($codigo) || empty($password)) {
+                $_SESSION['auth_error'] = 'Todos los campos son obligatorios.';
+            } elseif (strlen($password) < 6) {
+                $_SESSION['auth_error'] = 'La nueva contraseña debe tener al menos 6 caracteres.';
             } else {
-                $_SESSION['auth_error'] = 'El nombre de usuario o el código de recuperación son incorrectos.';
+                $usuario_limpio = strtolower(preg_replace('/\s+/', '', $usuario));
+                $email = $usuario_limpio . '@cgastos.mi';
+                $codigo_limpio = strtoupper(trim($codigo));
+
+                if ($auth->resetPasswordWithCode($email, $codigo_limpio, $password)) {
+                    $_SESSION['auth_success'] = '¡Tu contraseña ha sido actualizada con éxito! Ya puedes iniciar sesión.';
+                } else {
+                    $_SESSION['auth_error'] = 'El nombre de usuario o el código de recuperación son incorrectos.';
+                }
             }
+        } catch (\Throwable $e) {
+            error_log('Error en AuthRouter (recover): ' . $e->getMessage());
+            $_SESSION['auth_error'] = 'Ha ocurrido un error inesperado al recuperar la contraseña.';
         }
         header('Location: ../recuperar.php');
         exit;

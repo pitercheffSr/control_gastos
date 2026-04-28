@@ -144,11 +144,16 @@ let balanceLineChartInstance = null;
 
 function renderDonutChart(distribucion) {
     const container = document.getElementById('donut-chart-container');
-    const canvas = document.getElementById('gastosDonutChart');
 
-    if (!canvas || typeof Chart === 'undefined') {
+    if (typeof Chart === 'undefined') {
         container.innerHTML = '<p class="text-center text-red-500">Error: Chart.js no está cargado.</p>';
         return;
+    }
+
+    let canvas = document.getElementById('gastosDonutChart');
+    if (!canvas) {
+        container.innerHTML = '<canvas id="gastosDonutChart"></canvas>';
+        canvas = document.getElementById('gastosDonutChart');
     }
 
     if (donutChartInstance) donutChartInstance.destroy();
@@ -333,11 +338,16 @@ async function renderizarBarras(fInicio, fFin, ingresos, gastosTotalesKpi) {
 
 async function renderBalanceLineChart(fInicio, fFin) {
     const container = document.getElementById('balance-chart-container');
-    const canvas = document.getElementById('balanceLineChart');
 
-    if (!canvas || typeof Chart === 'undefined') {
+    if (typeof Chart === 'undefined') {
         container.innerHTML = '<p class="text-center text-red-500">Error: Chart.js no está cargado.</p>';
         return;
+    }
+
+    let canvas = document.getElementById('balanceLineChart');
+    if (!canvas) {
+        container.innerHTML = '<canvas id="balanceLineChart"></canvas>';
+        canvas = document.getElementById('balanceLineChart');
     }
 
     if (balanceLineChartInstance) balanceLineChartInstance.destroy();
@@ -346,7 +356,11 @@ async function renderBalanceLineChart(fInicio, fFin) {
         const res = await fetch(`controllers/DashboardRouter.php?action=getHistoricalBalance&fecha_inicio=${fInicio}&fecha_fin=${fFin}`);
         const data = await res.json();
 
-        if (!data || data.length === 0) {
+        if (data && data.error) {
+            throw new Error(data.error);
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
             container.innerHTML = '<p class="text-gray-400 italic text-center py-10">No hay datos de balance para mostrar en este periodo.</p>';
             return;
         }
@@ -396,7 +410,7 @@ async function renderBalanceLineChart(fInicio, fFin) {
 
     } catch (e) {
         console.error("Error al cargar el gráfico de balance histórico:", e);
-        container.innerHTML = '<p class="text-center text-red-500">Error al cargar el histórico de balance.</p>';
+        container.innerHTML = `<p class="text-center text-red-500">Error al cargar el histórico de balance: ${escapeHtml(e.message)}</p>`;
     }
 }
 

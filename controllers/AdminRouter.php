@@ -3,7 +3,7 @@ require_once '../config.php';
 require_once '../models/AdminModel.php';
 
 require_once '../controllers/AuthController.php'; // Necesitamos AuthController para verificar la contraseña
-require_once '../middleware/AuthMiddleware.php';
+require_once '../AuthMiddleware.php';
 header('Content-Type: application/json');
 
 // --- Seguridad: Middleware para administradores ---

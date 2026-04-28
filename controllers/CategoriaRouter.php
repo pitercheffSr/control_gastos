@@ -7,7 +7,7 @@ header('Content-Type: application/json');
 try {
     require_once '../config.php';
     require_once '../models/CategoriaModel.php';
-    require_once '../middleware/AuthMiddleware.php';
+    require_once '../AuthMiddleware.php';
 
     $uid = AuthMiddleware::checkAPI();
     AuthMiddleware::checkCSRF();

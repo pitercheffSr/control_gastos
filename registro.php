@@ -102,7 +102,7 @@ $_SESSION['captcha_correcto'] = $num1 + $num2;
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">Nombre de Usuario</label>
                     <div class="flex">
-                        <input type="text" name="usuario" required class="w-full px-4 py-3 border border-gray-300 rounded-l-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-gray-800" placeholder="usuario123" pattern="[a-zA-Z0-9_-]+" title="Solo letras, números, guiones y guiones bajos">
+                        <input type="text" name="usuario" required class="w-full px-4 py-3 border border-gray-300 rounded-l-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-gray-800" placeholder="usuario123" pattern="[a-zA-Z0-9_\-]+" title="Solo letras, números, guiones y guiones bajos">
                         <span class="inline-flex items-center px-4 rounded-r-xl border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-bold">
                             @cgastos.mi
                         </span>

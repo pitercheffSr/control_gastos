@@ -8,7 +8,7 @@ try {
     // Usamos __DIR__ para rutas más robustas, independientemente de dónde se llame el script.
     require_once __DIR__ . '/../config.php';
     require_once __DIR__ . '/../models/TransaccionModel.php';
-    require_once __DIR__ . '/../middleware/AuthMiddleware.php';
+    require_once __DIR__ . '/../AuthMiddleware.php';
 
     $uid = AuthMiddleware::checkAPI();
     AuthMiddleware::checkCSRF();
