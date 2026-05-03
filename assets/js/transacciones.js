@@ -87,6 +87,13 @@ async function cargarTransacciones() {
     const fTexto = document.getElementById('filtroTexto').value;
     const fTipoGlobal = document.getElementById('filtroTipoGlobal').value;
 
+    // Mapeo de columnas del frontend (español) al backend (inglés)
+    let sortByAPI = estadoOrdenacion.sortBy;
+    if (sortByAPI === 'fecha') sortByAPI = 'date';
+    if (sortByAPI === 'importe') sortByAPI = 'amount';
+    if (sortByAPI === 'descripcion') sortByAPI = 'description';
+    if (sortByAPI === 'categoria_nombre') sortByAPI = 'category_name';
+
     const params = new URLSearchParams({
         page: estadoPaginacion.paginaActual,
         limit: estadoPaginacion.limite,
@@ -94,9 +101,9 @@ async function cargarTransacciones() {
         endDate: fFin,
         categoryId: fCategoria,
         searchText: fTexto,
-        sortBy: estadoOrdenacion.sortBy,
+        sortBy: sortByAPI,
         sortOrder: estadoOrdenacion.sortOrder,
-        tipo: fTipoGlobal
+        type: fTipoGlobal === 'ingreso' ? 'income' : (fTipoGlobal === 'gasto' ? 'expense' : '')
     });
 
     // En lugar de vaciar la tabla y perder la posición de scroll, la difuminamos
@@ -105,7 +112,7 @@ async function cargarTransacciones() {
 
     try {
         console.log('Fetching transactions with params:', params.toString());
-        const resp = await fetch(`controllers/TransaccionRouter.php?action=getPaginated&${params.toString()}&_=${new Date().getTime()}`); // Añadir cache-buster
+        const resp = await fetch(`controllers/TransactionRouter.php?action=getPaginated&${params.toString()}&_=${new Date().getTime()}`); // Añadir cache-buster
         const json = await resp.json();
 
         tbody.style.opacity = '1';
@@ -342,11 +349,11 @@ function activarEdicionEnFila(tr) {
     const cells = tr.querySelectorAll('td');
     const inputClasses = "w-full p-2 border border-indigo-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none text-sm";
 
-    cells[0].innerHTML = `<input type="date" class="edit-fecha ${inputClasses}" value="${data.fecha}">`;
-    cells[1].innerHTML = `<input type="text" class="edit-descripcion ${inputClasses}" value="${escapeHtml(data.descripcion)}">`;
+    cells[0].innerHTML = `<input type="date" class="edit-fecha ${inputClasses}" value="${data.date}">`;
+    cells[1].innerHTML = `<input type="text" class="edit-descripcion ${inputClasses}" value="${escapeHtml(data.description)}">`;
     cells[2].innerHTML = `<select class="edit-categoria ${inputClasses}">${opcionesCategoriaHTML}</select>`;
-    cells[2].querySelector('select').value = data.categoria_id || "";
-    cells[3].innerHTML = `<input type="number" step="0.01" class="edit-importe ${inputClasses} text-right" value="${data.importe}">`;
+    cells[2].querySelector('select').value = data.category_id || "";
+    cells[3].innerHTML = `<input type="number" step="0.01" class="edit-importe ${inputClasses} text-right" value="${data.amount}">`;
     cells[3].classList.remove('text-red-500', 'text-green-500');
     cells[4].innerHTML = `
         <div class="flex justify-center gap-1">
@@ -368,21 +375,25 @@ function cancelarEdicionEnFila() {
 async function guardarEdicionEnFila(tr) {
     const originalData = JSON.parse(tr.dataset.transaction);
 
+    const amountValue = parseFloat(tr.querySelector('.edit-importe').value);
+    const typeValue = amountValue < 0 ? 'expense' : 'income';
+
     const payload = {
         id: originalData.id,
-        fecha: tr.querySelector('.edit-fecha').value,
-        descripcion: tr.querySelector('.edit-descripcion').value,
-        importe: tr.querySelector('.edit-importe').value,
-        categoria_id: tr.querySelector('.edit-categoria').value || null
+        date: tr.querySelector('.edit-fecha').value,
+        description: tr.querySelector('.edit-descripcion').value,
+        amount: Math.abs(amountValue),
+        type: typeValue,
+        category_id: tr.querySelector('.edit-categoria').value || null
     };
 
-    if (!payload.fecha || !payload.importe || !payload.descripcion) {
+    if (!payload.date || !payload.amount || !payload.description) {
         alert('Fecha, Descripción e Importe no pueden estar vacíos.');
         return;
     }
 
     try {
-        const resp = await fetch(`controllers/TransaccionRouter.php?action=save`, {
+        const resp = await fetch(`controllers/TransactionRouter.php?action=save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token },
             body: JSON.stringify(payload)
@@ -402,8 +413,8 @@ async function guardarEdicionEnFila(tr) {
 
 function generarContenidoHtmlFila(m) {
     const formatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
-    const isGasto = m.importe < 0;
-    const fechaF = new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const isGasto = m.amount < 0;
+    const fechaF = new Date(m.date + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const textoBuscado = document.getElementById('filtroTexto').value.trim();
     const highlight = (text) => {
@@ -420,10 +431,10 @@ function generarContenidoHtmlFila(m) {
             <input type="checkbox" class="row-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer" data-id="${m.id}">
         </td>
         <td class="p-4 text-sm text-gray-500 font-medium">${fechaF}</td>
-        <td class="p-4 font-bold text-gray-800">${highlight(m.descripcion)}</td>
-        <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-bold">${highlight(m.categoria_nombre || 'Por clasificar')}</span></td>
+        <td class="p-4 font-bold text-gray-800">${highlight(m.description)}</td>
+        <td class="p-4"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-bold">${highlight(m.category_name || 'Por clasificar')}</span></td>
         <td class="p-4 text-right font-extrabold ${isGasto ? 'text-red-500' : 'text-green-500'}">
-            ${formatter.format(Math.abs(m.importe))}
+            ${formatter.format(Math.abs(m.amount))}
         </td>
         <td class="p-4 text-center">
             <button onclick="activarEdicionEnFila(this.closest('tr'))" class="text-gray-400 hover:text-indigo-600 mx-1 p-1.5 rounded hover:bg-indigo-50 transition" title="Editar">
@@ -456,7 +467,7 @@ function renderTabla(movimientos, tbody) {
 async function eliminarTransaccion(id) {
     if (!confirm("¿Seguro que quieres borrar este movimiento?")) return;
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=delete', {
+        const res = await fetch('controllers/TransactionRouter.php?action=delete', {
             method: 'POST',
             body: JSON.stringify({ id }),
             headers: {
@@ -483,7 +494,7 @@ async function eliminarSeleccionados() {
     if (!confirm(`¿Seguro que quieres borrar ${ids.length} movimiento(s)? Esta acción no se puede deshacer.`)) return;
 
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=deleteMultiple', {
+        const res = await fetch('controllers/TransactionRouter.php?action=bulkDelete', {
             method: 'POST',
             body: JSON.stringify({ ids }),
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
@@ -512,7 +523,7 @@ async function cambiarCategoriaSeleccionados() {
     if (!confirm(`¿Seguro que quieres cambiar la categoría de ${ids.length} movimiento(s)?`)) return;
 
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=updateCategoryMultiple', {
+        const res = await fetch('controllers/TransactionRouter.php?action=bulkUpdateCategory', {
             method: 'POST',
             body: JSON.stringify({ ids: ids, categoria_id: categoriaId || null }),
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
@@ -531,9 +542,9 @@ async function cambiarCategoriaSeleccionados() {
 
 async function reassignTransactionCategory(transactionId, categoryId) {
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=reassignCategory', {
+        const res = await fetch('controllers/TransactionRouter.php?action=bulkUpdateCategory', {
             method: 'POST',
-            body: JSON.stringify({ transactionId, categoryId: categoryId || null }),
+            body: JSON.stringify({ ids: [transactionId], category_id: categoryId || null }),
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
         });
         const data = await res.json();
@@ -559,7 +570,7 @@ async function autoClasificar(ids = []) {
     if (!confirm(text)) return;
 
     try {
-        const res = await fetch('controllers/TransaccionRouter.php?action=autoClassify', {
+        const res = await fetch('controllers/TransactionRouter.php?action=autoClassify', {
             method: 'POST',
             body: JSON.stringify({ ids }),
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrf_token }
@@ -723,15 +734,21 @@ document.getElementById('btnExportarCSV').addEventListener('click', () => {
     const fTexto = document.getElementById('filtroTexto').value;
     const fTipoGlobal = document.getElementById('filtroTipoGlobal').value;
 
+    let sortByAPI = estadoOrdenacion.sortBy;
+    if (sortByAPI === 'fecha') sortByAPI = 'date';
+    if (sortByAPI === 'importe') sortByAPI = 'amount';
+    if (sortByAPI === 'descripcion') sortByAPI = 'description';
+    if (sortByAPI === 'categoria_nombre') sortByAPI = 'category_name';
+
     const params = new URLSearchParams({
         startDate: fInicio,
         endDate: fFin,
         categoryId: fCategoria,
         searchText: fTexto,
-        sortBy: estadoOrdenacion.sortBy,
+        sortBy: sortByAPI,
         sortOrder: estadoOrdenacion.sortOrder,
-        tipo: fTipoGlobal
+        type: fTipoGlobal === 'ingreso' ? 'income' : (fTipoGlobal === 'gasto' ? 'expense' : '')
     });
 
-    window.location.href = `controllers/ExportarRouter.php?${params.toString()}`;
+    window.location.href = `controllers/ExportRouter.php?${params.toString()}`;
 });

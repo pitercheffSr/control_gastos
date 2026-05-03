@@ -15,9 +15,8 @@ $uData = $stmtUser->fetch();
 $dia_inicio = $uData ? (int)$uData['dia_inicio_mes'] : 1;
 
 // Obtener meses disponibles para el selector
-$stmtMeses = $pdo->prepare("SELECT DISTINCT DATE_FORMAT(fecha, '%Y-%m') as mes_val FROM transacciones WHERE usuario_id = ? ORDER BY mes_val DESC");
-$stmtMeses->execute([$uid]);
-$mesesDisponibles = $stmtMeses->fetchAll(PDO::FETCH_ASSOC);
+$transaccionModel = new TransaccionModel($pdo);
+$mesesDisponibles = $transaccionModel->getMesesDisponibles($uid);
 
 $nombresMeses = [
     '01' => 'Enero', '02' => 'Febrero', '03' => 'Marzo', '04' => 'Abril',

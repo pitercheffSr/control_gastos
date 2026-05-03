@@ -1,31 +1,32 @@
 <?php
 require_once 'config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['usuario_id'])) { header('Location: login.php'); exit; }
+// Ajustamos a la nueva variable de sesión en inglés usada en el AuthMiddleware
+if (!isset($_SESSION['usuario_id']) && !isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
-$uid = $_SESSION['usuario_id'];
+$uid = $_SESSION['user_id'] ?? $_SESSION['usuario_id'];
 
-$stmtUser = $pdo->prepare("SELECT dia_inicio_mes, fecha_borrado FROM usuarios WHERE id = ?");
+$stmtUser = $pdo->prepare("SELECT month_start_day, deletion_date FROM users WHERE id = ?");
 $stmtUser->execute([$uid]);
 $uData = $stmtUser->fetch();
-$dia_inicio = $uData ? (int)$uData['dia_inicio_mes'] : 1;
+$dia_inicio = $uData ? (int)$uData['month_start_day'] : 1;
 
 $fecha_borrado_str = '...';
-if ($uData && !empty($uData['fecha_borrado'])) {
-    $fecha_borrado_str = date('d/m/Y', strtotime($uData['fecha_borrado']));
+if ($uData && !empty($uData['deletion_date'])) {
+    $fecha_borrado_str = date('d/m/Y', strtotime($uData['deletion_date']));
 }
 
 $stmtMeses = $pdo->prepare("
-    SELECT DISTINCT DATE_FORMAT(fecha, '%Y-%m') as mes_val
-    FROM transacciones
-    WHERE usuario_id = ?
+    SELECT DISTINCT DATE_FORMAT(date, '%Y-%m') as mes_val
+    FROM transactions
+    WHERE user_id = ?
     ORDER BY mes_val DESC
 ");
 $stmtMeses->execute([$uid]);
 $mesesDisponibles = $stmtMeses->fetchAll(PDO::FETCH_ASSOC);
 
-// LA SOLUCIÓN ESTÁ AQUÍ: Ahora el panel "ve" tus categorías Y las fijas del sistema (usuario_id IS NULL)
-$stmtCats = $pdo->prepare("SELECT id, nombre, parent_id FROM categorias WHERE usuario_id = ? OR usuario_id IS NULL");
+// LA SOLUCIÓN ESTÁ AQUÍ: Ahora el panel "ve" tus categorías Y las fijas del sistema (user_id IS NULL)
+$stmtCats = $pdo->prepare("SELECT id, name AS nombre, parent_id FROM categories WHERE user_id = ? OR user_id IS NULL");
 $stmtCats->execute([$uid]);
 $categoriasArbol = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
 
